@@ -1,0 +1,64 @@
+import random
+
+from django.db import transaction
+from django.core.management.base import BaseCommand
+
+from infrastructure.models import Attendee, Skill, Location, Table, Team, SkillProficiency
+from infrastructure import factories
+
+NUMBER_OF_ATTENDEES = 500
+NUMBER_OF_SKILLS = 80
+NUMBER_OF_TEAMS = 80
+TEAM_SIZE = 5
+NUMBER_OF_SKILL_PROFICIENCIES = 4
+
+class Command(BaseCommand):
+    help = "Generates test data"
+
+    @transaction.atomic
+    def handle(self, *args, **kwargs):
+        self.stdout.write("Deleting old data...")
+        Attendee.objects.all().delete()
+        Skill.objects.all().delete()
+        Location.objects.all().delete()
+        Table.objects.all().delete()
+        Team.objects.all().delete()
+        SkillProficiency.objects.all().delete()
+
+        self.stdout.write("Creating new data...")
+        attendees = []
+        for _ in range(NUMBER_OF_ATTENDEES):
+            attendee = factories.AttendeeFactory()
+            attendees.append(attendee)
+        skills = []
+        for _ in range(NUMBER_OF_SKILLS):
+            skill = factories.SkillFactory()
+            skills.append(skill)
+        Location.objects.create(
+            room=Location.Room.ATLANTIS
+        )
+        Location.objects.create(
+            room=Location.Room.MAIN_HALL
+        )
+        tables = []
+        for _ in range(NUMBER_OF_TEAMS):
+            table = factories.TableFactory()
+            tables.append(table)
+        reality_kits = []
+        for _ in range(NUMBER_OF_TEAMS):
+            reality_kit = factories.RealityKitFactory()
+            reality_kits.append(reality_kit)
+        attendee_subset_index = 0
+        teams = []
+        for _ in range(NUMBER_OF_TEAMS):
+            team = factories.TeamFactory(
+                attendees=attendees[attendee_subset_index:attendee_subset_index + TEAM_SIZE]
+            )
+            teams.append(team)
+            attendee_subset_index += TEAM_SIZE
+        skill_proficiencies = []
+        for _ in range(NUMBER_OF_ATTENDEES):
+            number_of_skill_proficiencies = random.randint(1, NUMBER_OF_SKILL_PROFICIENCIES)
+            for _ in range(number_of_skill_proficiencies):
+                skill_proficiency = factories.SkillProficiencyFactory()
+                skill_proficiencies.append(skill_proficiency)
