@@ -1,11 +1,11 @@
 from django.contrib.auth.models import Group
 from rest_framework import viewsets
 from rest_framework import permissions
-from infrastructure.serializers import AttendeeSerializer, SkillSerializer, LocationSerializer, TableSerializer, TeamSerializer, RealityKitSerializer, SkillProficiencySerializer, ProjectSerializer, GroupSerializer, MentorRequestSerializer
-from infrastructure.models import Attendee, Skill, Location, Table, Team, RealityKit, SkillProficiency, Project
+from infrastructure.serializers import AttendeeSerializer, SkillSerializer, LocationSerializer, TableSerializer, TeamSerializer, HelpDeskSerializer, SkillProficiencySerializer, ProjectSerializer, GroupSerializer, MentorRequestSerializer
+from infrastructure.models import Attendee, Skill, Location, Table, Team, HelpDesk, SkillProficiency, Project
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from infrastructure.models import RealityKit
+from infrastructure.models import HelpDesk
 
 class AttendeeViewSet(viewsets.ModelViewSet):
     """
@@ -19,7 +19,7 @@ class AttendeeViewSet(viewsets.ModelViewSet):
         skill_proficiencies = SkillProficiency.objects.filter(
             attendee_id=attendee_id
         )
-        return 
+        return skill_proficiencies
 
 
 class SkillViewSet(viewsets.ModelViewSet):
@@ -58,46 +58,46 @@ class TeamViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
 
 
-class RealityKitsViewSet(viewsets.ViewSet):
+class HelpDesksViewSet(viewsets.ViewSet):
     """
     API endpoint that allows Reality Kits to be viewed or edited.
     """
     permission_classes = [permissions.AllowAny]
 
     def list(self, request):
-        queryset = RealityKit.objects.all()
-        reality_kits = []
-        for reality_kit in queryset:
-            reality_kits.append(
+        queryset = HelpDesk.objects.all()
+        help_desks = []
+        for help_desk in queryset:
+            help_desks.append(
                 {
-                    "table": reality_kit.table.number,
-                    "ip_address": reality_kit.ip_address,
-                    "mentor_requested": reality_kit.mentor_requested,
-                    "announcement_pending": reality_kit.announcement_pending
+                    "table": help_desk.table.number,
+                    "ip_address": help_desk.ip_address,
+                    "mentor_requested": help_desk.mentor_requested,
+                    "announcement_pending": help_desk.announcement_pending
                 }
             )
-        serializer = RealityKitSerializer(reality_kits, many=True)
+        serializer = HelpDeskSerializer(help_desks, many=True)
         return Response(serializer.data)
 
     def retrieve(self, request, pk=None):
         import pdb;pdb.set_trace()
 
     def create(self, request):
-        reality_kit_message = request.data
+        help_desk_message = request.data
         # {'table': 1, 'ip_address': '10.198.1.112'}
-        reality_kit_query = RealityKit.objects.filter(table__number=reality_kit_message["table"])
-        if len(reality_kit_query) > 0:
-            reality_kit = reality_kit_query[0]
-            reality_kit.ip_address = reality_kit_message["ip_address"]
-            reality_kit.save()
+        help_desk_query = HelpDesk.objects.filter(table__number=help_desk_message["table"])
+        if len(help_desk_query) > 0:
+            help_desk = help_desk_query[0]
+            help_desk.ip_address = help_desk_message["ip_address"]
+            help_desk.save()
         else:
-            RealityKit.objects.create(
-                table=reality_kit_message["table"],
-                ip_address=reality_kit_message["ip_address"]
+            HelpDesk.objects.create(
+                table=help_desk_message["table"],
+                ip_address=help_desk_message["ip_address"]
             )
-        reality_kit_message["mentor_requested"] = reality_kit.mentor_requested
-        reality_kit_message["announcement_pending"] = reality_kit.announcement_pending
-        return Response(data=reality_kit_message, status=201)
+        help_desk_message["mentor_requested"] = help_desk.mentor_requested
+        help_desk_message["announcement_pending"] = help_desk.announcement_pending
+        return Response(data=help_desk_message, status=201)
 
 
 class MentorRequestViewSet(viewsets.ViewSet):
@@ -107,34 +107,34 @@ class MentorRequestViewSet(viewsets.ViewSet):
     permission_classes = [permissions.AllowAny]
 
     def create(self, request):
-        reality_kit_message = request.data
+        help_desk_message = request.data
         # {'table': 1, 'requested': True}
-        reality_kit_query = RealityKit.objects.filter(table__number=reality_kit_message["table"])
-        if len(reality_kit_query) > 0:
-            reality_kit = reality_kit_query[0]
-            if reality_kit_message.get("mentor_requested"):
-                reality_kit.mentor_requested = True
-                reality_kit.save()
-                return Response(reality_kit_message, status=201)
+        help_desk_query = HelpDesk.objects.filter(table__number=help_desk_message["table"])
+        if len(help_desk_query) > 0:
+            help_desk = help_desk_query[0]
+            if help_desk_message.get("mentor_requested"):
+                help_desk.mentor_requested = True
+                help_desk.save()
+                return Response(help_desk_message, status=201)
             else:
-                reality_kit.mentor_requested = False
-                reality_kit.save()
-                return Response(reality_kit_message, status=204)
+                help_desk.mentor_requested = False
+                help_desk.save()
+                return Response(help_desk_message, status=204)
         else:
             return Response(status=404)
 
     def list(self, request):
-        queryset = RealityKit.objects.filter(mentor_requested=True)
-        reality_kits = []
-        for reality_kit in queryset:
-            reality_kits.append(
+        queryset = HelpDesk.objects.filter(mentor_requested=True)
+        help_desks = []
+        for help_desk in queryset:
+            help_desks.append(
                 {
-                    "table": reality_kit.table.number,
-                    "ip_address": reality_kit.ip_address,
-                    "mentor_requested": reality_kit.mentor_requested
+                    "table": help_desk.table.number,
+                    "ip_address": help_desk.ip_address,
+                    "mentor_requested": help_desk.mentor_requested
                 }
             )
-        serializer = RealityKitSerializer(reality_kits, many=True)
+        serializer = HelpDeskSerializer(help_desks, many=True)
         return Response(serializer.data)
 
 
