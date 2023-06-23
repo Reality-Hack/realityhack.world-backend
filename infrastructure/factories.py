@@ -1,6 +1,6 @@
 import factory
 from factory.django import DjangoModelFactory
-from faker import Faker
+import factory.fuzzy
 
 from infrastructure import models
 
@@ -11,10 +11,11 @@ class AttendeeFactory(DjangoModelFactory):
 
     first_name = factory.Faker("first_name")
     last_name = factory.Faker("last_name")
+    bio = factory.fuzzy.FuzzyText(length=1000)
     email = factory.Faker("email")
     username = factory.Faker("user_name")
     roles = factory.Faker(
-        'random_element', elements=[x[0] for x in models.ROLES]
+        'random_element', elements=[x[0] for x in models.Attendee.ROLES]
     )
 
 
@@ -48,7 +49,9 @@ class ProjectFactory(DjangoModelFactory):
     class Meta:
         model = models.Project
 
-    location = factory.Faker("url")
+    name = factory.Faker("company")
+    repository_location = factory.Faker("url")
+    submission_location = factory.Faker("url")
 
 
 class SkillProficiencyFactory(DjangoModelFactory):
@@ -77,3 +80,21 @@ class TeamFactory(DjangoModelFactory):
         if extracted:
             for attendee in extracted:
                 self.attendees.add(attendee)
+
+
+class HardwareFactory(DjangoModelFactory):
+    class Meta:
+        model = models.Hardware
+
+    name = factory.Faker("company")
+    description = factory.fuzzy.FuzzyText(length=100)
+    image = factory.Faker("url")
+
+
+class HardwareDeviceFactory(DjangoModelFactory):
+    class Meta:
+        model = models.HardwareDevice
+
+    hardware = factory.Iterator(models.Hardware.objects.all())
+    serial = factory.fuzzy.FuzzyText(length=50)
+    checked_out_to = factory.Iterator(models.Attendee.objects.all())

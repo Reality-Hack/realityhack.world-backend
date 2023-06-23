@@ -3,7 +3,7 @@ import random
 from django.db import transaction
 from django.core.management.base import BaseCommand
 
-from infrastructure.models import Attendee, Skill, Location, Table, Team, SkillProficiency
+from infrastructure.models import Attendee, Skill, Location, Table, Team, SkillProficiency, HelpDesk, Hardware, HardwareDevice
 from infrastructure import factories
 
 NUMBER_OF_ATTENDEES = 500
@@ -11,6 +11,8 @@ NUMBER_OF_SKILLS = 80
 NUMBER_OF_TEAMS = 80
 TEAM_SIZE = 5
 NUMBER_OF_SKILL_PROFICIENCIES = 4
+NUMBER_OF_HARDWARE_TYPES = 10
+NUMBER_OF_HARDWARE_DEVICES = 25
 
 class Command(BaseCommand):
     help = "Generates test data"
@@ -24,6 +26,9 @@ class Command(BaseCommand):
         Table.objects.all().delete()
         Team.objects.all().delete()
         SkillProficiency.objects.all().delete()
+        HelpDesk.objects.all().delete()
+        Hardware.objects.all().delete()
+        HardwareDevice.objects.all().delete()
 
         self.stdout.write("Creating new data...")
         attendees = []
@@ -34,20 +39,17 @@ class Command(BaseCommand):
         for _ in range(NUMBER_OF_SKILLS):
             skill = factories.SkillFactory()
             skills.append(skill)
-        Location.objects.create(
-            room=Location.Room.ATLANTIS
-        )
-        Location.objects.create(
-            room=Location.Room.MAIN_HALL
+        Location.objects.create(room=Location.Room.ATLANTIS)
+        Location.objects.create(room=Location.Room.MAIN_HALL
         )
         tables = []
         for _ in range(NUMBER_OF_TEAMS):
             table = factories.TableFactory()
             tables.append(table)
-        reality_kits = []
+        help_desks = []
         for _ in range(NUMBER_OF_TEAMS):
-            reality_kit = factories.RealityKitFactory()
-            reality_kits.append(reality_kit)
+            help_desk = factories.HelpDeskFactory()
+            help_desks.append(help_desk)
         attendee_subset_index = 0
         teams = []
         for _ in range(NUMBER_OF_TEAMS):
@@ -62,3 +64,11 @@ class Command(BaseCommand):
             for _ in range(number_of_skill_proficiencies):
                 skill_proficiency = factories.SkillProficiencyFactory()
                 skill_proficiencies.append(skill_proficiency)
+        hardware = []
+        hardware_devices = []
+        for _ in range(NUMBER_OF_HARDWARE_TYPES):
+            hardware_type = factories.HardwareFactory()
+            hardware.append(hardware_type)
+        for _ in range(NUMBER_OF_HARDWARE_TYPES * NUMBER_OF_HARDWARE_DEVICES):
+            hardware_device = factories.HardwareDeviceFactory()
+            hardware_devices.append(hardware_device)
