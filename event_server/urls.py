@@ -20,7 +20,7 @@ from rest_framework import routers
 from drf_spectacular.views import SpectacularAPIView
 
 
-from infrastructure.models import Skill, Attendee, Location, Table, Team, RealityKit, Project, SkillProficiency
+from infrastructure.models import Skill, Attendee, Location, Table, Team, HelpDesk, Project, SkillProficiency
 from infrastructure import views
 
 router = routers.DefaultRouter()
@@ -29,7 +29,7 @@ router.register(r'skills', views.SkillViewSet)
 router.register(r'locations', views.LocationViewSet)
 router.register(r'tables', views.TableViewSet)
 router.register(r'teams', views.TeamViewSet)
-router.register(r'realitykits', views.RealityKitsViewSet, basename='realitykits')
+router.register(r'helpdesks', views.HelpDesksViewSet, basename='helpdesks')
 router.register(r'request_mentor', views.MentorRequestViewSet, basename='requestmentor')
 router.register(r'skillproficiencies', views.SkillProficiencyViewSet)
 router.register(r'projects', views.ProjectViewSet)
@@ -41,7 +41,7 @@ admin.site.register(Attendee)
 admin.site.register(Location)
 admin.site.register(Table)
 admin.site.register(Team)
-admin.site.register(RealityKit)
+admin.site.register(HelpDesk)
 admin.site.register(Project)
 admin.site.register(SkillProficiency)
 

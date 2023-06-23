@@ -13,6 +13,9 @@ class AttendeeFactory(DjangoModelFactory):
     last_name = factory.Faker("last_name")
     email = factory.Faker("email")
     username = factory.Faker("user_name")
+    roles = factory.Faker(
+        'random_element', elements=[x[0] for x in models.ROLES]
+    )
 
 
 class SkillFactory(DjangoModelFactory):
@@ -30,9 +33,9 @@ class TableFactory(DjangoModelFactory):
     location = factory.Iterator(models.Location.objects.all())
 
 
-class RealityKitFactory(DjangoModelFactory):
+class HelpDeskFactory(DjangoModelFactory):
     class Meta:
-        model = models.RealityKit
+        model = models.HelpDesk
 
     table = factory.Iterator(models.Table.objects.all())
     ip_address = factory.Faker("ipv4_private")

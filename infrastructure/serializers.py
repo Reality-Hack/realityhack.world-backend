@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from infrastructure.models import Skill, Attendee, Location, Table, Team, RealityKit, Project, SkillProficiency
+from infrastructure.models import Skill, Attendee, Location, Table, Team, HelpDesk, Project, SkillProficiency
 from django.contrib.auth.models import Group
 
 
@@ -7,7 +7,7 @@ class AttendeeSerializer(serializers.HyperlinkedModelSerializer):
     skill_proficiencies = serializers.ReadOnlyField
     class Meta:
         model = Attendee
-        fields = ['url', 'username', 'email', 'is_staff']
+        fields = ['url', 'username', 'email', 'is_staff', 'roles', 'skills']
 
 
 class SkillSerializer(serializers.HyperlinkedModelSerializer):
@@ -40,7 +40,7 @@ class TeamSerializer(serializers.HyperlinkedModelSerializer):
         fields = ['url', 'name', 'attendees', 'table', 'project']
 
 
-class RealityKitSerializer(serializers.Serializer):
+class HelpDeskSerializer(serializers.Serializer):
     table = serializers.IntegerField()
     ip_address = serializers.IPAddressField()
     mentor_requested = serializers.BooleanField()
@@ -50,9 +50,9 @@ class MentorRequestSerializer(serializers.Serializer):
     table = serializers.IntegerField()
 
 
-class RealityKitsSerializer(serializers.HyperlinkedModelSerializer):
+class HelpDesksSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
-        model = RealityKit
+        model = HelpDesk
         fields = ['url', 'table', 'ip_address', 'announcement_pending', 'mentor_requested', 'auxiliary_requested']
 
 

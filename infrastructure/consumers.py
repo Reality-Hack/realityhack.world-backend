@@ -8,11 +8,11 @@ POSTED = "POSTED"
 ACKNOWLEDGED = "ACKNOWLEDGED"
 
 
-class RealityKitByTableConsumer(AsyncWebsocketConsumer):
+class HelpDeskByTableConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.table = self.scope["url_route"]["kwargs"]["table"]
         self.channel_name = self.table
-        self.room_group_name = "realitykits_group"
+        self.room_group_name = "HelpDesks_group"
 
         # Join room group
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
@@ -41,10 +41,10 @@ class RealityKitByTableConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=json.dumps({"message": message}))
 
 
-class RealityKitsConsumer(AsyncWebsocketConsumer):
+class HelpDesksConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        self.channel_name = "realitykits"
-        self.room_group_name = "realitykits_group"
+        self.channel_name = "HelpDesks"
+        self.room_group_name = "HelpDesks_group"
 
         # Join room group
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
