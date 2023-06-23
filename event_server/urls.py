@@ -20,7 +20,7 @@ from rest_framework import routers
 from drf_spectacular.views import SpectacularAPIView
 
 
-from infrastructure.models import Skill, Attendee, Location, Table, Team, HelpDesk, Project, SkillProficiency
+from infrastructure.models import Skill, Attendee, Location, Table, Team, HelpDesk, Project, SkillProficiency, Hardware, HardwareDevice
 from infrastructure import views
 
 router = routers.DefaultRouter()
@@ -34,6 +34,8 @@ router.register(r'request_mentor', views.MentorRequestViewSet, basename='request
 router.register(r'skillproficiencies', views.SkillProficiencyViewSet)
 router.register(r'projects', views.ProjectViewSet)
 router.register(r'groups', views.GroupViewSet)
+router.register(r'hardware', views.HardwareViewSet)
+router.register(r'hardwaredevices', views.HardwareDeviceViewSet)
 
 
 admin.site.register(Skill)
@@ -44,6 +46,8 @@ admin.site.register(Team)
 admin.site.register(HelpDesk)
 admin.site.register(Project)
 admin.site.register(SkillProficiency)
+admin.site.register(Hardware)
+admin.site.register(HardwareDevice)
 
 
 urlpatterns = [

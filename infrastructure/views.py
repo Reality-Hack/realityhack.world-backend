@@ -1,8 +1,8 @@
 from django.contrib.auth.models import Group
 from rest_framework import viewsets
 from rest_framework import permissions
-from infrastructure.serializers import AttendeeSerializer, SkillSerializer, LocationSerializer, TableSerializer, TeamSerializer, HelpDeskSerializer, SkillProficiencySerializer, ProjectSerializer, GroupSerializer, MentorRequestSerializer
-from infrastructure.models import Attendee, Skill, Location, Table, Team, HelpDesk, SkillProficiency, Project
+from infrastructure.serializers import AttendeeSerializer, SkillSerializer, LocationSerializer, TableSerializer, TeamSerializer, HelpDeskSerializer, SkillProficiencySerializer, ProjectSerializer, GroupSerializer, MentorRequestSerializer, HardwareSerializer, HardwareDeviceSerializer
+from infrastructure.models import Attendee, Skill, Location, Table, Team, HelpDesk, SkillProficiency, Project, Hardware, HardwareDevice
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from infrastructure.models import HelpDesk
@@ -162,4 +162,22 @@ class GroupViewSet(viewsets.ModelViewSet):
     """
     queryset = Group.objects.all()
     serializer_class = GroupSerializer
+    permission_classes = [permissions.AllowAny]
+
+
+class HardwareViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint that allows groups to be viewed or edited.
+    """
+    queryset = Hardware.objects.all()
+    serializer_class = HardwareSerializer
+    permission_classes = [permissions.AllowAny]
+
+
+class HardwareDeviceViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint that allows groups to be viewed or edited.
+    """
+    queryset = HardwareDevice.objects.all()
+    serializer_class = HardwareDeviceSerializer
     permission_classes = [permissions.AllowAny]

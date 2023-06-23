@@ -47,7 +47,6 @@ class Attendee(AbstractUser):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     bio = models.TextField(max_length=1000, blank=True)
     roles = MultiSelectField(choices=ROLES, max_choices=3, max_length=3)
-    skill_proficiencies = models.ManyToManyField(Skill, through=SkillProficiency)
 
     class Meta:
         verbose_name = "attendees"
