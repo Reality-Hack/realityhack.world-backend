@@ -16,12 +16,13 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import include, path
-from rest_framework import routers
 from drf_spectacular.views import SpectacularAPIView
+from rest_framework import routers
 
-
-from infrastructure.models import Skill, Attendee, Location, Table, Team, HelpDesk, Project, SkillProficiency, Hardware, HardwareDevice
 from infrastructure import views
+from infrastructure.models import (Attendee, Hardware, HardwareDevice,
+                                   HelpDesk, Location, Project, Skill,
+                                   SkillProficiency, Table, Team)
 
 router = routers.DefaultRouter()
 router.register(r'attendees', views.AttendeeViewSet)

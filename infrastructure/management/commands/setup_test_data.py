@@ -1,10 +1,12 @@
 import random
 
-from django.db import transaction
 from django.core.management.base import BaseCommand
+from django.db import transaction
 
-from infrastructure.models import Attendee, Skill, Location, Table, Team, SkillProficiency, HelpDesk, Hardware, HardwareDevice
 from infrastructure import factories
+from infrastructure.models import (Attendee, Hardware, HardwareDevice,
+                                   HelpDesk, Location, Skill, SkillProficiency,
+                                   Table, Team)
 
 NUMBER_OF_ATTENDEES = 500
 NUMBER_OF_SKILLS = 80

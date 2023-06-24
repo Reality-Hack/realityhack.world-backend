@@ -1,8 +1,9 @@
 import factory
-from factory.django import DjangoModelFactory
 import factory.fuzzy
+from factory.django import DjangoModelFactory
 
 from infrastructure import models
+
 
 class AttendeeFactory(DjangoModelFactory):
     class Meta:

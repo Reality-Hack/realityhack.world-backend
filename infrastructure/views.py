@@ -1,11 +1,21 @@
 from django.contrib.auth.models import Group
-from rest_framework import viewsets
-from rest_framework import permissions
-from infrastructure.serializers import AttendeeSerializer, SkillSerializer, LocationSerializer, TableSerializer, TeamSerializer, TeamDetailSerializer, HelpDeskSerializer, SkillProficiencySerializer, ProjectSerializer, GroupSerializer, MentorRequestSerializer, HardwareSerializer, HardwareDeviceSerializer
-from infrastructure.models import Attendee, Skill, Location, Table, Team, HelpDesk, SkillProficiency, Project, Hardware, HardwareDevice
+from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from infrastructure.models import HelpDesk
+
+from infrastructure.models import (Attendee, Hardware, HardwareDevice,
+                                   HelpDesk, Location, Project, Skill,
+                                   SkillProficiency, Table, Team)
+from infrastructure.serializers import (AttendeeSerializer, GroupSerializer,
+                                        HardwareDeviceSerializer,
+                                        HardwareSerializer, HelpDeskSerializer,
+                                        LocationSerializer,
+                                        MentorRequestSerializer,
+                                        ProjectSerializer,
+                                        SkillProficiencySerializer,
+                                        SkillSerializer, TableSerializer,
+                                        TeamDetailSerializer, TeamSerializer)
+
 
 class AttendeeViewSet(viewsets.ModelViewSet):
     """

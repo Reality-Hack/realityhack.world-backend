@@ -1,6 +1,9 @@
-from rest_framework import serializers
-from infrastructure.models import Skill, Attendee, Location, Table, Team, HelpDesk, Project, SkillProficiency, Hardware, HardwareDevice
 from django.contrib.auth.models import Group
+from rest_framework import serializers
+
+from infrastructure.models import (Attendee, Hardware, HardwareDevice,
+                                   HelpDesk, Location, Project, Skill,
+                                   SkillProficiency, Table, Team)
 
 
 class AttendeeSerializer(serializers.HyperlinkedModelSerializer):
