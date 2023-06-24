@@ -65,10 +65,13 @@ class HelpDesksConsumer(AsyncWebsocketConsumer):
             self.room_group_name, {"type": ANNOUNCEMENT, "message": message}
         )
 
-        if text_data_json.get("type") == ANNOUNCEMENT and text_data_json.get("message") == ACKNOWLEDGED:
+        if text_data_json.get("type") == ANNOUNCEMENT and text_data_json.get(
+                "message") == ACKNOWLEDGED:
             pass
         else:
-            await self.send(text_data=json.dumps({"type": ANNOUNCEMENT, "message": POSTED}))
+            await self.send(text_data=json.dumps(
+                {"type": ANNOUNCEMENT, "message": POSTED})
+            )
 
     # Receive message from room group
     async def chat_message(self, event):

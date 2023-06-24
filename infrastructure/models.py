@@ -1,12 +1,12 @@
 import uuid
 
-from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from multiselectfield import MultiSelectField
 
 # settings.AUTH_USER_MODEL
+
 
 class Skill(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -41,9 +41,9 @@ class SkillProficiency(models.Model):
 
 class Attendee(AbstractUser):
     ROLES = (('P', 'Participant'),
-        ('O', 'Organizer'),
-        ('M', 'Mentor'),
-        ('S', 'Sponsor'))
+             ('O', 'Organizer'),
+             ('M', 'Mentor'),
+             ('S', 'Sponsor'))
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     bio = models.TextField(max_length=1000, blank=True)

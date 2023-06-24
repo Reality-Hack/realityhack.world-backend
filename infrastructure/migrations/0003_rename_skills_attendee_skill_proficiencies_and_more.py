@@ -63,20 +63,25 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='attendee',
             name='roles',
-            field=multiselectfield.db.fields.MultiSelectField(choices=[('P', 'Participant'), ('O', 'Organizer'), ('M', 'Mentor'), ('S', 'Sponsor')], max_length=3),
+            field=multiselectfield.db.fields.MultiSelectField(choices=[(
+                'P', 'Participant'), ('O', 'Organizer'), ('M', 'Mentor'), ('S', 'Sponsor')], max_length=3),
         ),
         migrations.AlterField(
             model_name='hardware',
             name='id',
-            field=models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False),
+            field=models.UUIDField(default=uuid.uuid4, editable=False,
+                                   primary_key=True, serialize=False),
         ),
         migrations.CreateModel(
             name='HardwareDevice',
             fields=[
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ('id', models.UUIDField(default=uuid.uuid4,
+                 editable=False, primary_key=True, serialize=False)),
                 ('serial', models.CharField(max_length=100)),
-                ('checked_out_to', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL)),
-                ('hardware', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='infrastructure.hardware')),
+                ('checked_out_to', models.ForeignKey(
+                    on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL)),
+                ('hardware', models.ForeignKey(
+                    on_delete=django.db.models.deletion.CASCADE, to='infrastructure.hardware')),
             ],
         ),
     ]

@@ -16,6 +16,7 @@ NUMBER_OF_SKILL_PROFICIENCIES = 4
 NUMBER_OF_HARDWARE_TYPES = 10
 NUMBER_OF_HARDWARE_DEVICES = 25
 
+
 class Command(BaseCommand):
     help = "Generates test data"
 
@@ -42,8 +43,7 @@ class Command(BaseCommand):
             skill = factories.SkillFactory()
             skills.append(skill)
         Location.objects.create(room=Location.Room.ATLANTIS)
-        Location.objects.create(room=Location.Room.MAIN_HALL
-        )
+        Location.objects.create(room=Location.Room.MAIN_HALL)
         tables = []
         for _ in range(NUMBER_OF_TEAMS):
             table = factories.TableFactory()
@@ -56,13 +56,16 @@ class Command(BaseCommand):
         teams = []
         for _ in range(NUMBER_OF_TEAMS):
             team = factories.TeamFactory(
-                attendees=attendees[attendee_subset_index:attendee_subset_index + TEAM_SIZE]
+                attendees=attendees[
+                    attendee_subset_index:attendee_subset_index + TEAM_SIZE
+                ]
             )
             teams.append(team)
             attendee_subset_index += TEAM_SIZE
         skill_proficiencies = []
         for _ in range(NUMBER_OF_ATTENDEES):
-            number_of_skill_proficiencies = random.randint(1, NUMBER_OF_SKILL_PROFICIENCIES)
+            number_of_skill_proficiencies = random.randint(
+                1, NUMBER_OF_SKILL_PROFICIENCIES)
             for _ in range(number_of_skill_proficiencies):
                 skill_proficiency = factories.SkillProficiencyFactory()
                 skill_proficiencies.append(skill_proficiency)

@@ -1,6 +1,5 @@
 from django.contrib.auth.models import Group
 from rest_framework import permissions, viewsets
-from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from infrastructure.models import (Attendee, Hardware, HardwareDevice,
@@ -10,7 +9,6 @@ from infrastructure.serializers import (AttendeeSerializer, GroupSerializer,
                                         HardwareDeviceSerializer,
                                         HardwareSerializer, HelpDeskSerializer,
                                         LocationSerializer,
-                                        MentorRequestSerializer,
                                         ProjectSerializer,
                                         SkillProficiencySerializer,
                                         SkillSerializer, TableSerializer,
@@ -30,7 +28,6 @@ class AttendeeViewSet(viewsets.ModelViewSet):
             attendee_id=attendee_id
         )
         return skill_proficiencies
-
 
 class SkillViewSet(viewsets.ModelViewSet):
     """
@@ -95,12 +92,14 @@ class HelpDesksViewSet(viewsets.ViewSet):
         return Response(serializer.data)
 
     def retrieve(self, request, pk=None):
-        import pdb;pdb.set_trace()
+        import pdb
+        pdb.set_trace()
 
     def create(self, request):
         help_desk_message = request.data
         # {'table': 1, 'ip_address': '10.198.1.112'}
-        help_desk_query = HelpDesk.objects.filter(table__number=help_desk_message["table"])
+        help_desk_query = HelpDesk.objects.filter(
+            table__number=help_desk_message["table"])
         if len(help_desk_query) > 0:
             help_desk = help_desk_query[0]
             help_desk.ip_address = help_desk_message["ip_address"]
@@ -124,7 +123,8 @@ class MentorRequestViewSet(viewsets.ViewSet):
     def create(self, request):
         help_desk_message = request.data
         # {'table': 1, 'requested': True}
-        help_desk_query = HelpDesk.objects.filter(table__number=help_desk_message["table"])
+        help_desk_query = HelpDesk.objects.filter(
+            table__number=help_desk_message["table"])
         if len(help_desk_query) > 0:
             help_desk = help_desk_query[0]
             if help_desk_message.get("mentor_requested"):

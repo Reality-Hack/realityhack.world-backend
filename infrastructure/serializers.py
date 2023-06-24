@@ -8,9 +8,11 @@ from infrastructure.models import (Attendee, Hardware, HardwareDevice,
 
 class AttendeeSerializer(serializers.HyperlinkedModelSerializer):
     skill_proficiencies = serializers.ReadOnlyField
+
     class Meta:
         model = Attendee
-        fields = ['url', 'first_name', 'last_name', 'groups', 'username', 'email', 'is_staff', 'roles']
+        fields = ['url', 'first_name', 'last_name', 'groups',
+                  'username', 'email', 'is_staff', 'roles']
 
 
 class SkillSerializer(serializers.HyperlinkedModelSerializer):
@@ -69,6 +71,7 @@ class TeamDetailSerializer(serializers.HyperlinkedModelSerializer):
         model = Team
         fields = ['url', 'name', 'attendees', 'table', 'project']
 
+
 class HelpDeskSerializer(serializers.Serializer):
     table = serializers.IntegerField()
     ip_address = serializers.IPAddressField()
@@ -83,7 +86,8 @@ class MentorRequestSerializer(serializers.Serializer):
 class HelpDesksSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = HelpDesk
-        fields = ['url', 'table', 'ip_address', 'announcement_pending', 'mentor_requested', 'auxiliary_requested']
+        fields = ['url', 'table', 'ip_address', 'announcement_pending',
+                  'mentor_requested', 'auxiliary_requested']
 
 
 class GroupSerializer(serializers.HyperlinkedModelSerializer):
