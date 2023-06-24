@@ -114,7 +114,6 @@ class HelpDesk(models.Model):
     ip_address = models.GenericIPAddressField()
     announcement_pending = models.BooleanField(default=False)
     mentor_requested = models.BooleanField(default=False)
-    auxiliary_requested = models.BooleanField(default=False)
 
     def __str__(self) -> str:
         return f"Table: {self.table}, IP: {self.ip_address}"

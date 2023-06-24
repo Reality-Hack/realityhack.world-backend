@@ -1,7 +1,7 @@
 from django.contrib.auth.models import Group
 from rest_framework import viewsets
 from rest_framework import permissions
-from infrastructure.serializers import AttendeeSerializer, SkillSerializer, LocationSerializer, TableSerializer, TeamSerializer, HelpDeskSerializer, SkillProficiencySerializer, ProjectSerializer, GroupSerializer, MentorRequestSerializer, HardwareSerializer, HardwareDeviceSerializer
+from infrastructure.serializers import AttendeeSerializer, SkillSerializer, LocationSerializer, TableSerializer, TeamSerializer, TeamDetailSerializer, HelpDeskSerializer, SkillProficiencySerializer, ProjectSerializer, GroupSerializer, MentorRequestSerializer, HardwareSerializer, HardwareDeviceSerializer
 from infrastructure.models import Attendee, Skill, Location, Table, Team, HelpDesk, SkillProficiency, Project, Hardware, HardwareDevice
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -56,6 +56,11 @@ class TeamViewSet(viewsets.ModelViewSet):
     queryset = Team.objects.all()
     serializer_class = TeamSerializer
     permission_classes = [permissions.AllowAny]
+
+    def retrieve(self, request, pk=None):
+        instance = self.get_object()
+        serializer = TeamDetailSerializer(instance, context={"request": request})
+        return Response(serializer.data)
 
 
 class HelpDesksViewSet(viewsets.ViewSet):
