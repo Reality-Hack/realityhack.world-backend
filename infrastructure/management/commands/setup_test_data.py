@@ -21,7 +21,7 @@ class Command(BaseCommand):
     help = "Generates test data"
 
     @transaction.atomic
-    def handle(self, *args, **kwargs):
+    def handle(self, *args, **kwargs):  # noqa: C901
         self.stdout.write("Deleting old data...")
         Attendee.objects.all().delete()
         Skill.objects.all().delete()
@@ -62,6 +62,12 @@ class Command(BaseCommand):
             )
             teams.append(team)
             attendee_subset_index += TEAM_SIZE
+        projects = []
+        for team in teams:
+            project = factories.ProjectFactory(
+                team=team
+            )
+            projects.append(project)
         skill_proficiencies = []
         for _ in range(NUMBER_OF_ATTENDEES):
             number_of_skill_proficiencies = random.randint(

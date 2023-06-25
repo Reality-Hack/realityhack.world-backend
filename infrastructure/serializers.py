@@ -6,70 +6,70 @@ from infrastructure.models import (Attendee, Hardware, HardwareDevice,
                                    SkillProficiency, Table, Team)
 
 
-class AttendeeSerializer(serializers.HyperlinkedModelSerializer):
+class AttendeeSerializer(serializers.ModelSerializer):
     skill_proficiencies = serializers.ReadOnlyField
 
     class Meta:
         model = Attendee
-        fields = ['url', 'first_name', 'last_name', 'groups',
+        fields = ['id', 'first_name', 'last_name', 'groups',
                   'username', 'email', 'is_staff', 'roles']
 
 
-class SkillSerializer(serializers.HyperlinkedModelSerializer):
+class SkillSerializer(serializers.ModelSerializer):
     class Meta:
         model = Skill
-        fields = ['url', 'name']
+        fields = ['id', 'name']
 
 
-class SkillProficiencySerializer(serializers.HyperlinkedModelSerializer):
+class SkillProficiencySerializer(serializers.ModelSerializer):
     attendee = AttendeeSerializer()
     skill = SkillSerializer()
 
     class Meta:
         model = SkillProficiency
-        fields = ['url', 'skill', 'proficiency', 'attendee']
+        fields = ['id', 'skill', 'proficiency', 'attendee']
 
 
-class LocationSerializer(serializers.HyperlinkedModelSerializer):
+class LocationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Location
-        fields = ['url', 'building', 'room']
+        fields = ['id', 'building', 'room']
 
 
-class TableSerializer(serializers.HyperlinkedModelSerializer):
+class TableSerializer(serializers.ModelSerializer):
     class Meta:
         model = Table
-        fields = ['url', 'number', 'location']
+        fields = ['id', 'number', 'location']
 
 
-class TableDetailSerializer(serializers.HyperlinkedModelSerializer):
+class TableDetailSerializer(serializers.ModelSerializer):
     location = LocationSerializer()
 
     class Meta:
         model = Table
-        fields = ['url', 'number', 'location']
+        fields = ['id', 'number', 'location']
 
 
-class ProjectSerializer(serializers.HyperlinkedModelSerializer):
+class ProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
-        fields = ['url', 'name', 'repository_location', 'submission_location']
+        fields = ['id', 'name', 'repository_location', 'submission_location', 'team']
 
 
-class TeamSerializer(serializers.HyperlinkedModelSerializer):
+class TeamSerializer(serializers.ModelSerializer):
     class Meta:
         model = Team
-        fields = ['url', 'name', 'attendees', 'table', 'project']
+        fields = ['id', 'name', 'attendees', 'table']
 
 
-class TeamDetailSerializer(serializers.HyperlinkedModelSerializer):
+class TeamDetailSerializer(serializers.ModelSerializer):
     project = ProjectSerializer()
     table = TableDetailSerializer()
     attendees = AttendeeSerializer(many=True)
 
     class Meta:
         model = Team
-        fields = ['url', 'name', 'attendees', 'table', 'project']
+        fields = ['id', 'name', 'attendees', 'table', 'project']
 
 
 class HelpDeskSerializer(serializers.Serializer):
@@ -83,35 +83,35 @@ class MentorRequestSerializer(serializers.Serializer):
     table = serializers.IntegerField()
 
 
-class HelpDesksSerializer(serializers.HyperlinkedModelSerializer):
+class HelpDesksSerializer(serializers.ModelSerializer):
     class Meta:
         model = HelpDesk
-        fields = ['url', 'table', 'ip_address', 'announcement_pending',
+        fields = ['id', 'table', 'ip_address', 'announcement_pending',
                   'mentor_requested', 'auxiliary_requested']
 
 
-class GroupSerializer(serializers.HyperlinkedModelSerializer):
+class GroupSerializer(serializers.ModelSerializer):
     class Meta:
         model = Group
-        fields = ['url', 'name']
+        fields = ['id', 'name']
 
 
-class HardwareSerializer(serializers.HyperlinkedModelSerializer):
+class HardwareSerializer(serializers.ModelSerializer):
     class Meta:
         model = Hardware
-        fields = ['url', 'name', 'description', 'image']
+        fields = ['id', 'name', 'description', 'image']
 
 
-class HardwareDeviceHardwareSerializer(serializers.HyperlinkedModelSerializer):
+class HardwareDeviceHardwareSerializer(serializers.ModelSerializer):
     class Meta:
         model = Hardware
-        fields = ['url', 'name']
+        fields = ['id', 'name']
 
 
-class HardwareDeviceSerializer(serializers.HyperlinkedModelSerializer):
+class HardwareDeviceSerializer(serializers.ModelSerializer):
     hardware = HardwareDeviceHardwareSerializer()
     checked_out_to = AttendeeSerializer()
 
     class Meta:
         model = HardwareDevice
-        fields = ['url', 'hardware', 'serial', 'checked_out_to']
+        fields = ['id', 'hardware', 'serial', 'checked_out_to']

@@ -43,7 +43,6 @@ class HelpDeskFactory(DjangoModelFactory):
     ip_address = factory.Faker("ipv4_private")
     announcement_pending = factory.Faker("boolean")
     mentor_requested = factory.Faker("boolean")
-    auxiliary_requested = factory.Faker("boolean")
 
 
 class ProjectFactory(DjangoModelFactory):
@@ -53,6 +52,14 @@ class ProjectFactory(DjangoModelFactory):
     name = factory.Faker("company")
     repository_location = factory.Faker("url")
     submission_location = factory.Faker("url")
+
+    @factory.post_generation
+    def team(self, create, team, **kwargs):
+        if not create:
+            return
+
+        if team:
+            self.team = team
 
 
 class SkillProficiencyFactory(DjangoModelFactory):
@@ -71,7 +78,6 @@ class TeamFactory(DjangoModelFactory):
 
     name = factory.Faker("company")
     table = factory.Iterator(models.Table.objects.all())
-    project = factory.SubFactory(ProjectFactory)
 
     @factory.post_generation
     def attendees(self, create, extracted, **kwargs):

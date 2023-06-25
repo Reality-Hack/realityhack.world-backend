@@ -29,6 +29,7 @@ class AttendeeViewSet(viewsets.ModelViewSet):
         )
         return skill_proficiencies
 
+
 class SkillViewSet(viewsets.ModelViewSet):
     """
     API endpoint that allows skills to be viewed or edited.

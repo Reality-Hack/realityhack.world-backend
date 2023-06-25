@@ -88,25 +88,25 @@ class Table(models.Model):
         return f"{self.number}"
 
 
-class Project(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=50)
-    repository_location = models.URLField()
-    submission_location = models.URLField()
-
-    def __str__(self) -> str:
-        return f"{self.name}"
-
-
 class Team(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=50)
     attendees = models.ManyToManyField(Attendee)
     table = models.OneToOneField(Table, on_delete=models.DO_NOTHING)
-    project = models.OneToOneField(Project, on_delete=models.DO_NOTHING)
 
     def __str__(self) -> str:
         return f"Name: {self.name}, Table: {self.table}, Project: {self.project}"
+
+
+class Project(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=50)
+    repository_location = models.URLField()
+    submission_location = models.URLField()
+    team = models.OneToOneField(Team, on_delete=models.DO_NOTHING, null=True)
+
+    def __str__(self) -> str:
+        return f"{self.name}"
 
 
 class HelpDesk(models.Model):
