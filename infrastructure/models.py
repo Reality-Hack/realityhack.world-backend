@@ -40,14 +40,8 @@ class SkillProficiency(models.Model):
 
 
 class Attendee(AbstractUser):
-    ROLES = (('P', 'Participant'),
-             ('O', 'Organizer'),
-             ('M', 'Mentor'),
-             ('S', 'Sponsor'))
-
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     bio = models.TextField(max_length=1000, blank=True)
-    roles = MultiSelectField(choices=ROLES, max_choices=3, max_length=3)
 
     class Meta:
         verbose_name = "attendees"

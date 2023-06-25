@@ -1,14 +1,16 @@
 import random
 
+from django.contrib.auth.models import Group
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from infrastructure import factories
 from infrastructure.models import (Attendee, Hardware, HardwareDevice,
-                                   HelpDesk, Location, Skill, SkillProficiency,
-                                   Table, Team)
+                                   HelpDesk, Location, Project, Skill,
+                                   SkillProficiency, Table, Team)
 
 NUMBER_OF_ATTENDEES = 500
+NUMBER_OF_GROUPS = 5
 NUMBER_OF_SKILLS = 80
 NUMBER_OF_TEAMS = 80
 TEAM_SIZE = 5
@@ -32,11 +34,20 @@ class Command(BaseCommand):
         HelpDesk.objects.all().delete()
         Hardware.objects.all().delete()
         HardwareDevice.objects.all().delete()
+        Project.objects.all().delete()
+        Group.objects.all().delete()
 
         self.stdout.write("Creating new data...")
+        groups = []
+        for _ in range(NUMBER_OF_GROUPS):
+            group = factories.GroupFactory()
+            groups.append(group)
         attendees = []
         for _ in range(NUMBER_OF_ATTENDEES):
             attendee = factories.AttendeeFactory()
+            number_of_attendee_groups = random.randint(1, NUMBER_OF_GROUPS)
+            attendee_groups = random.sample(groups, number_of_attendee_groups)
+            attendee.groups.set(attendee_groups)
             attendees.append(attendee)
         skills = []
         for _ in range(NUMBER_OF_SKILLS):

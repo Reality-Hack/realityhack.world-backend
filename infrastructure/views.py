@@ -5,13 +5,14 @@ from rest_framework.response import Response
 from infrastructure.models import (Attendee, Hardware, HardwareDevice,
                                    HelpDesk, Location, Project, Skill,
                                    SkillProficiency, Table, Team)
-from infrastructure.serializers import (AttendeeSerializer, GroupSerializer,
+from infrastructure.serializers import (AttendeeSerializer,
+                                        GroupDetailSerializer,
                                         HardwareDeviceSerializer,
                                         HardwareSerializer, HelpDeskSerializer,
-                                        LocationSerializer,
-                                        ProjectSerializer,
+                                        LocationSerializer, ProjectSerializer,
                                         SkillProficiencySerializer,
                                         SkillSerializer, TableSerializer,
+                                        TeamCreateSerializer,
                                         TeamDetailSerializer, TeamSerializer)
 
 
@@ -62,13 +63,16 @@ class TeamViewSet(viewsets.ModelViewSet):
     API endpoint that allows teams to be viewed or edited.
     """
     queryset = Team.objects.all()
-    serializer_class = TeamSerializer
     permission_classes = [permissions.AllowAny]
 
-    def retrieve(self, request, pk=None):
-        instance = self.get_object()
-        serializer = TeamDetailSerializer(instance, context={"request": request})
-        return Response(serializer.data)
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return TeamSerializer
+        if self.action == 'create':
+            return TeamCreateSerializer
+        if self.action == 'retrieve':
+            return TeamDetailSerializer
+        return TeamSerializer
 
 
 class HelpDesksViewSet(viewsets.ViewSet):
@@ -177,7 +181,7 @@ class GroupViewSet(viewsets.ModelViewSet):
     API endpoint that allows groups to be viewed or edited.
     """
     queryset = Group.objects.all()
-    serializer_class = GroupSerializer
+    serializer_class = GroupDetailSerializer
     permission_classes = [permissions.AllowAny]
 
 

@@ -6,13 +6,27 @@ from infrastructure.models import (Attendee, Hardware, HardwareDevice,
                                    SkillProficiency, Table, Team)
 
 
+class GroupSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Group
+        fields = ['id', 'name']
+
+
+class GroupDetailSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Group
+        fields = ['id', 'name', 'permissions']
+
+
 class AttendeeSerializer(serializers.ModelSerializer):
-    skill_proficiencies = serializers.ReadOnlyField
+    groups = GroupSerializer(many=True)
 
     class Meta:
         model = Attendee
         fields = ['id', 'first_name', 'last_name', 'groups',
-                  'username', 'email', 'is_staff', 'roles']
+                  'username', 'email', 'is_staff']
 
 
 class SkillSerializer(serializers.ModelSerializer):
@@ -63,13 +77,21 @@ class TeamSerializer(serializers.ModelSerializer):
 
 
 class TeamDetailSerializer(serializers.ModelSerializer):
-    project = ProjectSerializer()
     table = TableDetailSerializer()
     attendees = AttendeeSerializer(many=True)
 
     class Meta:
         model = Team
-        fields = ['id', 'name', 'attendees', 'table', 'project']
+        fields = ['id', 'name', 'attendees', 'table']
+
+
+class TeamCreateSerializer(serializers.ModelSerializer):
+    table = serializers.IntegerField()
+    attendees = AttendeeSerializer(many=True)
+
+    class Meta:
+        model = Team
+        fields = ['id', 'name', 'attendees', 'table']
 
 
 class HelpDeskSerializer(serializers.Serializer):

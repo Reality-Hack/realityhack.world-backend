@@ -1,5 +1,6 @@
 import factory
 import factory.fuzzy
+from django.contrib.auth.models import Group
 from factory.django import DjangoModelFactory
 
 from infrastructure import models
@@ -15,9 +16,13 @@ class AttendeeFactory(DjangoModelFactory):
     bio = factory.fuzzy.FuzzyText(length=1000)
     email = factory.Faker("email")
     username = factory.Faker("user_name")
-    roles = factory.Faker(
-        'random_element', elements=[x[0] for x in models.Attendee.ROLES]
-    )
+
+
+class GroupFactory(DjangoModelFactory):
+    class Meta:
+        model = Group
+
+    name = factory.Faker('job')
 
 
 class SkillFactory(DjangoModelFactory):
