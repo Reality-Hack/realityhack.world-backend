@@ -4,6 +4,7 @@ from django.contrib.auth.models import Group
 from rest_framework.test import APIClient, APITestCase
 
 from infrastructure import factories, models, serializers
+from infrastructure.management.commands import setup_test_data
 
 
 class AttendeeTests(APITestCase):
@@ -58,22 +59,21 @@ class AttendeeTests(APITestCase):
 
 
 class TeamTests(APITestCase):
-    TEAM_SIZE = 5
-
     def setUp(self):
         self.client = APIClient()
         models.Location.objects.create(room=models.Location.Room.ATLANTIS)
         self.table = factories.TableFactory()
         group = factories.GroupFactory()
         mock_attendees = [
-            factories.AttendeeFactory() for _ in range(self.TEAM_SIZE + 1)]
+            factories.AttendeeFactory() for _ in range(
+                setup_test_data.TEAM_SIZE + 1)]
         [mock_attendee.groups.set([group]) for mock_attendee in mock_attendees]
         self.mock_attendees = [
             serializers.AttendeeSerializer(mock_attendee).data
             for mock_attendee in mock_attendees
         ]
         team = factories.TeamFactory(
-            attendees=mock_attendees[0:self.TEAM_SIZE], table=self.table)
+            attendees=mock_attendees[0:setup_test_data.TEAM_SIZE], table=self.table)
         self.mock_team = serializers.TeamSerializer(team).data
 
     def tearDown(self):
@@ -130,3 +130,30 @@ class TeamTests(APITestCase):
     # Two Teams to a Table
 
     # More than five Attendees to a Team
+
+
+class BulkTests(APITestCase):
+    def tearDown(self):
+        setup_test_data.Command().delete_all()
+
+    def setUp(self):
+        setup_test_data.Command().add_all()
+
+    def test_bulk_add(self):
+
+        # NUMBER_OF_ATTENDEES = 500
+        # NUMBER_OF_GROUPS = 5
+        # NUMBER_OF_SKILLS = 80
+        # NUMBER_OF_TEAMS = 80
+        # TEAM_SIZE = 5
+        # NUMBER_OF_SKILL_PROFICIENCIES = 4
+        # NUMBER_OF_HARDWARE_TYPES = 10
+        # NUMBER_OF_HARDWARE_DEVICES = 25
+        self.assertEqual(
+            setup_test_data.NUMBER_OF_ATTENDEES, models.Attendee.objects.count())
+        self.assertEqual(
+            setup_test_data.NUMBER_OF_GROUPS, Group.objects.count())
+        self.assertEqual(
+            setup_test_data.NUMBER_OF_TEAMS, len(models.Team.objects.all()))
+        for team in models.Team.objects.all():
+            self.assertEqual(setup_test_data.TEAM_SIZE, len(team.attendees.values()))

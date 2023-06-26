@@ -1,4 +1,5 @@
 import random
+import uuid
 
 from django.contrib.auth.models import Group
 from django.core.management.base import BaseCommand
@@ -22,9 +23,7 @@ NUMBER_OF_HARDWARE_DEVICES = 25
 class Command(BaseCommand):
     help = "Generates test data"
 
-    @transaction.atomic
-    def handle(self, *args, **kwargs):  # noqa: C901
-        self.stdout.write("Deleting old data...")
+    def delete_all(self):  # noqa: C901
         Attendee.objects.all().delete()
         Skill.objects.all().delete()
         Location.objects.all().delete()
@@ -37,7 +36,7 @@ class Command(BaseCommand):
         Project.objects.all().delete()
         Group.objects.all().delete()
 
-        self.stdout.write("Creating new data...")
+    def add_all(self):  # noqa: C901
         groups = []
         for _ in range(NUMBER_OF_GROUPS):
             group = factories.GroupFactory()
@@ -45,9 +44,12 @@ class Command(BaseCommand):
         attendees = []
         for _ in range(NUMBER_OF_ATTENDEES):
             attendee = factories.AttendeeFactory()
+            attendee.username = f"{attendee.username}{uuid.uuid4()}"
+            attendee.email = f"{uuid.uuid4()}{attendee.email}"
             number_of_attendee_groups = random.randint(1, NUMBER_OF_GROUPS)
             attendee_groups = random.sample(groups, number_of_attendee_groups)
             attendee.groups.set(attendee_groups)
+            attendee.save()
             attendees.append(attendee)
         skills = []
         for _ in range(NUMBER_OF_SKILLS):
@@ -94,3 +96,11 @@ class Command(BaseCommand):
         for _ in range(NUMBER_OF_HARDWARE_TYPES * NUMBER_OF_HARDWARE_DEVICES):
             hardware_device = factories.HardwareDeviceFactory()
             hardware_devices.append(hardware_device)
+
+    @transaction.atomic
+    def handle(self, *args, **kwargs):  # noqa: C901
+        self.stdout.write("Deleting old data...")
+        self.delete_all()
+
+        self.stdout.write("Creating new data...")
+        self.add_all()
