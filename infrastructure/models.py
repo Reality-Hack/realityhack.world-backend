@@ -127,7 +127,7 @@ class HardwareDevice(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     hardware = models.ForeignKey(Hardware, on_delete=models.CASCADE)
     serial = models.CharField(max_length=100)
-    checked_out_to = models.ForeignKey(Attendee, on_delete=models.CASCADE)
+    checked_out_to = models.ForeignKey(Attendee, on_delete=models.CASCADE, null=True, default=None)
 
     def __str__(self) -> str:
         return f"Hardware: {self.hardware}, Serial: {self.serial}"

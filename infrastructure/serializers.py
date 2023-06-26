@@ -144,8 +144,8 @@ class HardwareDeviceHardwareSerializer(serializers.ModelSerializer):
 
 
 class HardwareDeviceSerializer(serializers.ModelSerializer):
-    hardware = HardwareDeviceHardwareSerializer()
-    checked_out_to = AttendeeSerializer()
+    # hardware = HardwareDeviceHardwareSerializer(read_only=True)
+    # checked_out_to = AttendeeSerializer(read_only=True)
 
     class Meta:
         model = HardwareDevice
