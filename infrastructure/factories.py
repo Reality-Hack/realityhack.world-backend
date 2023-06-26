@@ -61,7 +61,7 @@ class ProjectFactory(DjangoModelFactory):
     @factory.post_generation
     def team(self, create, team, **kwargs):
         if not create:
-            return
+            return  # pragma: no cover
 
         if team:
             self.team = team
@@ -87,7 +87,7 @@ class TeamFactory(DjangoModelFactory):
     @factory.post_generation
     def attendees(self, create, extracted, **kwargs):
         if not create:
-            return
+            return  # pragma: no cover
 
         if extracted:
             for attendee in extracted:

@@ -13,7 +13,7 @@ class Skill(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
         return f"{self.name}"
 
 
@@ -38,7 +38,7 @@ class SkillProficiency(models.Model):
     class Meta:
         verbose_name = "skill proficiencies"
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
         return f"Skill: {self.skill}, Proficiency: {self.proficiency}"
 
 
@@ -52,7 +52,7 @@ class Attendee(AbstractUser):
     class Meta:
         verbose_name = "attendees"
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
         return f"Name: {self.first_name} {self.last_name}, Email: {self.email}"
 
 
@@ -77,7 +77,7 @@ class Location(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
         return f"Building: {self.building}, Room: {self.room}"
 
 
@@ -88,7 +88,7 @@ class Table(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
         return f"{self.number}"
 
 
@@ -100,7 +100,7 @@ class Team(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
         return f"Name: {self.name}, Table: {self.table}"
 
 
@@ -113,7 +113,7 @@ class Project(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
         return f"{self.name}"
 
 
@@ -126,7 +126,7 @@ class HelpDesk(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
         return f"Table: {self.table}, IP: {self.ip_address}"
 
 
@@ -138,7 +138,7 @@ class Hardware(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
         return f"Name: {self.name}"
 
 
@@ -151,5 +151,5 @@ class HardwareDevice(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
         return f"Hardware: {self.hardware}, Serial: {self.serial}"

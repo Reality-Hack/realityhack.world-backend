@@ -29,10 +29,16 @@ python manage.py spectacular --file schema.yml
 ./test
 ```
 
-##### Show test coverage
+##### Show test coverage via CLI
 
+```shell
+coverage report --show-missing
 ```
-coverage report
+
+##### Render test coverage via HTML
+
+```shell
+coverage html
 ```
 
 #### Run server

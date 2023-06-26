@@ -65,8 +65,6 @@ class TeamViewSet(viewsets.ModelViewSet):
             return TeamSerializer
         if self.action == 'create':
             return TeamCreateSerializer
-        if self.action == 'retrieve':
-            return TeamDetailSerializer
         return TeamSerializer
 
     def retrieve(self, request, pk=None):

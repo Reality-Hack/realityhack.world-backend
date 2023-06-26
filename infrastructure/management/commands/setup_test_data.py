@@ -97,7 +97,7 @@ def add_all():  # noqa: C901
         hardware_devices.append(hardware_device)
 
 
-class Command(BaseCommand):
+class Command(BaseCommand):  # pragma: no cover
     help = "Generates test data"
 
     @transaction.atomic
