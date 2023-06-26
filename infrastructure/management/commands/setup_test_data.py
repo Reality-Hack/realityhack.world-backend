@@ -38,6 +38,7 @@ def add_all():  # noqa: C901
     groups = []
     for _ in range(NUMBER_OF_GROUPS):
         group = factories.GroupFactory()
+        group.name = f"{group}{uuid.uuid4()}"
         groups.append(group)
     attendees = []
     for _ in range(NUMBER_OF_ATTENDEES):

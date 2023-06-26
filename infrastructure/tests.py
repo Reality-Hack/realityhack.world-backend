@@ -1,4 +1,5 @@
 import copy
+import uuid
 
 from django.contrib.auth.models import Group
 from rest_framework.test import APIClient, APITestCase
@@ -28,13 +29,31 @@ class AttendeeTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.mock_attendee["id"], response.data["id"])
 
+    def test_get_attendee_404(self):
+        response = self.client.get(f"/attendees/{str(uuid.uuid4())}/")
+        self.assertEqual(response.status_code, 404)
+
     def test_create_attendee(self):
+        models.Attendee.objects.all().delete()
         mock_attendee = copy.deepcopy(self.mock_attendee)
-        mock_attendee["username"] = f"{self.mock_attendee['username']}updated"
         response = self.client.post('/attendees/', mock_attendee)
         self.assertEqual(response.status_code, 201)
         self.assertEqual(self.mock_attendee["last_name"], response.data["last_name"])
         self.assertNotEqual(self.mock_attendee["id"], response.data["id"])
+
+    def test_create_duplicate_attendee_username(self):
+        mock_attendee = copy.deepcopy(self.mock_attendee)
+        mock_attendee["email"] = f"updated{self.mock_attendee['email']}"
+        response = self.client.post('/attendees/', mock_attendee)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["username"][0].code, "unique")
+
+    def test_create_duplicate_attendee_email(self):
+        mock_attendee = copy.deepcopy(self.mock_attendee)
+        mock_attendee["username"] = f"{self.mock_attendee['username']}updated"
+        response = self.client.post('/attendees/', mock_attendee)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["email"][0].code, "unique")
 
     def test_update_attendee(self):
         mock_attendee = copy.deepcopy(self.mock_attendee)
@@ -86,6 +105,10 @@ class TeamTests(APITestCase):
         response = self.client.get(f"/teams/{self.mock_team['id']}/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.mock_team["id"], response.data["id"])
+
+    def test_get_team_404(self):
+        response = self.client.get(f"/teams/{str(uuid.uuid4())}/")
+        self.assertEqual(response.status_code, 404)
 
     def test_create_team(self):
         table = factories.TableFactory()
@@ -157,6 +180,10 @@ class ProjectTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.mock_project["id"], response.data["id"])
 
+    def test_get_project_404(self):
+        response = self.client.get(f"/projects/{str(uuid.uuid4())}/")
+        self.assertEqual(response.status_code, 404)
+
     def test_create_project(self):
         models.Project.objects.all().delete()
         mock_project = copy.deepcopy(self.mock_project)
@@ -165,6 +192,13 @@ class ProjectTests(APITestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(mock_project["name"], response.data["name"])
         self.assertNotEqual(self.mock_project["id"], response.data["id"])
+
+    def test_create_duplicate_team_project(self):
+        mock_project = copy.deepcopy(self.mock_project)
+        mock_project["name"] = f"{self.mock_project['name']}updated"
+        response = self.client.post('/projects/', mock_project)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["team"][0].code, "unique")
 
     def test_update_project(self):
         mock_team = copy.deepcopy(self.mock_project)
@@ -204,6 +238,10 @@ class HardwareTests(APITestCase):
         response = self.client.get(f"/hardware/{self.mock_hardware_type['id']}/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.mock_hardware_type["id"], response.data["id"])
+
+    def test_get_hardware_404(self):
+        response = self.client.get(f"/hardware/{str(uuid.uuid4())}/")
+        self.assertEqual(response.status_code, 404)
 
     def test_create_hardware(self):
         models.Hardware.objects.all().delete()
@@ -261,6 +299,10 @@ class HardwareDeviceTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.mock_hardware_device["id"], response.data["id"])
 
+    def test_get_hardware_device_404(self):
+        response = self.client.get(f"/hardwaredevices/{str(uuid.uuid4())}/")
+        self.assertEqual(response.status_code, 404)
+
     def test_create_hardware_device(self):
         models.HardwareDevice.objects.all().delete()
         mock_hardware_device = copy.deepcopy(self.mock_hardware_device)
@@ -313,7 +355,6 @@ class BulkTests(APITestCase):
         setup_test_data.delete_all()
 
     def test_bulk_add(self):
-
         # NUMBER_OF_ATTENDEES = 500
         # NUMBER_OF_GROUPS = 5
         # NUMBER_OF_SKILLS = 80

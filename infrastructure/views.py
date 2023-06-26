@@ -1,4 +1,5 @@
 from django.contrib.auth.models import Group
+from django.shortcuts import get_object_or_404
 from rest_framework import permissions, viewsets
 from rest_framework.response import Response
 
@@ -69,7 +70,7 @@ class TeamViewSet(viewsets.ModelViewSet):
         return TeamSerializer
 
     def retrieve(self, request, pk=None):
-        team = Team.objects.get(pk=pk)
+        team = get_object_or_404(Team, pk=pk)
         try:
             team.project = Project.objects.get(team=team)
         except Project.DoesNotExist:
