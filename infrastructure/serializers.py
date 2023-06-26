@@ -17,7 +17,7 @@ class GroupDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Group
-        fields = ['id', 'name', 'permissions']
+        fields = ['id', 'name', 'permissions', 'created_at', 'updated_at']
 
 
 class AttendeeSerializer(serializers.ModelSerializer):
@@ -26,7 +26,7 @@ class AttendeeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Attendee
         fields = ['id', 'first_name', 'last_name', 'groups',
-                  'username', 'email', 'is_staff']
+                  'username', 'email', 'is_staff', 'created_at', 'updated_at']
 
 
 class AttendeeTruncatedSerializer(serializers.ModelSerializer):
@@ -48,19 +48,21 @@ class SkillProficiencySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SkillProficiency
-        fields = ['id', 'skill', 'proficiency', 'attendee']
+        fields = ['id', 'skill', 'proficiency', 'attendee',
+                  'created_at', 'updated_at']
 
 
 class LocationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Location
-        fields = ['id', 'building', 'room']
+        fields = ['id', 'building', 'room',
+                  'created_at', 'updated_at']
 
 
 class TableSerializer(serializers.ModelSerializer):
     class Meta:
         model = Table
-        fields = ['id', 'number', 'location']
+        fields = ['id', 'number', 'location', 'created_at', 'updated_at']
 
 
 class TableTruncatedSerializer(serializers.ModelSerializer):
@@ -74,19 +76,20 @@ class TableDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Table
-        fields = ['id', 'number', 'location']
+        fields = ['id', 'number', 'location', 'created_at', 'updated_at']
 
 
 class ProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
-        fields = ['id', 'name', 'repository_location', 'submission_location', 'team']
+        fields = ['id', 'name', 'repository_location', 'submission_location', 'team',
+                  'created_at', 'updated_at']
 
 
 class TeamSerializer(serializers.ModelSerializer):
     class Meta:
         model = Team
-        fields = ['id', 'name', 'attendees', 'table']
+        fields = ['id', 'name', 'attendees', 'table', 'created_at', 'updated_at']
 
 
 class TeamDetailSerializer(serializers.ModelSerializer):
@@ -95,7 +98,7 @@ class TeamDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Team
-        fields = ['id', 'name', 'attendees', 'table']
+        fields = ['id', 'name', 'attendees', 'table', 'created_at', 'updated_at']
 
 
 class TeamCreateSerializer(serializers.ModelSerializer):
@@ -122,19 +125,14 @@ class HelpDesksSerializer(serializers.ModelSerializer):
     class Meta:
         model = HelpDesk
         fields = ['id', 'table', 'ip_address', 'announcement_pending',
-                  'mentor_requested', 'auxiliary_requested']
-
-
-class GroupSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Group
-        fields = ['id', 'name']
+                  'mentor_requested', 'auxiliary_requested',
+                  'created_at', 'updated_at']
 
 
 class HardwareSerializer(serializers.ModelSerializer):
     class Meta:
         model = Hardware
-        fields = ['id', 'name', 'description', 'image']
+        fields = ['id', 'name', 'description', 'image', 'created_at', 'updated_at']
 
 
 class HardwareDeviceHardwareSerializer(serializers.ModelSerializer):
@@ -149,4 +147,5 @@ class HardwareDeviceSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = HardwareDevice
-        fields = ['id', 'hardware', 'serial', 'checked_out_to']
+        fields = ['id', 'hardware', 'serial', 'checked_out_to',
+                  'created_at', 'updated_at']

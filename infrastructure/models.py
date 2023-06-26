@@ -10,6 +10,8 @@ from django.utils.translation import gettext_lazy as _
 class Skill(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=50)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self) -> str:
         return f"{self.name}"
@@ -30,6 +32,8 @@ class SkillProficiency(models.Model):
         default=Proficiency.NOVICE
     )
     attendee = models.ForeignKey('Attendee', on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = "skill proficiencies"
@@ -41,6 +45,8 @@ class SkillProficiency(models.Model):
 class Attendee(AbstractUser):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     bio = models.TextField(max_length=1000, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = "attendees"
@@ -67,6 +73,8 @@ class Location(models.Model):
         choices=Room.choices,
         default=Room.MAIN_HALL
     )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self) -> str:
         return f"Building: {self.building}, Room: {self.room}"
@@ -76,6 +84,8 @@ class Table(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     number = models.PositiveBigIntegerField()
     location = models.ForeignKey(Location, on_delete=models.DO_NOTHING)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self) -> str:
         return f"{self.number}"
@@ -86,6 +96,8 @@ class Team(models.Model):
     name = models.CharField(max_length=50)
     attendees = models.ManyToManyField(Attendee)
     table = models.OneToOneField(Table, on_delete=models.DO_NOTHING)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self) -> str:
         return f"Name: {self.name}, Table: {self.table}"
@@ -97,6 +109,8 @@ class Project(models.Model):
     repository_location = models.URLField()
     submission_location = models.URLField()
     team = models.OneToOneField(Team, on_delete=models.DO_NOTHING, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self) -> str:
         return f"{self.name}"
@@ -108,6 +122,8 @@ class HelpDesk(models.Model):
     ip_address = models.GenericIPAddressField()
     announcement_pending = models.BooleanField(default=False)
     mentor_requested = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self) -> str:
         return f"Table: {self.table}, IP: {self.ip_address}"
@@ -118,6 +134,8 @@ class Hardware(models.Model):
     name = models.CharField(max_length=50)
     description = models.TextField(max_length=1000, blank=True)
     image = models.URLField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self) -> str:
         return f"Name: {self.name}"
@@ -127,7 +145,10 @@ class HardwareDevice(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     hardware = models.ForeignKey(Hardware, on_delete=models.CASCADE)
     serial = models.CharField(max_length=100)
-    checked_out_to = models.ForeignKey(Attendee, on_delete=models.CASCADE, null=True, default=None)
+    checked_out_to = models.ForeignKey(
+        Attendee, on_delete=models.CASCADE, null=True, default=None)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self) -> str:
         return f"Hardware: {self.hardware}, Serial: {self.serial}"
