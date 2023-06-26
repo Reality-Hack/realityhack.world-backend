@@ -44,7 +44,8 @@ INSTALLED_APPS = [
     'rest_framework',
     'infrastructure',
     'channels',
-    'drf_spectacular'
+    'drf_spectacular',
+    'django_filters'
 ]
 
 MIDDLEWARE = [
@@ -138,7 +139,8 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_AUTHENTICATION_CLASSES': [],
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
-    'TEST_REQUEST_DEFAULT_FORMAT': 'json'
+    'TEST_REQUEST_DEFAULT_FORMAT': 'json',
+    'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend']
 }
 
 ASGI_APPLICATION = "infrastructure.routing.application"

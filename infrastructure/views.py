@@ -24,6 +24,9 @@ class AttendeeViewSet(viewsets.ModelViewSet):
     queryset = Attendee.objects.all().order_by('-date_joined')
     serializer_class = AttendeeSerializer
     permission_classes = [permissions.AllowAny]
+    filterset_fields = [
+        'first_name', 'last_name', 'username', 'email', 'is_staff', 'groups'
+    ]
 
 
 class SkillViewSet(viewsets.ModelViewSet):
@@ -59,6 +62,7 @@ class TeamViewSet(viewsets.ModelViewSet):
     """
     queryset = Team.objects.all()
     permission_classes = [permissions.AllowAny]
+    filterset_fields = ['name', 'attendees', 'table', 'table__number']
 
     def get_serializer_class(self):
         if self.action == 'list':

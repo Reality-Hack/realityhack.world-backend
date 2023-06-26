@@ -24,6 +24,59 @@ class AttendeeTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 1)
 
+    def get_attendees_with_filter(self, filter, search_term) -> str:
+        return f"/attendees/?{filter}={search_term}"
+
+    def test_get_attendees_filters(self):
+        response = self.client.get(self.get_attendees_with_filter(
+            "first_name", self.mock_attendee["first_name"]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        response = self.client.get(self.get_attendees_with_filter(
+            "first_name", f"fake{self.mock_attendee['first_name']}"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 0)
+        response = self.client.get(self.get_attendees_with_filter(
+            "last_name", self.mock_attendee["last_name"]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        response = self.client.get(self.get_attendees_with_filter(
+            "last_name", f"fake{self.mock_attendee['last_name']}"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 0)
+        response = self.client.get(self.get_attendees_with_filter(
+            "email", self.mock_attendee["email"]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        response = self.client.get(self.get_attendees_with_filter(
+            "email", f"fake{self.mock_attendee['email']}"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 0)
+        response = self.client.get(self.get_attendees_with_filter(
+            "username", self.mock_attendee["username"]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        response = self.client.get(self.get_attendees_with_filter(
+            "username", f"fake{self.mock_attendee['username']}"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 0)
+        response = self.client.get(self.get_attendees_with_filter(
+            "is_staff", str(self.mock_attendee['is_staff']).lower()))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        response = self.client.get(self.get_attendees_with_filter(
+            "is_staff", str(not self.mock_attendee['is_staff']).lower()))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 0)
+        response = self.client.get(self.get_attendees_with_filter(
+            "groups", self.mock_attendee["groups"][0]["id"]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        response = self.client.get(self.get_attendees_with_filter(
+            "groups", 10000))
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["groups"][0].code, "invalid_choice")
+
     def test_get_attendee(self):
         response = self.client.get(f"/attendees/{self.mock_attendee['id']}/")
         self.assertEqual(response.status_code, 200)
@@ -100,6 +153,43 @@ class TeamTests(APITestCase):
         response = self.client.get('/teams/')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 1)
+
+    def get_teams_with_filter(self, filter, search_term) -> str:
+        return f"/teams/?{filter}={search_term}"
+
+    def test_get_teams_filters(self):
+        response = self.client.get(self.get_teams_with_filter(
+            "name", self.mock_team["name"]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        response = self.client.get(self.get_teams_with_filter(
+            "name", f"fake{self.mock_team['name']}"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 0)
+        response = self.client.get(self.get_teams_with_filter(
+            "attendees", self.mock_team["attendees"][0]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        response = self.client.get(self.get_teams_with_filter(
+            "attendees", str(uuid.uuid4())))
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["attendees"][0].code, "invalid_choice")
+        response = self.client.get(self.get_teams_with_filter(
+            "table", self.mock_team["table"]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        response = self.client.get(self.get_teams_with_filter(
+            "table", str(uuid.uuid4())))
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["table"][0].code, "invalid_choice")
+        response = self.client.get(self.get_teams_with_filter(
+            "table__number", self.table.number))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        response = self.client.get(self.get_teams_with_filter(
+            "table__number", -1))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 0)
 
     def test_get_team(self):
         response = self.client.get(f"/teams/{self.mock_team['id']}/")

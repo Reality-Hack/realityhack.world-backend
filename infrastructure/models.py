@@ -51,6 +51,14 @@ class Attendee(AbstractUser):
 
     class Meta:
         verbose_name = "attendees"
+        indexes = [
+            models.Index(fields=['last_name', 'first_name']),
+            models.Index(fields=['first_name',]),
+            models.Index(fields=['last_name']),
+            models.Index(fields=['username']),
+            models.Index(fields=['email']),
+            models.Index(fields=['is_staff']),
+        ]
 
     def __str__(self) -> str:  # pragma: no cover
         return f"Name: {self.first_name} {self.last_name}, Email: {self.email}"
@@ -99,6 +107,12 @@ class Team(models.Model):
     table = models.OneToOneField(Table, on_delete=models.DO_NOTHING)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['name']),
+            models.Index(fields=['table'])
+        ]
 
     def __str__(self) -> str:  # pragma: no cover
         return f"Name: {self.name}, Table: {self.table}"
