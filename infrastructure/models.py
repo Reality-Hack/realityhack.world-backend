@@ -3,7 +3,6 @@ import uuid
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils.translation import gettext_lazy as _
-from multiselectfield import MultiSelectField
 
 # settings.AUTH_USER_MODEL
 
@@ -89,7 +88,7 @@ class Team(models.Model):
     table = models.OneToOneField(Table, on_delete=models.DO_NOTHING)
 
     def __str__(self) -> str:
-        return f"Name: {self.name}, Table: {self.table}, Project: {self.project}"
+        return f"Name: {self.name}, Table: {self.table}"
 
 
 class Project(models.Model):

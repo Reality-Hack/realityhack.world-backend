@@ -24,12 +24,6 @@ class AttendeeViewSet(viewsets.ModelViewSet):
     serializer_class = AttendeeSerializer
     permission_classes = [permissions.AllowAny]
 
-    def detail(request, attendee_id):
-        skill_proficiencies = SkillProficiency.objects.filter(
-            attendee_id=attendee_id
-        )
-        return skill_proficiencies
-
 
 class SkillViewSet(viewsets.ModelViewSet):
     """

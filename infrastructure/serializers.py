@@ -21,12 +21,19 @@ class GroupDetailSerializer(serializers.ModelSerializer):
 
 
 class AttendeeSerializer(serializers.ModelSerializer):
-    groups = GroupSerializer(many=True)
+    groups = GroupSerializer(many=True, read_only=True)
 
     class Meta:
         model = Attendee
         fields = ['id', 'first_name', 'last_name', 'groups',
                   'username', 'email', 'is_staff']
+
+
+class AttendeeTruncatedSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Attendee
+        fields = ['id']
 
 
 class SkillSerializer(serializers.ModelSerializer):
@@ -54,6 +61,12 @@ class TableSerializer(serializers.ModelSerializer):
     class Meta:
         model = Table
         fields = ['id', 'number', 'location']
+
+
+class TableTruncatedSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Table
+        fields = ['id']
 
 
 class TableDetailSerializer(serializers.ModelSerializer):
@@ -86,8 +99,8 @@ class TeamDetailSerializer(serializers.ModelSerializer):
 
 
 class TeamCreateSerializer(serializers.ModelSerializer):
-    table = serializers.IntegerField()
-    attendees = AttendeeSerializer(many=True)
+    # table = TableTruncatedSerializer(read_only=True)
+    # attendees = AttendeeTruncatedSerializer(many=True, read_only=True)
 
     class Meta:
         model = Team
