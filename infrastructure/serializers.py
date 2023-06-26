@@ -17,7 +17,7 @@ class GroupDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Group
-        fields = ['id', 'name', 'permissions', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'permissions']
 
 
 class AttendeeSerializer(serializers.ModelSerializer):
@@ -86,19 +86,43 @@ class ProjectSerializer(serializers.ModelSerializer):
                   'created_at', 'updated_at']
 
 
+class HelpDeskSerializer(serializers.Serializer):
+    table = serializers.IntegerField()
+    ip_address = serializers.IPAddressField()
+    mentor_requested = serializers.BooleanField()
+    announcement_pending = serializers.BooleanField()
+
+
 class TeamSerializer(serializers.ModelSerializer):
     class Meta:
         model = Team
         fields = ['id', 'name', 'attendees', 'table', 'created_at', 'updated_at']
 
 
+class TeamProjectSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Project
+        fields = ['id', 'name', 'repository_location', 'submission_location',
+                  'created_at', 'updated_at']
+
+
+class TeamHelpDeskSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HelpDesk
+        fields = ['id', 'announcement_pending', 'mentor_requested',
+                  'created_at', 'updated_at']
+
+
 class TeamDetailSerializer(serializers.ModelSerializer):
     table = TableDetailSerializer()
     attendees = AttendeeSerializer(many=True)
+    project = TeamProjectSerializer()
+    help_desk = TeamHelpDeskSerializer()
 
     class Meta:
         model = Team
-        fields = ['id', 'name', 'attendees', 'table', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'attendees', 'table', 'project', 'help_desk',
+                  'created_at', 'updated_at']
 
 
 class TeamCreateSerializer(serializers.ModelSerializer):
@@ -108,13 +132,6 @@ class TeamCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Team
         fields = ['id', 'name', 'attendees', 'table']
-
-
-class HelpDeskSerializer(serializers.Serializer):
-    table = serializers.IntegerField()
-    ip_address = serializers.IPAddressField()
-    mentor_requested = serializers.BooleanField()
-    announcement_pending = serializers.BooleanField()
 
 
 class MentorRequestSerializer(serializers.Serializer):

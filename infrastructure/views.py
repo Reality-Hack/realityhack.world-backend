@@ -68,6 +68,19 @@ class TeamViewSet(viewsets.ModelViewSet):
             return TeamDetailSerializer
         return TeamSerializer
 
+    def retrieve(self, request, pk=None):
+        team = Team.objects.get(pk=pk)
+        try:
+            team.project = Project.objects.get(team=team)
+        except Project.DoesNotExist:
+            team.project = None
+        try:
+            team.help_desk = HelpDesk.objects.get(table=team.table)
+        except (Table.DoesNotExist, HelpDesk.DoesNotExist):
+            team.help_desk = None
+        serializer = TeamDetailSerializer(team)
+        return Response(serializer.data)
+
 
 class HelpDesksViewSet(viewsets.ViewSet):
     """
