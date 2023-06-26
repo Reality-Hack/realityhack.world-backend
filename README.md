@@ -26,7 +26,13 @@ python manage.py spectacular --file schema.yml
 #### Run tests
 
 ```shell
-python manage.py test
+./test
+```
+
+##### Show test coverage
+
+```
+coverage report
 ```
 
 #### Run server
