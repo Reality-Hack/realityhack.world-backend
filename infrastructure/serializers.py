@@ -1,6 +1,5 @@
 from django.contrib.auth.models import Group
 from rest_framework import serializers
-from rest_framework.fields import SerializerMethodField
 
 from infrastructure.models import (Attendee, Hardware, HardwareDevice,
                                    HelpDesk, Location, Project, Skill,
@@ -28,7 +27,7 @@ class AttendeeSerializer(serializers.ModelSerializer):
         model = Attendee
         fields = ['id', 'first_name', 'last_name', 'groups',
                   'username', 'email', 'is_staff',
-                #   'metadata',
+                  #   'metadata',
                   'created_at', 'updated_at']
 
 
@@ -69,8 +68,9 @@ class AttendeeDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Attendee
         fields = ['id', 'first_name', 'last_name', 'groups',
-                #   'metadata',
-                  'username', 'email', 'is_staff', 'skill_proficiencies', 'created_at', 'updated_at']
+                  #   'metadata',
+                  'username', 'email', 'is_staff', 'skill_proficiencies',
+                  'created_at', 'updated_at']
 
 
 class LocationSerializer(serializers.ModelSerializer):
@@ -103,8 +103,8 @@ class TableDetailSerializer(serializers.ModelSerializer):
 class ProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
-        fields = ['id', 'name', 'repository_location', 'submission_location', 'team',
-                  'created_at', 'updated_at']
+        fields = ['id', 'name', 'repository_location', 'submission_location',
+                  'team', 'created_at', 'updated_at']
 
 
 class HelpDeskSerializer(serializers.Serializer):

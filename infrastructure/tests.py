@@ -496,7 +496,8 @@ class SkillProficiencyTests(APITestCase):
         mock_attendee = factories.AttendeeFactory()
         self.mock_attendee = serializers.AttendeeSerializer(mock_attendee).data
         skill = factories.SkillFactory()
-        skill_proficiency = factories.SkillProficiencyFactory(attendee=mock_attendee, skill=skill)
+        skill_proficiency = factories.SkillProficiencyFactory(
+            attendee=mock_attendee, skill=skill)
         self.mock_skill_proficiency = serializers.SkillProficiencySerializer(
             skill_proficiency).data
 
@@ -545,7 +546,9 @@ class SkillProficiencyTests(APITestCase):
         mock_skill = factories.SkillFactory()
         mock_skill_proficiency["skill"] = mock_skill.id
         response = self.client.put(
-            f"/skillproficiencies/{mock_skill_proficiency['id']}/", mock_skill_proficiency)
+            f"/skillproficiencies/{mock_skill_proficiency['id']}/",
+            mock_skill_proficiency
+        )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(mock_skill.id, response.data["skill"])
         self.assertNotEqual(

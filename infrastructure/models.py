@@ -39,7 +39,6 @@ class SkillProficiency(models.Model):
         verbose_name = "skill proficiencies"
         unique_together = [['attendee', 'skill']]
 
-
     def __str__(self) -> str:  # pragma: no cover
         return f"Skill: {self.skill}, Proficiency: {self.proficiency}"
 

@@ -33,7 +33,8 @@ class AttendeeViewSet(viewsets.ModelViewSet):
 
     def retrieve(self, request, pk=None):
         attendee = get_object_or_404(Attendee, pk=pk)
-        attendee.skill_proficiencies = SkillProficiency.objects.filter(attendee=attendee)
+        attendee.skill_proficiencies = SkillProficiency.objects.filter(
+            attendee=attendee)
         serializer = AttendeeDetailSerializer(attendee)
         return Response(serializer.data)
 
