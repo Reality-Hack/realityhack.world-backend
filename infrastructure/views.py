@@ -12,6 +12,7 @@ from infrastructure.serializers import (AttendeeDetailSerializer,
                                         HardwareDeviceSerializer,
                                         HardwareSerializer, HelpDeskSerializer,
                                         LocationSerializer, ProjectSerializer,
+                                        SkillProficiencyCreateSerializer,
                                         SkillProficiencySerializer,
                                         SkillSerializer, TableSerializer,
                                         TeamCreateSerializer,
@@ -26,7 +27,8 @@ class AttendeeViewSet(viewsets.ModelViewSet):
     serializer_class = AttendeeSerializer
     permission_classes = [permissions.AllowAny]
     filterset_fields = [
-        'first_name', 'last_name', 'username', 'email', 'is_staff', 'groups'
+        'first_name', 'last_name', 'username', 'email', 'is_staff', 'groups',
+        # 'metadata'
     ]
 
     def retrieve(self, request, pk=None):
@@ -180,8 +182,16 @@ class SkillProficiencyViewSet(viewsets.ModelViewSet):
     API endpoint that allows skill proficiencies to be viewed or edited.
     """
     queryset = SkillProficiency.objects.all()
-    serializer_class = SkillProficiencySerializer
     permission_classes = [permissions.AllowAny]
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return SkillProficiencyCreateSerializer
+        if self.action == 'update':
+            return SkillProficiencyCreateSerializer
+        if self.action == 'partial_update':
+            return SkillProficiencyCreateSerializer
+        return SkillProficiencySerializer
 
 
 class ProjectViewSet(viewsets.ModelViewSet):
