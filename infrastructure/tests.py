@@ -69,7 +69,7 @@ class AttendeeTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 0)
         response = self.client.get(self.get_attendees_with_filter(
-            "groups", self.mock_attendee["groups"][0]["id"]))
+            "groups", self.mock_attendee["groups"][0]))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 1)
         response = self.client.get(self.get_attendees_with_filter(

@@ -6,7 +6,8 @@ from rest_framework.response import Response
 from infrastructure.models import (Attendee, Hardware, HardwareDevice,
                                    HelpDesk, Location, Project, Skill,
                                    SkillProficiency, Table, Team)
-from infrastructure.serializers import (AttendeeSerializer,
+from infrastructure.serializers import (AttendeeDetailSerializer,
+                                        AttendeeSerializer,
                                         GroupDetailSerializer,
                                         HardwareDeviceSerializer,
                                         HardwareSerializer, HelpDeskSerializer,
@@ -27,6 +28,12 @@ class AttendeeViewSet(viewsets.ModelViewSet):
     filterset_fields = [
         'first_name', 'last_name', 'username', 'email', 'is_staff', 'groups'
     ]
+
+    def retrieve(self, request, pk=None):
+        attendee = get_object_or_404(Attendee, pk=pk)
+        attendee.skill_proficiencies = SkillProficiency.objects.filter(attendee=attendee)
+        serializer = AttendeeDetailSerializer(attendee)
+        return Response(serializer.data)
 
 
 class SkillViewSet(viewsets.ModelViewSet):

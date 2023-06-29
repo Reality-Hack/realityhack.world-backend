@@ -21,19 +21,12 @@ class GroupDetailSerializer(serializers.ModelSerializer):
 
 
 class AttendeeSerializer(serializers.ModelSerializer):
-    groups = GroupSerializer(many=True, read_only=True)
 
     class Meta:
         model = Attendee
         fields = ['id', 'first_name', 'last_name', 'groups',
-                  'username', 'email', 'is_staff', 'created_at', 'updated_at']
-
-
-class AttendeeTruncatedSerializer(serializers.ModelSerializer):
-
-    class Meta:
-        model = Attendee
-        fields = ['id']
+                  'username', 'email', 'is_staff', 'metadata',
+                  'created_at', 'updated_at']
 
 
 class SkillSerializer(serializers.ModelSerializer):
@@ -43,13 +36,30 @@ class SkillSerializer(serializers.ModelSerializer):
 
 
 class SkillProficiencySerializer(serializers.ModelSerializer):
-    attendee = AttendeeSerializer()
     skill = SkillSerializer()
 
     class Meta:
         model = SkillProficiency
         fields = ['id', 'skill', 'proficiency', 'attendee',
                   'created_at', 'updated_at']
+
+
+class SkillProficiencyAttendeeSerializer(serializers.ModelSerializer):
+    skill = SkillSerializer()
+
+    class Meta:
+        model = SkillProficiency
+        fields = ['id', 'skill', 'proficiency']
+
+
+class AttendeeDetailSerializer(serializers.ModelSerializer):
+    groups = GroupSerializer(many=True, read_only=True)
+    skill_proficiencies = SkillProficiencyAttendeeSerializer(many=True)
+
+    class Meta:
+        model = Attendee
+        fields = ['id', 'first_name', 'last_name', 'groups',
+                  'username', 'email', 'is_staff', 'skill_proficiencies', 'created_at', 'updated_at']
 
 
 class LocationSerializer(serializers.ModelSerializer):
