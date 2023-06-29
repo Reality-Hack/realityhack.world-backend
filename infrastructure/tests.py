@@ -437,6 +437,132 @@ class HardwareDeviceTests(APITestCase):
         )
 
 
+class SkillTests(APITestCase):
+    def setUp(self):
+        self.client = APIClient()
+        skill = factories.SkillFactory()
+        self.mock_skill = serializers.SkillSerializer(skill).data
+
+    def tearDown(self):
+        setup_test_data.delete_all()
+
+    def test_get_skills(self):
+        response = self.client.get('/skills/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+
+    def test_get_skill(self):
+        response = self.client.get(f"/skills/{self.mock_skill['id']}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.mock_skill["id"], response.data["id"])
+
+    def test_get_skill_404(self):
+        response = self.client.get(f"/skills/{str(uuid.uuid4())}/")
+        self.assertEqual(response.status_code, 404)
+
+    def test_create_skill(self):
+        models.Skill.objects.all().delete()
+        mock_skill = copy.deepcopy(self.mock_skill)
+        response = self.client.post('/skills/', mock_skill)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(self.mock_skill["name"], response.data["name"])
+        self.assertNotEqual(self.mock_skill["id"], response.data["id"])
+
+    def test_update_skill(self):
+        mock_skill = copy.deepcopy(self.mock_skill)
+        new_name = f"{self.mock_skill['name']}updated"
+        mock_skill["name"] = new_name
+        response = self.client.put(
+            f"/skills/{mock_skill['id']}/", mock_skill)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(new_name, response.data["name"])
+        self.assertNotEqual(self.mock_skill["name"], response.data["name"])
+
+    def test_partial_update_skill(self):
+        mock_skill = copy.deepcopy(self.mock_skill)
+        new_name = f"{self.mock_skill['name']}partially_updated"
+        mock_skill["name"] = new_name
+        response = self.client.patch(
+            f"/skills/{mock_skill['id']}/", {"name": new_name})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(new_name, response.data["name"])
+        self.assertNotEqual(self.mock_skill["name"], response.data["name"])
+
+
+class SkillProficiencyTests(APITestCase):
+    def setUp(self):
+        self.client = APIClient()
+        factories.GroupFactory()
+        mock_attendee = factories.AttendeeFactory()
+        self.mock_attendee = serializers.AttendeeSerializer(mock_attendee).data
+        skill = factories.SkillFactory()
+        skill_proficiency = factories.SkillProficiencyFactory(attendee=mock_attendee, skill=skill)
+        self.mock_skill_proficiency = serializers.SkillProficiencySerializer(
+            skill_proficiency).data
+
+    def tearDown(self):
+        setup_test_data.delete_all()
+
+    def test_get_skill_proficiencies(self):
+        response = self.client.get('/skillproficiencies/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+
+    def test_get_skill_proficiency(self):
+        response = self.client.get(
+            f"/skillproficiencies/{self.mock_skill_proficiency['id']}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.mock_skill_proficiency["id"], response.data["id"])
+
+    def test_get_skill_proficiency_404(self):
+        response = self.client.get(f"/skillproficiencies/{str(uuid.uuid4())}/")
+        self.assertEqual(response.status_code, 404)
+
+    def test_create_skill_proficiency(self):
+        mock_skill_proficiency = serializers.SkillProficiencyCreateSerializer(
+            models.SkillProficiency.objects.get(pk=self.mock_skill_proficiency["id"])
+        ).data
+        models.SkillProficiency.objects.all().delete()
+        response = self.client.post('/skillproficiencies/', mock_skill_proficiency)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(
+            mock_skill_proficiency["skill"], response.data["skill"])
+        self.assertNotEqual(
+            self.mock_skill_proficiency["skill"]["id"], response.data["skill"])
+
+    def test_create_non_unique_skill_proficiency(self):
+        mock_skill_proficiency = serializers.SkillProficiencyCreateSerializer(
+            models.SkillProficiency.objects.get(pk=self.mock_skill_proficiency["id"])
+        ).data
+        response = self.client.post('/skillproficiencies/', mock_skill_proficiency)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["non_field_errors"][0].code, "unique")
+
+    def test_update_skill_proficiency(self):
+        mock_skill_proficiency = serializers.SkillProficiencyCreateSerializer(
+            models.SkillProficiency.objects.get(pk=self.mock_skill_proficiency["id"])
+        ).data
+        mock_skill = factories.SkillFactory()
+        mock_skill_proficiency["skill"] = mock_skill.id
+        response = self.client.put(
+            f"/skillproficiencies/{mock_skill_proficiency['id']}/", mock_skill_proficiency)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(mock_skill.id, response.data["skill"])
+        self.assertNotEqual(
+            self.mock_skill_proficiency["skill"]["id"], response.data["skill"])
+
+    def test_partial_update_skill_proficiency(self):
+        mock_skill = factories.SkillFactory()
+        response = self.client.patch(
+            f"/skillproficiencies/{self.mock_skill_proficiency['id']}/",
+            {"skill": mock_skill.id}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(mock_skill.id, response.data["skill"])
+        self.assertNotEqual(
+            self.mock_skill_proficiency["skill"]["id"], response.data["skill"])
+
+
 class BulkTests(APITestCase):
     def setUp(self):
         setup_test_data.add_all()
@@ -461,3 +587,7 @@ class BulkTests(APITestCase):
             setup_test_data.NUMBER_OF_TEAMS, models.Team.objects.count())
         for team in models.Team.objects.all():
             self.assertEqual(setup_test_data.TEAM_SIZE, len(team.attendees.values()))
+        self.assertEqual(
+            setup_test_data.NUMBER_OF_SKILLS, models.Skill.objects.count())
+        self.assertEqual(
+            setup_test_data.NUMBER_OF_HARDWARE_TYPES, models.Hardware.objects.count())
