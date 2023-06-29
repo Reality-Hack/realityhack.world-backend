@@ -48,6 +48,7 @@ class Attendee(AbstractUser):
     email = models.EmailField(unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    metadata = models.JSONField(default=dict)
 
     class Meta:
         verbose_name = "attendees"
@@ -58,6 +59,7 @@ class Attendee(AbstractUser):
             models.Index(fields=['username']),
             models.Index(fields=['email']),
             models.Index(fields=['is_staff']),
+            models.Index(fields=['metadata'])
         ]
 
     def __str__(self) -> str:  # pragma: no cover
