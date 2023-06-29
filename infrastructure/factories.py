@@ -16,6 +16,7 @@ class AttendeeFactory(DjangoModelFactory):
     bio = factory.fuzzy.FuzzyText(length=1000)
     email = factory.Faker("email")
     username = factory.Faker("user_name")
+    metadata = factory.Dict({"shirt_size": factory.Faker("name")})
 
 
 class GroupFactory(DjangoModelFactory):
@@ -29,7 +30,7 @@ class SkillFactory(DjangoModelFactory):
     class Meta:
         model = models.Skill
 
-    name = factory.Faker("catch_phrase")
+    name = factory.Faker("company")
 
 
 class TableFactory(DjangoModelFactory):
@@ -70,6 +71,7 @@ class ProjectFactory(DjangoModelFactory):
 class SkillProficiencyFactory(DjangoModelFactory):
     class Meta:
         model = models.SkillProficiency
+
     skill = factory.Iterator(models.Skill.objects.all())
     proficiency = factory.Faker(
         'random_element', elements=[x[0] for x in models.SkillProficiency.Proficiency]

@@ -18,6 +18,8 @@ TEAM_SIZE = 5
 NUMBER_OF_SKILL_PROFICIENCIES = 4
 NUMBER_OF_HARDWARE_TYPES = 10
 NUMBER_OF_HARDWARE_DEVICES = 25
+SHIRT_SIZES = ["SHIRT_SIZE_S", "SHIRT_SIZE_M", "SHIRT_SIZE_L",
+               "SHIRT_SIZE_XL", "SHIRT_SIZE_XXL"]
 
 
 def delete_all():  # noqa: C901
@@ -42,7 +44,9 @@ def add_all():  # noqa: C901
         groups.append(group)
     attendees = []
     for _ in range(NUMBER_OF_ATTENDEES):
-        attendee = factories.AttendeeFactory()
+        metadata_dict = dict()
+        metadata_dict["shirt_size"] = random.choice(SHIRT_SIZES)
+        attendee = factories.AttendeeFactory(metadata=metadata_dict)
         attendee.username = f"{attendee.username}{uuid.uuid4()}"
         attendee.email = f"{uuid.uuid4()}{attendee.email}"
         number_of_attendee_groups = random.randint(1, NUMBER_OF_GROUPS)
