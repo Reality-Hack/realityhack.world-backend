@@ -107,11 +107,11 @@ class ProjectSerializer(serializers.ModelSerializer):
                   'team', 'created_at', 'updated_at']
 
 
-class HelpDeskSerializer(serializers.Serializer):
-    table = serializers.IntegerField()
-    ip_address = serializers.IPAddressField()
-    mentor_requested = serializers.BooleanField()
-    announcement_pending = serializers.BooleanField()
+class HelpDeskSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HelpDesk
+        fields = ['id', 'table', 'ip_address', 'mentor_requested',
+                  'announcement_pending']
 
 
 class TeamSerializer(serializers.ModelSerializer):
@@ -147,12 +147,25 @@ class TeamDetailSerializer(serializers.ModelSerializer):
 
 
 class TeamCreateSerializer(serializers.ModelSerializer):
-    # table = TableTruncatedSerializer(read_only=True)
-    # attendees = AttendeeTruncatedSerializer(many=True, read_only=True)
-
     class Meta:
         model = Team
         fields = ['id', 'name', 'attendees', 'table']
+
+
+class TableDetailSerializer(serializers.ModelSerializer):
+    team = TeamSerializer()
+    help_desk = HelpDeskSerializer()
+
+    class Meta:
+        model = Table
+        fields = ['id', 'number', 'location', 'team', 'help_desk',
+                  'created_at', 'updated_at']
+        
+
+class TableCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Table
+        fields = ['id', 'number', 'location']
 
 
 class MentorRequestSerializer(serializers.Serializer):

@@ -221,7 +221,7 @@ class TeamTests(APITestCase):
         self.assertEqual(new_name, response.data["name"])
         self.assertNotEqual(self.mock_team["name"], response.data["name"])
 
-    def test_partial_update_attendee(self):
+    def test_partial_update_team(self):
         mock_team = serializers.TeamCreateSerializer(
             models.Team.objects.get(pk=self.mock_team["id"])).data
         new_name = f"{self.mock_team['name']}updated"
@@ -564,6 +564,76 @@ class SkillProficiencyTests(APITestCase):
         self.assertEqual(mock_skill.id, response.data["skill"])
         self.assertNotEqual(
             self.mock_skill_proficiency["skill"]["id"], response.data["skill"])
+        
+
+class TableTests(APITestCase):
+    def setUp(self):
+        self.client = APIClient()
+        location = models.Location.objects.create(room=models.Location.Room.ATLANTIS)
+        self.mock_location = serializers.LocationSerializer(location).data
+        table = factories.TableFactory(location=location)
+        self.mock_table = serializers.TableSerializer(table).data
+        group = factories.GroupFactory()
+        mock_attendees = [
+            factories.AttendeeFactory() for _ in range(
+                setup_test_data.TEAM_SIZE + 1)]
+        [mock_attendee.groups.set([group]) for mock_attendee in mock_attendees]
+        self.mock_attendees = [
+            serializers.AttendeeSerializer(mock_attendee).data
+            for mock_attendee in mock_attendees
+        ]
+        team = factories.TeamFactory(
+            attendees=mock_attendees[0:setup_test_data.TEAM_SIZE], table=table)
+        self.mock_team = serializers.TeamSerializer(team).data
+        help_desk = factories.HelpDeskFactory()
+        self.help_desk = serializers.HelpDeskSerializer(help_desk).data
+
+    def tearDown(self):
+        setup_test_data.delete_all()
+
+    def test_get_tables(self):
+        response = self.client.get('/tables/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+
+    def test_get_table(self):
+        response = self.client.get(f"/tables/{self.mock_table['id']}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.mock_table["id"], response.data["id"])
+
+    def test_get_table_404(self):
+        response = self.client.get(f"/tables/{str(uuid.uuid4())}/")
+        self.assertEqual(response.status_code, 404)
+
+    def test_create_table(self):
+        mock_table = serializers.TableCreateSerializer(factories.TableFactory()).data
+        mock_table["number"] += 1
+        mock_table["location"] = self.mock_location["id"]
+        response = self.client.post('/tables/', mock_table)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(mock_table["number"], response.data["number"])
+        self.assertNotEqual(self.mock_table["id"], response.data["id"])
+
+    def test_update_table(self):
+        mock_table = serializers.TableCreateSerializer(
+            models.Table.objects.get(pk=self.mock_table["id"])).data
+        new_number = self.mock_table["number"] + 1
+        mock_table["number"] = new_number
+        response = self.client.put(f"/tables/{mock_table['id']}/", mock_table)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(new_number, response.data["number"])
+        self.assertNotEqual(self.mock_table["number"], response.data["number"])
+
+    def test_partial_update_table(self):
+        mock_table = serializers.TableCreateSerializer(
+            models.Table.objects.get(pk=self.mock_table["id"])).data
+        new_number = self.mock_table["number"] + 1
+        mock_table["number"] = new_number
+        response = self.client.patch(
+            f"/tables/{mock_table['id']}/",{"number": new_number})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(new_number, response.data["number"])
+        self.assertNotEqual(self.mock_table["number"], response.data["number"])
 
 
 class BulkTests(APITestCase):

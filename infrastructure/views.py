@@ -16,7 +16,7 @@ from infrastructure.serializers import (AttendeeDetailSerializer,
                                         SkillProficiencySerializer,
                                         SkillSerializer, TableSerializer,
                                         TeamCreateSerializer,
-                                        TeamDetailSerializer, TeamSerializer)
+                                        TeamDetailSerializer, TeamSerializer, TableCreateSerializer, TableDetailSerializer)
 
 
 class AttendeeViewSet(viewsets.ModelViewSet):
@@ -62,8 +62,27 @@ class TableViewSet(viewsets.ModelViewSet):
     API endpoint that allows tables to be viewed or edited.
     """
     queryset = Table.objects.all()
-    serializer_class = TableSerializer
     permission_classes = [permissions.AllowAny]
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return TableSerializer
+        if self.action == 'create':
+            return TableCreateSerializer
+        return TableSerializer
+    
+    def retrieve(self, request, pk=None):
+        table = get_object_or_404(Table, pk=pk)
+        try:
+            table.team = Team.objects.get(table=table)
+        except Team.DoesNotExist:
+            table.team = None
+        try:
+            table.help_desk = HelpDesk.objects.get(table=table)
+        except HelpDesk.DoesNotExist:
+            table.help_desk = None
+        serializer = TableDetailSerializer(table)
+        return Response(serializer.data)
 
 
 class TeamViewSet(viewsets.ModelViewSet):
