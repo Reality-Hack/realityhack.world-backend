@@ -529,7 +529,7 @@ class SkillProficiencyTests(APITestCase):
         self.assertEqual(
             mock_skill_proficiency["skill"], response.data["skill"])
         self.assertNotEqual(
-            self.mock_skill_proficiency["skill"]["id"], response.data["skill"])
+            self.mock_skill_proficiency["id"], response.data["id"])
 
     def test_create_non_unique_skill_proficiency(self):
         mock_skill_proficiency = serializers.SkillProficiencyCreateSerializer(
@@ -552,7 +552,7 @@ class SkillProficiencyTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(mock_skill.id, response.data["skill"])
         self.assertNotEqual(
-            self.mock_skill_proficiency["skill"]["id"], response.data["skill"])
+            self.mock_skill_proficiency["skill"], response.data["skill"])
 
     def test_partial_update_skill_proficiency(self):
         mock_skill = factories.SkillFactory()
@@ -563,7 +563,7 @@ class SkillProficiencyTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(mock_skill.id, response.data["skill"])
         self.assertNotEqual(
-            self.mock_skill_proficiency["skill"]["id"], response.data["skill"])
+            self.mock_skill_proficiency["skill"], response.data["skill"])
         
 
 class TableTests(APITestCase):

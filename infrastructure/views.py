@@ -9,14 +9,20 @@ from infrastructure.models import (Attendee, Hardware, HardwareDevice,
 from infrastructure.serializers import (AttendeeDetailSerializer,
                                         AttendeeSerializer,
                                         GroupDetailSerializer,
+                                        HardwareCountSerializer,
+
+                                        HardwareCountDetailSerializer,
+                                        HardwareDeviceDetailSerializer,
                                         HardwareDeviceSerializer,
                                         HardwareSerializer, HelpDeskSerializer,
                                         LocationSerializer, ProjectSerializer,
                                         SkillProficiencyCreateSerializer,
+                                        SkillProficiencyDetailSerializer,
                                         SkillProficiencySerializer,
-                                        SkillSerializer, TableSerializer,
+                                        SkillSerializer, TableCreateSerializer,
+                                        TableDetailSerializer, TableSerializer,
                                         TeamCreateSerializer,
-                                        TeamDetailSerializer, TeamSerializer, TableCreateSerializer, TableDetailSerializer)
+                                        TeamDetailSerializer, TeamSerializer)
 
 
 class AttendeeViewSet(viewsets.ModelViewSet):
@@ -211,6 +217,8 @@ class SkillProficiencyViewSet(viewsets.ModelViewSet):
             return SkillProficiencyCreateSerializer
         if self.action == 'partial_update':
             return SkillProficiencyCreateSerializer
+        if self.action == 'retrieve':
+            return SkillProficiencyDetailSerializer
         return SkillProficiencySerializer
 
 
@@ -234,17 +242,53 @@ class GroupViewSet(viewsets.ModelViewSet):
 
 class HardwareViewSet(viewsets.ModelViewSet):
     """
-    API endpoint that allows groups to be viewed or edited.
+    API endpoint that allows hardware to be viewed or edited.
     """
     queryset = Hardware.objects.all()
     serializer_class = HardwareSerializer
     permission_classes = [permissions.AllowAny]
 
+    @classmethod
+    def _iterate_hardware_count(cls, hardware_type):
+        hardware_devices = HardwareDevice.objects.filter(
+            hardware=hardware_type)
+        hardware_devices_available = hardware_devices.filter(
+            checked_out_to__isnull=True).count()
+        hardware_devices_checked_out = hardware_devices.filter(
+            checked_out_to__isnull=False).count()
+        hardware_devices_total = (
+            hardware_devices_available + hardware_devices_checked_out
+        )
+        hardware_type.available = hardware_devices_available
+        hardware_type.checked_out = hardware_devices_checked_out
+        hardware_type.total = hardware_devices_total
+
+
+    def retrieve(self, request, pk=None):
+        hardware_type = get_object_or_404(Hardware, pk=pk)
+        self._iterate_hardware_count(hardware_type)
+        hardware_type.hardware_devices = HardwareDevice.objects.filter(
+            hardware=hardware_type)
+        serializer = HardwareCountDetailSerializer(hardware_type)
+        return Response(serializer.data)
+
+
+    def list(self, request):
+        hardware_types = list(Hardware.objects.all())
+        for hardware_type in hardware_types:
+            self._iterate_hardware_count(hardware_type)
+        serializer = HardwareCountSerializer(hardware_types, many=True)
+        return Response(serializer.data)
+
 
 class HardwareDeviceViewSet(viewsets.ModelViewSet):
     """
-    API endpoint that allows groups to be viewed or edited.
+    API endpoint that allows hardware devices to be viewed or edited.
     """
     queryset = HardwareDevice.objects.all()
-    serializer_class = HardwareDeviceSerializer
     permission_classes = [permissions.AllowAny]
+
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return HardwareDeviceDetailSerializer
+        return HardwareDeviceSerializer

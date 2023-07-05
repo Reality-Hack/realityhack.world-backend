@@ -37,9 +37,17 @@ class SkillSerializer(serializers.ModelSerializer):
         fields = ['id', 'name']
 
 
-class SkillProficiencySerializer(serializers.ModelSerializer):
+class SkillProficiencyDetailSerializer(serializers.ModelSerializer):
+    attendee = AttendeeSerializer()
     skill = SkillSerializer()
 
+    class Meta:
+        model = SkillProficiency
+        fields = ['id', 'skill', 'proficiency', 'attendee',
+                  'created_at', 'updated_at']
+
+
+class SkillProficiencySerializer(serializers.ModelSerializer):
     class Meta:
         model = SkillProficiency
         fields = ['id', 'skill', 'proficiency', 'attendee',
@@ -160,7 +168,7 @@ class TableDetailSerializer(serializers.ModelSerializer):
         model = Table
         fields = ['id', 'number', 'location', 'team', 'help_desk',
                   'created_at', 'updated_at']
-        
+
 
 class TableCreateSerializer(serializers.ModelSerializer):
     class Meta:
@@ -180,10 +188,43 @@ class HelpDesksSerializer(serializers.ModelSerializer):
                   'created_at', 'updated_at']
 
 
+class HardwareCountSerializer(serializers.ModelSerializer):
+    available = serializers.IntegerField()
+    checked_out = serializers.IntegerField()
+    total = serializers.IntegerField()
+
+    class Meta:
+        model = Hardware
+        fields = ['id', 'name', 'description', 'image',
+                  'available', 'checked_out', 'total',
+                  'created_at', 'updated_at']
+
+
+class HardwareDeviceHardwareCountDetailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HardwareDevice
+        fields = ['id', 'serial', 'checked_out_to',
+                  'created_at', 'updated_at']
+
+
+class HardwareCountDetailSerializer(serializers.ModelSerializer):
+    available = serializers.IntegerField()
+    checked_out = serializers.IntegerField()
+    total = serializers.IntegerField()
+    hardware_devices = HardwareDeviceHardwareCountDetailSerializer(many=True)
+
+    class Meta:
+        model = Hardware
+        fields = ['id', 'name', 'description', 'image',
+                  'available', 'checked_out', 'total',
+                  'created_at', 'updated_at', 'hardware_devices']
+
+
 class HardwareSerializer(serializers.ModelSerializer):
     class Meta:
         model = Hardware
-        fields = ['id', 'name', 'description', 'image', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'description', 'image',
+                  'created_at', 'updated_at']
 
 
 class HardwareDeviceHardwareSerializer(serializers.ModelSerializer):
@@ -193,8 +234,15 @@ class HardwareDeviceHardwareSerializer(serializers.ModelSerializer):
 
 
 class HardwareDeviceSerializer(serializers.ModelSerializer):
-    # hardware = HardwareDeviceHardwareSerializer(read_only=True)
-    # checked_out_to = AttendeeSerializer(read_only=True)
+    class Meta:
+        model = HardwareDevice
+        fields = ['id', 'hardware', 'serial', 'checked_out_to',
+                  'created_at', 'updated_at']
+
+
+class HardwareDeviceDetailSerializer(serializers.ModelSerializer):
+    hardware = HardwareDeviceHardwareSerializer(read_only=True)
+    checked_out_to = AttendeeSerializer(read_only=True)
 
     class Meta:
         model = HardwareDevice
