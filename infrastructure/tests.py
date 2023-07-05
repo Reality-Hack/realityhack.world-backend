@@ -200,6 +200,14 @@ class TeamTests(APITestCase):
         response = self.client.get(f"/teams/{str(uuid.uuid4())}/")
         self.assertEqual(response.status_code, 404)
 
+    def test_get_team_no_project(self):
+        team = models.Team.objects.get(pk=self.mock_team["id"])
+        team.project = None
+        team.save()
+        response = self.client.get(f"/teams/{self.mock_team['id']}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.mock_team["id"], response.data["id"])
+
     def test_create_team(self):
         table = factories.TableFactory()
         mock_team = serializers.TeamCreateSerializer(
