@@ -16,7 +16,7 @@ NUMBER_OF_SKILLS = 80
 NUMBER_OF_TEAMS = 80
 TEAM_SIZE = 5
 NUMBER_OF_SKILL_PROFICIENCIES = 4
-NUMBER_OF_HARDWARE_TYPES = 10
+NUMBER_OF_HARDWARE_TYPES = 100
 NUMBER_OF_HARDWARE_DEVICES = 25
 SHIRT_SIZES = ["SHIRT_SIZE_S", "SHIRT_SIZE_M", "SHIRT_SIZE_L",
                "SHIRT_SIZE_XL", "SHIRT_SIZE_XXL"]
@@ -97,7 +97,12 @@ def add_all():  # noqa: C901
         hardware_type = factories.HardwareFactory()
         hardware.append(hardware_type)
     for _ in range(NUMBER_OF_HARDWARE_TYPES * NUMBER_OF_HARDWARE_DEVICES):
-        hardware_device = factories.HardwareDeviceFactory()
+        checked_out = bool(random.getrandbits(1))
+        if checked_out:
+            hardware_device = factories.HardwareDeviceFactory()
+        else:
+            hardware_device = factories.HardwareDeviceFactory(
+                checked_out_to=None)
         hardware_devices.append(hardware_device)
 
 
