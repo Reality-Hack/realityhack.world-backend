@@ -22,19 +22,20 @@ DEPLOYED = False
 if sys.executable == "/usr/bin/python3" or sys.executable == "/usr/local/bin/daphne":
     DEPLOYED = True
 
-print(f"sys.executable: {sys.executable}")
+# SECURITY WARNING: don't run with debug turned on in production!
+DEBUG = True
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-__k63t0*53p$3o3rguuc4(s(t19dpixecn4c*13%9&2a!aet6_'
+
 if DEPLOYED:  # Not using a virtual env = is deployed
-    DEBUG = True
+    DEBUG = False
     load_dotenv(dotenv_path=Path("/root/.digitalocean_password"))
     SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
