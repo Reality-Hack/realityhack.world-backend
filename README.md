@@ -8,19 +8,19 @@
 
 ```shell
 pip install -r requirements.txt
-python manage.py migrate
+./manage.py migrate
 ```
 
 #### Create fake test data
 
 ```shell
-python manage.py setup_test_data
+./manage.py setup_test_data
 ```
 
 #### Get API schema spec
 
 ```shell
-python manage.py spectacular --file schema.yml
+./manage.py spectacular --file schema.yml
 ```
 
 #### Run tests
@@ -44,16 +44,16 @@ coverage html
 #### Run server
 
 ```shell
-python manage.py runserver
+./manage.py runserver
 ```
 
 ### Cloud
 
 This server and database are deployed using Google Cloud. The guide to deploying with AppEngine was followed from here:
+ 
+<https://marketplace.digitalocean.com/apps/django#getting-started>
 
-<https://cloud.google.com/python/django/appengine>
+#### Run Server
 
-#### Secrets
-
-The sample for creating the secrets is located in env/sample.env
+`daphne -p 80 -b 0.0.0.0 event_server.asgi:application`
 
