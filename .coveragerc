@@ -6,4 +6,5 @@ omit =
     # omit anything in a .local directory anywhere
     event_server/asgi.py
     event_server/wsgi.py
-
+    infrastructure/tests.py
+    infrastructure/migrations/*

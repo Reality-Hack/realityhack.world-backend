@@ -1,0 +1,13 @@
+#!/usr/bin/env sh
+
+pip3 install -r requirements.txt
+python3 manage.py migrate
+python3 manage.py collectstatic --noinput
+cp deploy/etc/systemd/system/daphne.service /etc/systemd/system/daphne.service
+cp deploy/etc/nginx/sites-enabled/default /etc/nginx/sites-enabled/default
+systemctl daemon-reload
+systemctl enable daphne
+systemctl restart daphne
+systemctl enable nginx
+systemctl restart nginx
+tail -f /var/log/syslog | grep daphne

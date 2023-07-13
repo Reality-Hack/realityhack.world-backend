@@ -14,15 +14,24 @@ import os
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+DEPLOYED = False
+if sys.executable == "/usr/bin/python3" or sys.executable == "/usr/local/bin/daphne":
+    DEPLOYED = True
 
-
+print(f"sys.executable: {sys.executable}")
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-__k63t0*53p$3o3rguuc4(s(t19dpixecn4c*13%9&2a!aet6_'
+if DEPLOYED:  # Not using a virtual env = is deployed
+    DEBUG = True
+    load_dotenv(dotenv_path=Path("/root/.digitalocean_password"))
+    SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -77,8 +86,6 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'event_server.wsgi.application'
-
 
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
@@ -89,13 +96,13 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
-if sys.executable == "/usr/bin/python3":  # Not using a virtual env = is deployed
-    DATABASES = {
+if DEPLOYED:  # Not using a virtual env = is deployed
+    DATABASES = {  # pragma: nocover
         'default': {
             'ENGINE': 'django.db.backends.postgresql_psycopg2',
             'NAME': 'django',
             'USER': 'django',
-            'PASSWORD': 'your_db_password',
+            'PASSWORD': os.getenv("DJANGO_POSTGRESS_PASS"),
             'HOST': '127.0.0.1',
             'PORT': '5432',
         }

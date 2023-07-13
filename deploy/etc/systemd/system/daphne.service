@@ -1,0 +1,16 @@
+[Unit]
+Description=Daphne daemon for Django Project
+Before=nginx.service
+After=network.target
+
+[Service]
+EnvironmentFile=/root/.digitalocean_password
+WorkingDirectory=/home/django/django_project
+ExecStart=daphne -p 8000 -b 0.0.0.0 event_server.asgi:application
+Restart=always
+SyslogIdentifier=daphne
+User=django
+Group=django
+
+[Install]
+WantedBy=multi-user.target

@@ -20,9 +20,9 @@ from drf_spectacular.views import SpectacularAPIView
 from rest_framework import routers
 
 from infrastructure import views
-from infrastructure.models import (Application, Attendee, Hardware, HardwareDevice,
-                                   HelpDesk, Location, Project, Skill,
-                                   SkillProficiency, Table, Team)
+from infrastructure.models import (Application, Attendee, Hardware,
+                                   HardwareDevice, HelpDesk, Location, Project,
+                                   Skill, SkillProficiency, Table, Team)
 
 router = routers.DefaultRouter()
 router.register(r'attendees', views.AttendeeViewSet)

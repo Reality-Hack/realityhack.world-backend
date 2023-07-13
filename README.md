@@ -44,7 +44,7 @@ coverage html
 #### Run server
 
 ```shell
-./manage.py runserver
+./runserver
 ```
 
 ### Cloud
@@ -55,5 +55,7 @@ This server and database are deployed using Google Cloud. The guide to deploying
 
 #### Run Server
 
-`daphne -p 80 -b 0.0.0.0 event_server.asgi:application`
+```shell
+./rundeploy
+```
 
