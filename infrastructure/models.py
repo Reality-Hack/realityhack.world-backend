@@ -170,3 +170,46 @@ class HardwareDevice(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover
         return f"Hardware: {self.hardware}, Serial: {self.serial}"
+
+
+class Application(models.Model):
+    class Gender(models.TextChoices):
+        FEMALE = 'F', _('Female')
+        MALE = 'M', _('Male')
+        NON_BINARY = 'N', _('Non-binary')
+        DECLINE = 'D', _('D')
+
+    class Status(models.TextChoices):
+        ACCEPTED = 'A', _('Accepted')
+        DECLINED = 'D', _('Declined')
+        ACCEPTED_IN_PERSON = 'I', _('Accepted, In-Person')
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    bio = models.TextField(max_length=1000, blank=True)
+    email = models.EmailField(unique=True)
+    event_year = models.IntegerField(default=2024, null=False)
+    skill_proficiencies = models.JSONField(default=dict)  # {"skill1": "N", "skill2": "P"}
+    portfolio = models.URLField()
+    resume = models.URLField()
+    city = models.CharField(max_length=100)
+    country = models.CharField(max_length=100)
+    nationality = models.CharField(max_length=100)
+    age = models.IntegerField()
+    gender = models.CharField(
+        max_length=1,
+        choices=Gender.choices,
+        default=Gender.DECLINE
+    )
+    status = models.CharField(
+        max_length=1,
+        choices=Status.choices,
+        null=True,
+        default=None
+    )
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:  # pragma: nocover
+        return f"Name: {self.first_name} {self.last_name}, Portfolio: {self.portfolio}"

@@ -6,6 +6,26 @@ from factory.django import DjangoModelFactory
 from infrastructure import models
 
 
+class ApplicationFactory(DjangoModelFactory):
+    class Meta:
+        model = models.Application
+    
+    first_name = factory.Faker("first_name")
+    last_name = factory.Faker("last_name")
+    bio = factory.fuzzy.FuzzyText(length=1000)
+    email = factory.Faker("email")
+    skill_proficiencies = factory.Dict({})
+    portfolio = factory.Faker("url")
+    resume = factory.Faker("url")
+    city = factory.Faker("city")
+    country = factory.Faker("country")
+    nationality = factory.Faker("country")
+    age = factory.Faker("pyint", min_value=15, max_value=100)
+    factory.Faker(
+        'random_element', elements=[x[0] for x in models.Application.Gender]
+    )
+
+
 class AttendeeFactory(DjangoModelFactory):
     class Meta:
         model = models.Attendee

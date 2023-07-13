@@ -1,9 +1,9 @@
 from django.contrib.auth.models import Group
 from rest_framework import serializers
 
-from infrastructure.models import (Attendee, Hardware, HardwareDevice,
-                                   HelpDesk, Location, Project, Skill,
-                                   SkillProficiency, Table, Team)
+from infrastructure.models import (Application, Attendee, Hardware,
+                                   HardwareDevice, HelpDesk, Location, Project,
+                                   Skill, SkillProficiency, Table, Team)
 
 
 class GroupSerializer(serializers.ModelSerializer):
@@ -248,3 +248,10 @@ class HardwareDeviceDetailSerializer(serializers.ModelSerializer):
         model = HardwareDevice
         fields = ['id', 'hardware', 'serial', 'checked_out_to',
                   'created_at', 'updated_at']
+        
+
+class ApplicationSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Application
+        fields = "__all__"

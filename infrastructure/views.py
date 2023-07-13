@@ -3,15 +3,15 @@ from django.shortcuts import get_object_or_404
 from rest_framework import permissions, viewsets
 from rest_framework.response import Response
 
-from infrastructure.models import (Attendee, Hardware, HardwareDevice,
-                                   HelpDesk, Location, Project, Skill,
-                                   SkillProficiency, Table, Team)
-from infrastructure.serializers import (AttendeeDetailSerializer,
+from infrastructure.models import (Application, Attendee, Hardware,
+                                   HardwareDevice, HelpDesk, Location, Project,
+                                   Skill, SkillProficiency, Table, Team)
+from infrastructure.serializers import (ApplicationSerializer,
+                                        AttendeeDetailSerializer,
                                         AttendeeSerializer,
                                         GroupDetailSerializer,
-                                        HardwareCountSerializer,
-
                                         HardwareCountDetailSerializer,
+                                        HardwareCountSerializer,
                                         HardwareDeviceDetailSerializer,
                                         HardwareDeviceSerializer,
                                         HardwareSerializer, HelpDeskSerializer,
@@ -287,8 +287,18 @@ class HardwareDeviceViewSet(viewsets.ModelViewSet):
     """
     queryset = HardwareDevice.objects.all()
     permission_classes = [permissions.AllowAny]
+    filterset_fields = ['hardware', 'checked_out_to', 'serial']
 
     def get_serializer_class(self):
         if self.action == 'retrieve':
             return HardwareDeviceDetailSerializer
         return HardwareDeviceSerializer
+    
+
+class ApplicationViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint that allows applications to be viewed or edited.
+    """
+    queryset = Application.objects.all()
+    permission_classes = [permissions.AllowAny]
+    serializer_class = ApplicationSerializer

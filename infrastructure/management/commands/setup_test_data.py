@@ -6,9 +6,9 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from infrastructure import factories
-from infrastructure.models import (Attendee, Hardware, HardwareDevice,
-                                   HelpDesk, Location, Project, Skill,
-                                   SkillProficiency, Table, Team)
+from infrastructure.models import (Application, Attendee, Hardware,
+                                   HardwareDevice, HelpDesk, Location, Project,
+                                   Skill, SkillProficiency, Table, Team)
 
 NUMBER_OF_ATTENDEES = 500
 NUMBER_OF_GROUPS = 5
@@ -34,6 +34,7 @@ def delete_all():  # noqa: C901
     HardwareDevice.objects.all().delete()
     Project.objects.all().delete()
     Group.objects.all().delete()
+    Application.objects.all().delete()
 
 
 def add_all():  # noqa: C901
@@ -57,7 +58,21 @@ def add_all():  # noqa: C901
     skills = []
     for _ in range(NUMBER_OF_SKILLS):
         skill = factories.SkillFactory()
+        skill.name = skill.name.lower().replace(
+            " ", "_").replace("-", "_").replace(",", "")
+        skill.save()
         skills.append(skill)
+    applications = []
+    for _ in range(NUMBER_OF_ATTENDEES * 2):
+        application = factories.ApplicationFactory()
+        application.email = f"{uuid.uuid4()}{application.email}"
+        random_skills = random.sample(skills, 5)
+        application.skill_proficiencies = {
+            skill.name: random.choice(list(SkillProficiency.Proficiency)).value
+            for skill in random_skills
+        }
+        application.save()
+        applications.append(application)
     Location.objects.create(room=Location.Room.ATLANTIS)
     Location.objects.create(room=Location.Room.MAIN_HALL)
     tables = []
