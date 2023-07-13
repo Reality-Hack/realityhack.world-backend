@@ -20,13 +20,20 @@ class GroupDetailSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'permissions']
 
 
+class ApplicationSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Application
+        fields = "__all__"
+
+
 class AttendeeSerializer(serializers.ModelSerializer):
     # metadata = SerializerMethodField()
 
     class Meta:
         model = Attendee
         fields = ['id', 'first_name', 'last_name', 'groups',
-                  'username', 'email', 'is_staff',
+                  'username', 'email', 'is_staff', 'application',
                   #   'metadata',
                   'created_at', 'updated_at']
 
@@ -70,12 +77,13 @@ class SkillProficiencyAttendeeSerializer(serializers.ModelSerializer):
 
 
 class AttendeeDetailSerializer(serializers.ModelSerializer):
+    application = ApplicationSerializer()
     groups = GroupSerializer(many=True, read_only=True)
     skill_proficiencies = SkillProficiencyAttendeeSerializer(many=True)
 
     class Meta:
         model = Attendee
-        fields = ['id', 'first_name', 'last_name', 'groups',
+        fields = ['id', 'first_name', 'last_name', 'groups', 'application',
                   #   'metadata',
                   'username', 'email', 'is_staff', 'skill_proficiencies',
                   'created_at', 'updated_at']
@@ -248,10 +256,3 @@ class HardwareDeviceDetailSerializer(serializers.ModelSerializer):
         model = HardwareDevice
         fields = ['id', 'hardware', 'serial', 'checked_out_to',
                   'created_at', 'updated_at']
-        
-
-class ApplicationSerializer(serializers.ModelSerializer):
-
-    class Meta:
-        model = Application
-        fields = "__all__"

@@ -43,13 +43,58 @@ class SkillProficiency(models.Model):
         return f"Skill: {self.skill}, Proficiency: {self.proficiency}"
 
 
+class Application(models.Model):
+    class Gender(models.TextChoices):
+        FEMALE = 'F', _('Female')
+        MALE = 'M', _('Male')
+        NON_BINARY = 'N', _('Non-binary')
+        DECLINE = 'D', _('Decline')
+
+    class Status(models.TextChoices):
+        ACCEPTED = 'A', _('Accepted')
+        DECLINED = 'D', _('Declined')
+        ACCEPTED_IN_PERSON = 'I', _('Accepted, In-Person')
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    bio = models.TextField(max_length=1000, blank=True)
+    email = models.EmailField()
+    event_year = models.IntegerField(default=2024, null=False)
+    skill_proficiencies = models.JSONField(default=dict)
+    portfolio = models.URLField()
+    resume = models.URLField()
+    city = models.CharField(max_length=100)
+    country = models.CharField(max_length=100)
+    nationality = models.CharField(max_length=100)
+    age = models.IntegerField()
+    gender = models.CharField(
+        max_length=1,
+        choices=Gender.choices,
+        default=Gender.DECLINE
+    )
+    status = models.CharField(
+        max_length=1,
+        choices=Status.choices,
+        null=True,
+        default=None
+    )
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:  # pragma: nocover
+        return f"Name: {self.first_name} {self.last_name}, Portfolio: {self.portfolio}"
+
+
 class Attendee(AbstractUser):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    application = models.OneToOneField(
+        Application, on_delete=models.CASCADE, null=True, blank=True)
     bio = models.TextField(max_length=1000, blank=True)
     email = models.EmailField(unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    metadata = models.JSONField(default=dict)
+    metadata = models.JSONField(default=dict, blank=True)
 
     class Meta:
         verbose_name = "attendees"
@@ -170,46 +215,3 @@ class HardwareDevice(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover
         return f"Hardware: {self.hardware}, Serial: {self.serial}"
-
-
-class Application(models.Model):
-    class Gender(models.TextChoices):
-        FEMALE = 'F', _('Female')
-        MALE = 'M', _('Male')
-        NON_BINARY = 'N', _('Non-binary')
-        DECLINE = 'D', _('D')
-
-    class Status(models.TextChoices):
-        ACCEPTED = 'A', _('Accepted')
-        DECLINED = 'D', _('Declined')
-        ACCEPTED_IN_PERSON = 'I', _('Accepted, In-Person')
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    first_name = models.CharField(max_length=100)
-    last_name = models.CharField(max_length=100)
-    bio = models.TextField(max_length=1000, blank=True)
-    email = models.EmailField(unique=True)
-    event_year = models.IntegerField(default=2024, null=False)
-    skill_proficiencies = models.JSONField(default=dict)  # {"skill1": "N", "skill2": "P"}
-    portfolio = models.URLField()
-    resume = models.URLField()
-    city = models.CharField(max_length=100)
-    country = models.CharField(max_length=100)
-    nationality = models.CharField(max_length=100)
-    age = models.IntegerField()
-    gender = models.CharField(
-        max_length=1,
-        choices=Gender.choices,
-        default=Gender.DECLINE
-    )
-    status = models.CharField(
-        max_length=1,
-        choices=Status.choices,
-        null=True,
-        default=None
-    )
-    submitted_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self) -> str:  # pragma: nocover
-        return f"Name: {self.first_name} {self.last_name}, Portfolio: {self.portfolio}"
