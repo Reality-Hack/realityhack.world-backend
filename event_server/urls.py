@@ -37,6 +37,7 @@ router.register(r'projects', views.ProjectViewSet)
 router.register(r'groups', views.GroupViewSet)
 router.register(r'hardware', views.HardwareViewSet)
 router.register(r'hardwaredevices', views.HardwareDeviceViewSet)
+router.register(r'hardwaredevicehistory', views.HardwareDeviceHistoryViewSet)
 router.register(r'applications', views.ApplicationViewSet)
 
 

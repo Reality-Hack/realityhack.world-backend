@@ -246,6 +246,13 @@ class HardwareDeviceSerializer(serializers.ModelSerializer):
         model = HardwareDevice
         fields = ['id', 'hardware', 'serial', 'checked_out_to',
                   'created_at', 'updated_at']
+ 
+
+class HardwareDeviceHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HardwareDevice.history.model
+        fields = ['history_id', 'id', 'hardware', 'serial', 'checked_out_to',
+                  'created_at', 'updated_at']
 
 
 class HardwareDeviceDetailSerializer(serializers.ModelSerializer):

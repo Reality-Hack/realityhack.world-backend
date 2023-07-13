@@ -13,6 +13,7 @@ from infrastructure.serializers import (ApplicationSerializer,
                                         HardwareCountDetailSerializer,
                                         HardwareCountSerializer,
                                         HardwareDeviceDetailSerializer,
+                                        HardwareDeviceHistorySerializer,
                                         HardwareDeviceSerializer,
                                         HardwareSerializer, HelpDeskSerializer,
                                         LocationSerializer, ProjectSerializer,
@@ -293,6 +294,16 @@ class HardwareDeviceViewSet(viewsets.ModelViewSet):
         if self.action == 'retrieve':
             return HardwareDeviceDetailSerializer
         return HardwareDeviceSerializer
+    
+
+class HardwareDeviceHistoryViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint that allows hardware device historical records to be viewed.
+    """
+    queryset = HardwareDevice.history.model.objects.all()
+    permission_classes = [permissions.AllowAny]
+    serializer_class = HardwareDeviceHistorySerializer
+    filterset_fields = ['id', 'hardware', 'checked_out_to', 'serial']
     
 
 class ApplicationViewSet(viewsets.ModelViewSet):

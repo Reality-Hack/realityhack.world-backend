@@ -10,6 +10,7 @@ cryptography==41.0.1
 daphne==4.0.0
 Django==4.2.2
 django-filter==23.2
+django-simple-history==3.3.0
 djangorestframework==3.14.0
 drf-spectacular==0.26.3
 factory-boy==3.2.1
