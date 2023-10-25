@@ -4,7 +4,7 @@ Before=nginx.service
 After=network.target
 
 [Service]
-EnvironmentFile=/root/.digitalocean_password
+EnvironmentFile=/home/django/django_project/.env
 WorkingDirectory=/home/django/django_project
 ExecStart=daphne -p 8000 -b 0.0.0.0 event_server.asgi:application
 Restart=always

@@ -2,6 +2,14 @@
 
 ## Setup
 
+Set up `.env` file (local and cloud):
+
+```shell
+cp .env.example .env
+```
+
+Modify the contents of the `.env` file to match KeyCloak configuration information.
+
 ### Local
 
 #### Basic setup
@@ -49,6 +57,15 @@ coverage html
 
 ### Cloud
 
+
+#### Setup
+
+If `docker` is not installed, run:
+
+```shell
+snap install docker
+```
+
 This server and database are deployed using Google Cloud. The guide to deploying with AppEngine was followed from here:
  
 <https://marketplace.digitalocean.com/apps/django#getting-started>
@@ -59,3 +76,8 @@ This server and database are deployed using Google Cloud. The guide to deploying
 ./rundeploy
 ```
 
+## Keycloak / OpenIDConnect
+
+Codeberg (Forgejo/Gitea) is used as the primary identity provider. Documentation on using Codeberg with Keycloak:
+
+<https://docs.codeberg.org/integrations/keycloak/>
