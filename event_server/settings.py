@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 import os
 import sys
 from datetime import timedelta
+from distutils.util import strtobool
 from pathlib import Path
 
 import django
@@ -25,15 +26,11 @@ DEPLOYED = False
 if sys.executable == "/usr/bin/python3" or sys.executable == "/usr/local/bin/daphne":
     DEPLOYED = True
 
-if DEPLOYED:  # Not using a virtual env = is deployed
-    # Get values from /root/.digitalocean_password
-    load_dotenv()
-    DEBUG = False
-else:
-    load_dotenv()
+load_dotenv()
 
 try:
     SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]
+    DEBUG = strtobool(os.environ["DEBUG"])
 except (KeyError, django.core.exceptions.ImproperlyConfigured):
     print("No .env secrets found in environment...")
 
