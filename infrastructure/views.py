@@ -5,10 +5,12 @@ from rest_framework.response import Response
 
 from infrastructure.models import (Application, Attendee, Hardware,
                                    HardwareDevice, HelpDesk, Location, Project,
-                                   Skill, SkillProficiency, Table, Team)
+                                   Skill, SkillProficiency, Table, Team,
+                                   UploadedFile)
 from infrastructure.serializers import (ApplicationSerializer,
                                         AttendeeDetailSerializer,
                                         AttendeeSerializer,
+                                        FileUploadSerializer,
                                         GroupDetailSerializer,
                                         HardwareCountDetailSerializer,
                                         HardwareCountSerializer,
@@ -303,7 +305,7 @@ class HardwareDeviceHistoryViewSet(viewsets.ModelViewSet):
     queryset = HardwareDevice.history.model.objects.all()
     permission_classes = [permissions.AllowAny]
     serializer_class = HardwareDeviceHistorySerializer
-    filterset_fields = ['id', 'hardware', 'checked_out_to', 'serial']
+    filterset_fields = ['hardware', 'checked_out_to', 'serial']
     
 
 class ApplicationViewSet(viewsets.ModelViewSet):
@@ -313,3 +315,15 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     queryset = Application.objects.all()
     permission_classes = [permissions.AllowAny]
     serializer_class = ApplicationSerializer
+    filterset_fields = ['participation_capacity', 'participation_role',
+                        'experience_with_xr', 'email']
+
+
+class UploadedFileViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint that allows files to be viewed or edited.
+    """
+    queryset = UploadedFile.objects.all()
+    permission_classes = [permissions.AllowAny]
+    serializer_class = FileUploadSerializer
+    filterset_fields = ['claimed']

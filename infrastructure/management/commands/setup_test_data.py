@@ -8,7 +8,8 @@ from django.db import transaction
 from infrastructure import factories
 from infrastructure.models import (Application, Attendee, Hardware,
                                    HardwareDevice, HelpDesk, Location, Project,
-                                   Skill, SkillProficiency, Table, Team)
+                                   Skill, SkillProficiency, Table, Team,
+                                   UploadedFile)
 
 NUMBER_OF_ATTENDEES = 500
 NUMBER_OF_GROUPS = 5
@@ -32,9 +33,12 @@ def delete_all():  # noqa: C901
     HelpDesk.objects.all().delete()
     Hardware.objects.all().delete()
     HardwareDevice.objects.all().delete()
+    HardwareDevice.history.all().delete()
     Project.objects.all().delete()
     Group.objects.all().delete()
     Application.objects.all().delete()
+    for uploaded_file in UploadedFile.objects.all():
+        uploaded_file.delete()
 
 
 def add_all():  # noqa: C901
@@ -62,15 +66,20 @@ def add_all():  # noqa: C901
             " ", "_").replace("-", "_").replace(",", "")
         skill.save()
         skills.append(skill)
+    skill_proficiencies = []
     applications = []
     for _ in range(NUMBER_OF_ATTENDEES * 2):
+        application_skill_proficiencies = []
         application = factories.ApplicationFactory()
+        number_of_skill_proficiencies = random.randint(
+            1, NUMBER_OF_SKILL_PROFICIENCIES)
+        for _ in range(number_of_skill_proficiencies):
+            skill_proficiency = factories.SkillProficiencyFactory()
+            skill_proficiency.application = application
+            skill_proficiency.save()
+            skill_proficiencies.append(skill_proficiency)
+            application_skill_proficiencies.append(skill_proficiency)
         application.email = f"{uuid.uuid4()}{application.email}"
-        random_skills = random.sample(skills, 5)
-        application.skill_proficiencies = {
-            skill.name: random.choice(list(SkillProficiency.Proficiency)).value
-            for skill in random_skills
-        }
         application.save()
         applications.append(application)
     Location.objects.create(room=Location.Room.ATLANTIS)
@@ -99,13 +108,6 @@ def add_all():  # noqa: C901
             team=team
         )
         projects.append(project)
-    skill_proficiencies = []
-    for _ in range(NUMBER_OF_ATTENDEES):
-        number_of_skill_proficiencies = random.randint(
-            1, NUMBER_OF_SKILL_PROFICIENCIES)
-        for _ in range(number_of_skill_proficiencies):
-            skill_proficiency = factories.SkillProficiencyFactory()
-            skill_proficiencies.append(skill_proficiency)
     hardware = []
     hardware_devices = []
     for _ in range(NUMBER_OF_HARDWARE_TYPES):

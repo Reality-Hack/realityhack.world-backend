@@ -1,9 +1,10 @@
 from django.contrib.auth.models import Group
-from rest_framework import serializers
+from rest_framework import fields, serializers
 
 from infrastructure.models import (Application, Attendee, Hardware,
                                    HardwareDevice, HelpDesk, Location, Project,
-                                   Skill, SkillProficiency, Table, Team)
+                                   Skill, SkillProficiency, Table, Team,
+                                   UploadedFile)
 
 
 class GroupSerializer(serializers.ModelSerializer):
@@ -20,7 +21,18 @@ class GroupDetailSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'permissions']
 
 
+class FileUploadSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = UploadedFile
+        fields = "__all__"
+
+
 class ApplicationSerializer(serializers.ModelSerializer):
+    gender_identity = fields.MultipleChoiceField(choices=Application.GENDER_IDENTITIES)
+    race_ethnic_group = fields.MultipleChoiceField(choices=Application.RACE_ETHNIC_GROUPS)
+    disabilities = fields.MultipleChoiceField(choices=Application.DISABILITIES)
+    previous_participation = fields.MultipleChoiceField(choices=Application.PREVIOUS_PARTICIPATION)
 
     class Meta:
         model = Application
@@ -50,14 +62,14 @@ class SkillProficiencyDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SkillProficiency
-        fields = ['id', 'skill', 'proficiency', 'attendee',
+        fields = ['id', 'skill', 'proficiency', 'attendee', 'application',
                   'created_at', 'updated_at']
 
 
 class SkillProficiencySerializer(serializers.ModelSerializer):
     class Meta:
         model = SkillProficiency
-        fields = ['id', 'skill', 'proficiency', 'attendee',
+        fields = ['id', 'skill', 'proficiency', 'attendee', 'application',
                   'created_at', 'updated_at']
 
 
@@ -65,7 +77,7 @@ class SkillProficiencyCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SkillProficiency
-        fields = ['id', 'skill', 'proficiency', 'attendee']
+        fields = ['id', 'skill', 'proficiency', 'attendee', 'application']
 
 
 class SkillProficiencyAttendeeSerializer(serializers.ModelSerializer):

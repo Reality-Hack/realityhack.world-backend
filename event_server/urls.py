@@ -14,6 +14,8 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path, re_path
 from drf_spectacular.views import SpectacularAPIView
@@ -26,7 +28,8 @@ from rest_framework_simplejwt.views import (TokenObtainPairView,
 from infrastructure import views
 from infrastructure.models import (Application, Attendee, Hardware,
                                    HardwareDevice, HelpDesk, Location, Project,
-                                   Skill, SkillProficiency, Table, Team)
+                                   Skill, SkillProficiency, Table, Team,
+                                   UploadedFile)
 
 swagger_schema_view = get_schema_view(
    openapi.Info(
@@ -56,6 +59,7 @@ router.register(r'hardware', views.HardwareViewSet)
 router.register(r'hardwaredevices', views.HardwareDeviceViewSet)
 router.register(r'hardwaredevicehistory', views.HardwareDeviceHistoryViewSet)
 router.register(r'applications', views.ApplicationViewSet)
+router.register(r'uploaded_files', views.UploadedFileViewSet)
 
 admin.site.register(Skill)
 admin.site.register(Attendee)
@@ -68,6 +72,7 @@ admin.site.register(SkillProficiency)
 admin.site.register(Hardware)
 admin.site.register(HardwareDevice)
 admin.site.register(Application)
+admin.site.register(UploadedFile)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -75,8 +80,9 @@ urlpatterns = [
     path('auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('auth/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
+    path('auth/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('schema/spectacular', SpectacularAPIView.as_view(), name='schema'),
     path('schema/swagger<format>/', swagger_schema_view.without_ui(cache_timeout=0), name='swagger_schema_json'),
     path('schema/swagger/', swagger_schema_view.with_ui('swagger', cache_timeout=0), name='swagger_schema_swagger_ui'),
     path('schema/redoc/', swagger_schema_view.with_ui('redoc', cache_timeout=0), name='swagger_schema_redoc'),
-]
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

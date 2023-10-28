@@ -40,6 +40,11 @@ LOGOUT_REDIRECT_URL = "<URL path to redirect to after logout>"
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+if "test" in sys.argv:
+    MEDIA_ROOT = f"{MEDIA_ROOT}/test"
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
@@ -65,6 +70,7 @@ INSTALLED_APPS = [
     'drf_spectacular',
     'django_filters',
     'simple_history',
+    'phonenumber_field',
     'drf_yasg'
 ]
 
@@ -231,3 +237,5 @@ SIMPLE_JWT = {
     "SLIDING_TOKEN_OBTAIN_SERIALIZER": "rest_framework_simplejwt.serializers.TokenObtainSlidingSerializer",
     "SLIDING_TOKEN_REFRESH_SERIALIZER": "rest_framework_simplejwt.serializers.TokenRefreshSlidingSerializer",
 }
+
+PHONENUMBER_DEFAULT_REGION = 'US'

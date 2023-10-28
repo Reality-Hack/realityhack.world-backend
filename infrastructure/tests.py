@@ -1,7 +1,11 @@
 import copy
+import os
+import random
 import uuid
 
+from django.conf import settings
 from django.contrib.auth.models import Group
+from django.test.client import BOUNDARY, MULTIPART_CONTENT, encode_multipart
 from rest_framework.test import APIClient, APITestCase
 
 from infrastructure import factories, models, serializers
@@ -240,10 +244,6 @@ class TeamTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(new_name, response.data["name"])
         self.assertNotEqual(self.mock_team["name"], response.data["name"])
-
-    # Two Teams to a Table
-
-    # More than five Attendees to a Team
 
 
 class ProjectTests(APITestCase):
@@ -502,10 +502,11 @@ class SkillProficiencyTests(APITestCase):
         self.client = APIClient()
         factories.GroupFactory()
         mock_attendee = factories.AttendeeFactory()
+        mock_application = factories.ApplicationFactory()
         self.mock_attendee = serializers.AttendeeSerializer(mock_attendee).data
         skill = factories.SkillFactory()
         skill_proficiency = factories.SkillProficiencyFactory(
-            attendee=mock_attendee, skill=skill)
+            attendee=mock_attendee, application=mock_application, skill=skill)
         self.mock_skill_proficiency = serializers.SkillProficiencySerializer(
             skill_proficiency).data
 
@@ -644,6 +645,175 @@ class TableTests(APITestCase):
         self.assertNotEqual(self.mock_table["number"], response.data["number"])
 
 
+class ApplicationTests(APITestCase):
+    def setUp(self):
+        # Mocking fake phone numbers does not always succeed
+        fake_phone_number = "(800) 555-0199"
+        self.client = APIClient()
+        mock_skill = factories.SkillFactory()
+        self.mock_skill = serializers.SkillSerializer(mock_skill).data
+        mock_application = factories.ApplicationFactory(
+            phone_number=fake_phone_number,
+            emergency_contact_phone_number=fake_phone_number
+        )
+        self.mock_application = serializers.ApplicationSerializer(mock_application).data
+        skill_proficiency = factories.SkillProficiencyFactory(
+            application=mock_application, skill=mock_skill)
+        self.mock_skill_proficiency = serializers.SkillProficiencySerializer(
+            skill_proficiency).data
+
+    def tearDown(self):
+        setup_test_data.delete_all()
+
+    def test_get_applications(self):
+        response = self.client.get('/applications/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+
+    def get_application_alternate_choice(self, choice, choices):
+        alternate_choice = choice
+        while alternate_choice == choice:
+            alternate_choice = random.choice(choices)
+        return alternate_choice
+
+    def get_applications_with_filter(self, filter, search_term) -> str:
+        return f"/applications/?{filter}={search_term}"
+
+    def test_get_applications_filters(self):
+        choices = [x[0] for x in models.Application.ParticipationCapacity.choices]
+        response = self.client.get(self.get_applications_with_filter(
+            "participation_capacity", self.mock_application["participation_capacity"]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        response = self.client.get(self.get_applications_with_filter(
+            "participation_capacity", self.get_application_alternate_choice(
+                self.mock_application['participation_capacity'], choices)))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 0)
+        choices = [x[0] for x in models.Application.ParticipationRole.choices]
+        response = self.client.get(self.get_applications_with_filter(
+            "participation_role", self.mock_application["participation_role"]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        response = self.client.get(self.get_applications_with_filter(
+            "participation_role", self.get_application_alternate_choice(
+                self.mock_application['participation_role'], choices)))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 0)
+        response = self.client.get(self.get_applications_with_filter(
+            "experience_with_xr", str(self.mock_application["experience_with_xr"])))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        response = self.client.get(self.get_applications_with_filter(
+            "experience_with_xr", str(not self.mock_application["experience_with_xr"])))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 0)
+        response = self.client.get(self.get_applications_with_filter(
+            "email", self.mock_application["email"]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        response = self.client.get(self.get_applications_with_filter(
+            "email", f"fake{self.mock_application['email']}"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 0)
+
+    def test_get_application(self):
+        response = self.client.get(f"/applications/{self.mock_application['id']}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.mock_application["id"], response.data["id"])
+
+    def test_get_application_404(self):
+        response = self.client.get(f"/applicaitons/{str(uuid.uuid4())}/")
+        self.assertEqual(response.status_code, 404)
+
+    def test_create_application(self):
+        models.Application.objects.all().delete()
+        models.SkillProficiency.objects.all().delete()
+        mock_application = copy.deepcopy(self.mock_application)
+        response = self.client.post('/applications/', mock_application)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(self.mock_application["last_name"], response.data["last_name"])
+        self.assertNotEqual(self.mock_application["id"], response.data["id"])
+
+    def test_create_duplicate_application_email_duplicate_forms(self):
+        mock_application = copy.deepcopy(self.mock_application)
+        mock_application["email"] = f"{self.mock_application['email']}updated"
+        response = self.client.post('/applications/', mock_application)
+        self.assertEqual(response.status_code, 400)
+
+    def test_create_duplicate_application_email_unique_forms(self):
+        mock_application = copy.deepcopy(self.mock_application)
+        mock_application["email"] = f"{self.mock_application['email']}updated"
+        mock_application["parental_consent_form"] = serializers.FileUploadSerializer(
+            factories.UploadedFileFactory()).data["id"]
+        mock_application["media_release"] = serializers.FileUploadSerializer(
+            factories.UploadedFileFactory()).data["id"]
+        mock_application["liability_release"] = serializers.FileUploadSerializer(
+            factories.UploadedFileFactory()).data["id"]
+        response = self.client.post('/applications/', mock_application)
+        self.assertEqual(response.status_code, 201)
+
+    def test_update_application(self):
+        mock_application = copy.deepcopy(self.mock_application)
+        new_last_name = f"{self.mock_application['last_name']}updated"
+        mock_application["last_name"] = new_last_name
+        response = self.client.put(f"/applications/{mock_application['id']}/", mock_application)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(new_last_name, response.data["last_name"])
+        self.assertNotEqual(self.mock_application["last_name"], response.data["last_name"])
+
+    def test_partial_update_application(self):
+        mock_application = copy.deepcopy(self.mock_application)
+        new_last_name = f"{self.mock_application['last_name']}partially_updated"
+        mock_application["last_name"] = new_last_name
+        response = self.client.patch(
+            f"/applications/{mock_application['id']}/", {"last_name": new_last_name})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(new_last_name, response.data["last_name"])
+        self.assertNotEqual(self.mock_application["last_name"], response.data["last_name"])
+
+
+class UploadedFileTests(APITestCase):
+    def setUp(self):
+        self.filename = "test_file.pdf"
+        self.client = APIClient()
+        self.file_path = f"{settings.MEDIA_ROOT}/{self.filename}"
+        with open(self.file_path, "wb") as f:
+            self.file_data = b"Test data"
+            f.write(self.file_data)
+
+    def tearDown(self):
+        os.remove(self.file_path)
+        setup_test_data.delete_all()
+
+    def test_create_uploaded_file(self):
+        with open(self.file_path, "rb") as f:
+            response = self.client.post(
+                "/uploaded_files/",
+                files={self.filename, self.file_path},
+                data=encode_multipart(
+                    data=dict(file=f, name=self.filename), boundary=BOUNDARY
+                ), content_type=MULTIPART_CONTENT
+            )
+        self.assertEqual(response.status_code, 201)
+        with open(f"{settings.MEDIA_ROOT}/{response.json()['id']}/{self.filename}", "rb") as f:
+            self.assertEqual(self.file_data, f.read())
+
+    def test_get_uploaded_file(self):
+        uploaded_file = serializers.FileUploadSerializer(
+            factories.UploadedFileFactory()).data
+        response = self.client.get(f"/uploaded_files/{uploaded_file['id']}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(uploaded_file["id"], response.data["id"])
+
+    def test_delete_uploaded_file(self):
+        uploaded_file = serializers.FileUploadSerializer(
+            factories.UploadedFileFactory()).data
+        response = self.client.delete(f"/uploaded_files/{uploaded_file['id']}/")
+        self.assertEqual(response.status_code, 204)
+        self.assertNotIn(uploaded_file["id"], os.listdir(settings.MEDIA_ROOT))
+
+
 class BulkTests(APITestCase):
     def setUp(self):
         setup_test_data.add_all()
@@ -662,6 +832,8 @@ class BulkTests(APITestCase):
         # NUMBER_OF_HARDWARE_DEVICES = 25
         self.assertEqual(
             setup_test_data.NUMBER_OF_ATTENDEES, models.Attendee.objects.count())
+        self.assertEqual(
+            setup_test_data.NUMBER_OF_ATTENDEES * 2, models.Application.objects.count())
         self.assertEqual(
             setup_test_data.NUMBER_OF_GROUPS, Group.objects.count())
         self.assertEqual(
