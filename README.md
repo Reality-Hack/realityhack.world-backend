@@ -1,3 +1,5 @@
+[![status-badge](https://ci.codeberg.org/api/badges/12758/status.svg)](https://ci.codeberg.org/repos/12758)
+
 # Infrastructure for Reality Hack 2024
 
 ## Setup

@@ -1,0 +1,10 @@
+steps:
+  test:
+    image: python:3.12.0-alpine3.18
+    secrets: [django_secret_key]
+    commands:
+      - apk add --update alpine-sdk libffi-dev
+      - pip install -r requirements.txt
+      - export "DJANGO_SECRET_KEY=$DJANGO_SECRET_KEY"
+      - export "DEBUG=true"
+      - ./test
