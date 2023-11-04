@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import factory
 import factory.fuzzy
 import pycountry
@@ -50,7 +52,7 @@ class ApplicationFactory(DjangoModelFactory):
     )
     disability_accommodations = factory.fuzzy.FuzzyText(length=500)
     participation_capacity = factory.Faker(
-        'random_element', elements=[x[0] for x in models.Application.ParticipationCapacity.choices]
+        'random_element', elements=[x[0] for x in models.ParticipationCapacity.choices]
     )
     student_school = factory.fuzzy.FuzzyText(length=90)
     student_field_of_study = factory.fuzzy.FuzzyText(length=90)
@@ -61,7 +63,7 @@ class ApplicationFactory(DjangoModelFactory):
         'random_element', elements=[str(x[0]) for x in models.Application.PREVIOUS_PARTICIPATION]
     )
     participation_role = factory.Faker(
-        'random_element', elements=[x[0] for x in models.Application.ParticipationRole.choices]
+        'random_element', elements=[x[0] for x in models.ParticipationRole.choices]
     )
     experience_with_xr = factory.fuzzy.FuzzyText(length=900)
     theme_essay = factory.fuzzy.FuzzyText(length=900)
@@ -194,3 +196,47 @@ class HardwareDeviceFactory(DjangoModelFactory):
     hardware = factory.Iterator(models.Hardware.objects.all())
     serial = factory.fuzzy.FuzzyText(length=50)
     checked_out_to = factory.Iterator(models.Attendee.objects.all())
+
+
+class WorkshopFactory(DjangoModelFactory):
+    class Meta:
+        model = models.Workshop
+
+    name = factory.Faker("company")
+    datetime = datetime.now()
+    duration = 10
+    description = factory.fuzzy.FuzzyText(length=100)
+    location = factory.Iterator(models.Location.objects.all())
+    course_materials = factory.Faker("url")
+    recommended_for = factory.Faker(
+        'random_element', elements=[x[0] for x in models.ParticipationRole.choices]
+    )
+
+    @factory.post_generation
+    def skills(self, create, extracted, **kwargs):
+        if not create:
+            return  # pragma: no cover
+
+        if extracted:
+            for skill in extracted:
+                self.skills.add(skill)
+
+    @factory.post_generation
+    def hardware(self, create, extracted, **kwargs):
+        if not create:
+            return  # pragma: no cover
+
+        if extracted:
+            for hardware in extracted:
+                self.hardware.add(hardware)
+
+
+class WorkshopAttendeeFactory(DjangoModelFactory):
+    class Meta:
+        model = models.WorkshopAttendee
+
+    workshop = factory.Iterator(models.Workshop.objects.all())
+    attendee = factory.Iterator(models.Attendee.objects.all())
+    participation = factory.Faker('random_element', elements=[
+        x[0] for x in models.WorkshopAttendee.Participation.choices]
+    )

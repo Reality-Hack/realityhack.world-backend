@@ -2,6 +2,7 @@ import copy
 import os
 import random
 import uuid
+from datetime import datetime
 
 from django.conf import settings
 from django.contrib.auth.models import Group
@@ -676,7 +677,7 @@ class ApplicationTests(APITestCase):
         return f"/applications/?{filter}={search_term}"
 
     def test_get_applications_filters(self):
-        choices = [x[0] for x in models.Application.ParticipationCapacity.choices]
+        choices = [x[0] for x in models.ParticipationCapacity.choices]
         response = self.client.get(self.get_applications_with_filter(
             "participation_capacity", self.mock_application["participation_capacity"]))
         self.assertEqual(response.status_code, 200)
@@ -686,7 +687,7 @@ class ApplicationTests(APITestCase):
                 self.mock_application['participation_capacity'], choices)))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 0)
-        choices = [x[0] for x in models.Application.ParticipationRole.choices]
+        choices = [x[0] for x in models.ParticipationRole.choices]
         response = self.client.get(self.get_applications_with_filter(
             "participation_role", self.mock_application["participation_role"]))
         self.assertEqual(response.status_code, 200)
@@ -802,6 +803,315 @@ class UploadedFileTests(APITestCase):
         self.assertNotIn(uploaded_file["id"], os.listdir(settings.MEDIA_ROOT))
 
 
+class WorkshopTests(APITestCase):
+    def setUp(self):
+        self.client = APIClient()
+        models.Location.objects.create(room=models.Location.Room.ATLANTIS)
+        mock_location = models.Location.objects.create(room=models.Location.Room.MAIN_HALL)
+        group = factories.GroupFactory()
+        mock_attendees = [
+            factories.AttendeeFactory() for _ in range(
+                setup_test_data.TEAM_SIZE + 1)]
+        [mock_attendee.groups.set([group]) for mock_attendee in mock_attendees]
+        self.mock_attendees = [
+            serializers.AttendeeSerializer(mock_attendee).data
+            for mock_attendee in mock_attendees
+        ]
+        mock_skills = []
+        for _ in range(setup_test_data.NUMBER_OF_SKILLS):
+            skill = factories.SkillFactory()
+            skill.name = skill.name.lower().replace(
+                " ", "_").replace("-", "_").replace(",", "")
+            skill.save()
+            mock_skills.append(skill)
+        self.mock_skills = [
+            serializers.SkillSerializer(mock_skill).data for mock_skill in mock_skills
+        ]
+        mock_hardware_types = []
+        for _ in range(setup_test_data.NUMBER_OF_HARDWARE_TYPES):
+            hardware_type = factories.HardwareFactory()
+            mock_hardware_types.append(hardware_type)
+        self.mock_hardware_types = [
+            serializers.SkillSerializer(mock_hardware_type).data
+            for mock_hardware_type in mock_hardware_types
+        ]
+        mock_workshop = factories.WorkshopFactory(
+            location=mock_location,
+            skills=random.sample(mock_skills, random.randint(1, 10)),
+            hardware=random.sample(mock_hardware_types, random.randint(1, 10)),
+        )
+        self.mock_workshop = serializers.WorkshopSerializer(mock_workshop).data
+
+    def tearDown(self):
+        setup_test_data.delete_all()
+
+    def test_get_workshops(self):
+        response = self.client.get('/workshops/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+
+    def get_workshops_with_filter(self, filter, search_term) -> str:
+        return f"/workshops/?{filter}={search_term}"
+
+    def get_workshop_alternate_choice(self, original_choice, choices):
+        choices_set = set(choices)
+        choices_set.remove(original_choice)
+        return random.choice(list(choices_set))
+
+    def test_get_workshops_filters(self):
+        response = self.client.get(self.get_workshops_with_filter(
+            "datetime", self.mock_workshop["datetime"]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        response = self.client.get(self.get_workshops_with_filter(
+            "datetime", str(datetime.now())))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 0)
+        response = self.client.get(self.get_workshops_with_filter(
+            "location", self.mock_workshop["location"]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        location_choices = [
+            str(location["id"]) for location
+            in models.Location.objects.all().values()
+        ]
+        response = self.client.get(self.get_workshops_with_filter(
+            "location", self.get_workshop_alternate_choice(
+                str(self.mock_workshop["location"]), location_choices
+        )))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 0)
+        response = self.client.get(self.get_workshops_with_filter(
+            "location", "X"))
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["location"][0].code, "invalid")
+        response = self.client.get(self.get_workshops_with_filter(
+            "recommended_for", list(self.mock_workshop["recommended_for"])[0]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        response = self.client.get(self.get_workshops_with_filter(
+            "recommended_for", str(uuid.uuid4())))
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["recommended_for"][0].code, "invalid_choice")
+        response = self.client.get(self.get_workshops_with_filter(
+            "hardware", random.choice(self.mock_workshop["hardware"])))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        mock_hardware_type = factories.HardwareFactory()
+        response = self.client.get(self.get_workshops_with_filter(
+            "hardware", mock_hardware_type.id))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 0)
+
+    def test_get_workshop(self):
+        response = self.client.get(f"/workshops/{self.mock_workshop['id']}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.mock_workshop["id"], response.data["id"])
+
+    def test_get_workshop_404(self):
+        response = self.client.get(f"/workshops/{str(uuid.uuid4())}/")
+        self.assertEqual(response.status_code, 404)
+
+    def test_create_workshop(self):
+        mock_workshop = serializers.WorkshopSerializer(
+            models.Workshop.objects.get(pk=self.mock_workshop["id"])).data
+        mock_workshop["name"] = f"{self.mock_workshop['name']}updated"
+        response = self.client.post('/workshops/', mock_workshop)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(mock_workshop["name"], response.data["name"])
+        self.assertNotEqual(self.mock_workshop["id"], response.data["id"])
+
+    def test_update_workshop(self):
+        mock_workshop = serializers.WorkshopSerializer(
+            models.Workshop.objects.get(pk=self.mock_workshop["id"])).data
+        new_name = f"{self.mock_workshop['name']}updated"
+        mock_workshop["name"] = new_name
+        response = self.client.put(f"/workshops/{mock_workshop['id']}/", mock_workshop)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(new_name, response.data["name"])
+        self.assertNotEqual(self.mock_workshop["name"], response.data["name"])
+
+    def test_partial_update_workshop(self):
+        mock_workshop = serializers.WorkshopSerializer(
+            models.Workshop.objects.get(pk=self.mock_workshop["id"])).data
+        new_name = f"{self.mock_workshop['name']}updated"
+        mock_workshop = copy.deepcopy(self.mock_workshop)
+        new_name = f"{self.mock_workshop['name']}partially_updated"
+        mock_workshop["name"] = new_name
+        response = self.client.patch(f"/workshops/{mock_workshop['id']}/", {"name": new_name})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(new_name, response.data["name"])
+        self.assertNotEqual(self.mock_workshop["name"], response.data["name"])
+
+    def test_delete_workshop(self):
+        mock_workshop = serializers.WorkshopSerializer(
+            factories.WorkshopFactory()).data
+        response = self.client.delete(f"/workshops/{mock_workshop['id']}/")
+        self.assertEqual(response.status_code, 204)
+
+
+class WorkshopAttendeeTests(APITestCase):
+    def setUp(self):
+        self.client = APIClient()
+        models.Location.objects.create(room=models.Location.Room.ATLANTIS)
+        mock_location = models.Location.objects.create(room=models.Location.Room.MAIN_HALL)
+        group = factories.GroupFactory()
+        mock_attendees = [
+            factories.AttendeeFactory() for _ in range(
+                setup_test_data.TEAM_SIZE + 1)]
+        [mock_attendee.groups.set([group]) for mock_attendee in mock_attendees]
+        mock_attendee = random.choice(mock_attendees)
+        self.mock_attendees = [
+            serializers.AttendeeSerializer(mock_attendee).data
+            for mock_attendee in mock_attendees
+        ]
+        self.mock_attendee = serializers.AttendeeSerializer(mock_attendee)
+        mock_skills = []
+        for _ in range(setup_test_data.NUMBER_OF_SKILLS):
+            skill = factories.SkillFactory()
+            skill.name = skill.name.lower().replace(
+                " ", "_").replace("-", "_").replace(",", "")
+            skill.save()
+            mock_skills.append(skill)
+        self.mock_skills = [
+            serializers.SkillSerializer(mock_skill).data for mock_skill in mock_skills
+        ]
+        mock_hardware_types = []
+        for _ in range(setup_test_data.NUMBER_OF_HARDWARE_TYPES):
+            hardware_type = factories.HardwareFactory()
+            mock_hardware_types.append(hardware_type)
+        self.mock_hardware_types = [
+            serializers.SkillSerializer(mock_hardware_type).data
+            for mock_hardware_type in mock_hardware_types
+        ]
+        mock_workshop = factories.WorkshopFactory(
+            location=mock_location,
+            skills=random.sample(mock_skills, random.randint(1, 10)),
+            hardware=random.sample(mock_hardware_types, random.randint(1, 10)),
+        )
+        self.mock_workshop = serializers.WorkshopSerializer(mock_workshop).data
+        mock_workshop_attendee = factories.WorkshopAttendeeFactory(
+            workshop=mock_workshop, attendee=mock_attendee
+        )
+        self.mock_workshop_attendee = serializers.WorkshopAttendeeSerializer(
+            mock_workshop_attendee).data
+
+    def tearDown(self):
+        setup_test_data.delete_all()
+
+    def test_get_workshop_attendees(self):
+        response = self.client.get('/workshopattendees/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+
+    def get_workshop_attendees_with_filter(self, filter, search_term) -> str:
+        return f"/workshopattendees/?{filter}={search_term}"
+
+    def get_workshop_attendee_alternate_choice(self, original_choice, choices):
+        choices_set = set(choices)
+        choices_set.remove(original_choice)
+        return random.choice(list(choices_set))
+
+    def test_get_workshop_attendees_filters(self):
+        response = self.client.get(self.get_workshop_attendees_with_filter(
+            "workshop", self.mock_workshop_attendee["workshop"]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        factories.WorkshopFactory()
+        workshop_choices = [
+            str(workshop["id"]) for workshop
+            in models.Workshop.objects.all().values()
+        ]
+        response = self.client.get(self.get_workshop_attendees_with_filter(
+            "workshop", self.get_workshop_attendee_alternate_choice(
+                str(self.mock_workshop_attendee["workshop"]), workshop_choices
+            )))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 0)
+        response = self.client.get(self.get_workshop_attendees_with_filter(
+            "attendee", self.mock_workshop_attendee["attendee"]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        response = self.client.get(self.get_workshop_attendees_with_filter(
+            "attendee", self.get_workshop_attendee_alternate_choice(
+                str(self.mock_workshop_attendee["attendee"]),
+                [x["id"] for x in self.mock_attendees]
+            )))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 0)
+        response = self.client.get(self.get_workshop_attendees_with_filter(
+            "participation", self.mock_workshop_attendee["participation"]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        response = self.client.get(self.get_workshop_attendees_with_filter(
+            "participation", self.get_workshop_attendee_alternate_choice(
+                str(self.mock_workshop_attendee["participation"]),
+                [x[0] for x in models.WorkshopAttendee.Participation.choices]
+            )))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 0)
+
+    def test_get_workshop_attendee(self):
+        response = self.client.get(f"/workshopattendees/{self.mock_workshop_attendee['id']}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.mock_workshop_attendee["id"], response.data["id"])
+
+    def test_get_workshop_attendee_404(self):
+        response = self.client.get(f"/workshopattendees/{str(uuid.uuid4())}/")
+        self.assertEqual(response.status_code, 404)
+
+    def test_create_workshop_attendee(self):
+        mock_workshop_attendee = serializers.WorkshopAttendeeSerializer(
+            models.WorkshopAttendee.objects.get(pk=self.mock_workshop_attendee["id"])).data
+        mock_workshop_attendee["participation"] = self.get_workshop_attendee_alternate_choice(
+            self.mock_workshop_attendee["participation"],
+            [x[0] for x in models.WorkshopAttendee.Participation.choices]
+        )
+        response = self.client.post('/workshopattendees/', mock_workshop_attendee)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(mock_workshop_attendee["participation"], response.data["participation"])
+        self.assertNotEqual(self.mock_workshop_attendee["id"], response.data["id"])
+
+    def test_update_workshop_attendee(self):
+        mock_workshop_attendee = serializers.WorkshopAttendeeSerializer(
+            models.WorkshopAttendee.objects.get(pk=self.mock_workshop_attendee["id"])).data
+        new_participation = self.get_workshop_attendee_alternate_choice(
+            self.mock_workshop_attendee["participation"],
+            [x[0] for x in models.WorkshopAttendee.Participation.choices]
+        )
+        mock_workshop_attendee["participation"] = new_participation
+        response = self.client.put(
+            f"/workshopattendees/{mock_workshop_attendee['id']}/", mock_workshop_attendee)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(new_participation, response.data["participation"])
+        self.assertNotEqual(
+            self.mock_workshop_attendee["participation"], response.data["participation"])
+
+    def test_partial_update_workshop_attendee(self):
+        mock_workshop_attendee = serializers.WorkshopAttendeeSerializer(
+            models.WorkshopAttendee.objects.get(pk=self.mock_workshop_attendee["id"])).data
+        new_participation = self.get_workshop_attendee_alternate_choice(
+            self.mock_workshop_attendee["participation"],
+            [x[0] for x in models.WorkshopAttendee.Participation.choices]
+        )
+        mock_workshop_attendee = copy.deepcopy(self.mock_workshop_attendee)
+        mock_workshop_attendee["participation"] = new_participation
+        response = self.client.patch(
+            f"/workshopattendees/{mock_workshop_attendee['id']}/",
+            {"participation": new_participation}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(new_participation, response.data["participation"])
+        self.assertNotEqual(
+            self.mock_workshop_attendee["participation"], response.data["participation"])
+        
+    def test_delete_workshop(self):
+        mock_workshop_atttendee = serializers.WorkshopAttendeeSerializer(
+            factories.WorkshopAttendeeFactory()).data
+        response = self.client.delete(f"/workshopattendees/{mock_workshop_atttendee['id']}/")
+        self.assertEqual(response.status_code, 204)
+
+
 class BulkTests(APITestCase):
     def setUp(self):
         setup_test_data.add_all()
@@ -832,3 +1142,9 @@ class BulkTests(APITestCase):
             setup_test_data.NUMBER_OF_SKILLS, models.Skill.objects.count())
         self.assertEqual(
             setup_test_data.NUMBER_OF_HARDWARE_TYPES, models.Hardware.objects.count())
+        self.assertEqual(
+            setup_test_data.NUMBER_OF_WORKSHOPS, models.Workshop.objects.count())
+        self.assertEqual(
+            setup_test_data.NUMBER_OF_WORKSHOP_ATTENDEES * setup_test_data.NUMBER_OF_WORKSHOPS,
+            models.WorkshopAttendee.objects.count()
+        )

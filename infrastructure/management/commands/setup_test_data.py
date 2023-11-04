@@ -9,7 +9,7 @@ from infrastructure import factories
 from infrastructure.models import (Application, Attendee, Hardware,
                                    HardwareDevice, HelpDesk, Location, Project,
                                    Skill, SkillProficiency, Table, Team,
-                                   UploadedFile)
+                                   UploadedFile, Workshop, WorkshopAttendee)
 
 NUMBER_OF_ATTENDEES = 500
 NUMBER_OF_GROUPS = 5
@@ -21,6 +21,8 @@ NUMBER_OF_HARDWARE_TYPES = 100
 NUMBER_OF_HARDWARE_DEVICES = 25
 SHIRT_SIZES = ["SHIRT_SIZE_S", "SHIRT_SIZE_M", "SHIRT_SIZE_L",
                "SHIRT_SIZE_XL", "SHIRT_SIZE_XXL"]
+NUMBER_OF_WORKSHOPS = 20
+NUMBER_OF_WORKSHOP_ATTENDEES = 100
 
 
 def delete_all():  # noqa: C901
@@ -39,6 +41,8 @@ def delete_all():  # noqa: C901
     Application.objects.all().delete()
     for uploaded_file in UploadedFile.objects.all():
         uploaded_file.delete()
+    Workshop.objects.all().delete()
+    WorkshopAttendee.objects.all().delete()
 
 
 def add_all():  # noqa: C901
@@ -121,6 +125,17 @@ def add_all():  # noqa: C901
             hardware_device = factories.HardwareDeviceFactory(
                 checked_out_to=None)
         hardware_devices.append(hardware_device)
+    workshops = []
+    workshop_attendees = []
+    for _ in range(NUMBER_OF_WORKSHOPS):
+        workshop = factories.WorkshopFactory(
+            skills=random.sample(skills, random.randint(1, 10)),
+            hardware=random.sample(hardware, random.randint(1, 10)),
+        )
+        for _ in range(NUMBER_OF_WORKSHOP_ATTENDEES):
+            workshop_attendee = factories.WorkshopAttendeeFactory(workshop=workshop)
+            workshop_attendees.append(workshop_attendee)
+        workshops.append(workshop)
 
 
 class Command(BaseCommand):  # pragma: no cover

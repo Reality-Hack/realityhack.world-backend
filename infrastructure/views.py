@@ -6,7 +6,7 @@ from rest_framework.response import Response
 from infrastructure.models import (Application, Attendee, Hardware,
                                    HardwareDevice, HelpDesk, Location, Project,
                                    Skill, SkillProficiency, Table, Team,
-                                   UploadedFile)
+                                   UploadedFile, Workshop, WorkshopAttendee)
 from infrastructure.serializers import (ApplicationSerializer,
                                         AttendeeDetailSerializer,
                                         AttendeeSerializer,
@@ -25,7 +25,9 @@ from infrastructure.serializers import (ApplicationSerializer,
                                         SkillSerializer, TableCreateSerializer,
                                         TableDetailSerializer, TableSerializer,
                                         TeamCreateSerializer,
-                                        TeamDetailSerializer, TeamSerializer)
+                                        TeamDetailSerializer, TeamSerializer,
+                                        WorkshopAttendeeSerializer,
+                                        WorkshopSerializer)
 
 
 class AttendeeViewSet(viewsets.ModelViewSet):
@@ -326,3 +328,23 @@ class UploadedFileViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
     serializer_class = FileUploadSerializer
     filterset_fields = ['claimed']
+
+
+class WorkshopViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint that allows workshops to be viewed ot edited.
+    """
+    queryset = Workshop.objects.all()
+    permission_classes = [permissions.AllowAny]
+    serializer_class = WorkshopSerializer
+    filterset_fields = ['datetime', 'location', 'recommended_for', 'hardware']
+
+
+class WorkshopAttendeeViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint that allows workshops to be viewed or edited.
+    """
+    queryset = WorkshopAttendee.objects.all()
+    permission_classes = [permissions.AllowAny]
+    serializer_class = WorkshopAttendeeSerializer
+    filterset_fields = ['workshop', 'attendee', 'participation']

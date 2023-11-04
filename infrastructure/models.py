@@ -14,6 +14,17 @@ from simple_history.models import HistoricalRecords
 
 # settings.AUTH_USER_MODEL
 
+class ParticipationRole(models.TextChoices):
+    DESIGNER = 'A', _('Designer')
+    DEVELOPER = 'D', _('Developer')
+    SPECIALIST = 'S', _('Specialist')
+
+
+class ParticipationCapacity(models.TextChoices):
+    STUDENT = 'S', _('Student'),
+    PROFESSIONAL = 'P', _('Professional')
+    HOBBYIST = 'H', _('Hobbyist')
+
 
 class Skill(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -139,11 +150,6 @@ class Application(models.Model):
                     ('E', 'Self-care difficulty - Having difficulty bathing or dressing (DDRS).'),
                     ('F', 'Independent living difficulty - Because of a physical, mental, or emotional problem, having difficulty doing errands alone such as visiting a doctor\'s office or shopping (DOUT).'),
                     ('G', 'I prefer not to say'))
-    
-    class ParticipationCapacity(models.TextChoices):
-        STUDENT = 'S', _('Student'),
-        PROFESSIONAL = 'P', _('Professional')
-        HOBBYIST = 'H', _('Hobbyist')
 
     PREVIOUS_PARTICIPATION = (('A', '2016'),
                               ('B', '2017'),
@@ -152,11 +158,6 @@ class Application(models.Model):
                               ('E', '2020'),
                               ('F', '2022'),
                               ('G', '2023'))
-
-    class ParticipationRole(models.TextChoices):
-        DESIGNER = 'A', _('Designer')
-        DEVELOPER = 'D', _('Developer')
-        SPECIALIST = 'S', _('Specialist')
 
     class HeardAboutUs(models.TextChoices):
         FRIEND = 'F', _('A friend')
@@ -407,6 +408,57 @@ class HardwareDevice(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover
         return f"Hardware: {self.hardware}, Serial: {self.serial}"
+
+
+class Workshop(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=50, null=False)
+    datetime = models.DateTimeField(null=True)
+    duration = models.IntegerField(null=True)
+    description = models.TextField(blank=True, null=True)
+    location = models.ForeignKey(
+        Location, related_name="workshop_location",
+        on_delete=models.CASCADE, null=True
+    )
+    course_materials = models.URLField(null=True, blank=True)
+    recommended_for = MultiSelectField(
+        choices=ParticipationRole.choices, max_choices=8, max_length=8, null=True)
+    skills = models.ManyToManyField(Skill, related_name="workshop_skills")
+    hardware = models.ManyToManyField(Hardware, related_name="workshop_hardware")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Name"
+
+
+class WorkshopAttendee(models.Model):
+    class Participation(models.TextChoices):
+        RSVP = "R", _("RSVP'd")
+        CONFIRMED = "C", _("Confirmed")
+        INSTRUCTOR = "I", _("Instructor")
+        VOLUNTEER = "V", _("Volunteer")
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    workshop = models.ForeignKey(
+        Workshop, related_name="workshop_attendee_workshop",
+        on_delete=models.CASCADE, null=False
+    )
+    attendee = models.ForeignKey(
+        Attendee, related_name="workshop_attendee_attendee",
+        on_delete=models.CASCADE, null=False
+    )
+    participation = models.CharField(
+        max_length=1,
+        choices=Participation.choices,
+        default=Participation.RSVP,
+        null=False
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        pass
 
 
 post_delete.connect(

@@ -3,8 +3,9 @@ from rest_framework import fields, serializers
 
 from infrastructure.models import (SPOKEN_LANGUAGES, Application, Attendee,
                                    Hardware, HardwareDevice, HelpDesk,
-                                   Location, Project, Skill, SkillProficiency,
-                                   Table, Team, UploadedFile)
+                                   Location, ParticipationRole, Project, Skill,
+                                   SkillProficiency, Table, Team, UploadedFile,
+                                   Workshop, WorkshopAttendee)
 
 
 class GroupSerializer(serializers.ModelSerializer):
@@ -277,3 +278,17 @@ class HardwareDeviceDetailSerializer(serializers.ModelSerializer):
         model = HardwareDevice
         fields = ['id', 'hardware', 'serial', 'checked_out_to',
                   'created_at', 'updated_at']
+
+
+class WorkshopSerializer(serializers.ModelSerializer):
+    recommended_for = fields.MultipleChoiceField(choices=ParticipationRole.choices)
+
+    class Meta:
+        model = Workshop
+        fields = "__all__"
+
+
+class WorkshopAttendeeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WorkshopAttendee
+        fields = "__all__"
