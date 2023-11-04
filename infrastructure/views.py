@@ -30,6 +30,15 @@ from infrastructure.serializers import (ApplicationSerializer,
                                         WorkshopSerializer)
 
 
+class KeycloakRoles(object):
+    ATTENDEE = "attendee"
+    ORGANIZER = "organizer"
+    ADMIN = "admin"
+    MENTOR = "mentor"
+    JUDGE = "judge"
+    VOLUNTEER = "volunteer"
+
+
 class AttendeeViewSet(viewsets.ModelViewSet):
     """
     API endpoint that allows users to be viewed or edited.
@@ -308,7 +317,7 @@ class HardwareDeviceHistoryViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
     serializer_class = HardwareDeviceHistorySerializer
     filterset_fields = ['hardware', 'checked_out_to', 'serial']
-    
+
 
 class ApplicationViewSet(viewsets.ModelViewSet):
     """
@@ -318,6 +327,9 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
     serializer_class = ApplicationSerializer
     filterset_fields = ['participation_capacity', 'participation_role', 'email']
+    keycloak_roles = {
+        'GET': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+    }
 
 
 class UploadedFileViewSet(viewsets.ModelViewSet):

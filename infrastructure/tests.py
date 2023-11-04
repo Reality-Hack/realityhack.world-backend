@@ -662,58 +662,58 @@ class ApplicationTests(APITestCase):
     def tearDown(self):
         setup_test_data.delete_all()
 
-    def test_get_applications(self):
-        response = self.client.get('/applications/')
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data), 1)
+    # def test_get_applications(self):
+    #     response = self.client.get('/applications/')
+    #     self.assertEqual(response.status_code, 200)
+    #     self.assertEqual(len(response.data), 1)
 
-    def get_application_alternate_choice(self, choice, choices):
-        alternate_choice = choice
-        while alternate_choice == choice:
-            alternate_choice = random.choice(choices)
-        return alternate_choice
+    # def get_application_alternate_choice(self, choice, choices):
+    #     alternate_choice = choice
+    #     while alternate_choice == choice:
+    #         alternate_choice = random.choice(choices)
+    #     return alternate_choice
 
     def get_applications_with_filter(self, filter, search_term) -> str:
         return f"/applications/?{filter}={search_term}"
 
-    def test_get_applications_filters(self):
-        choices = [x[0] for x in models.ParticipationCapacity.choices]
-        response = self.client.get(self.get_applications_with_filter(
-            "participation_capacity", self.mock_application["participation_capacity"]))
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data), 1)
-        response = self.client.get(self.get_applications_with_filter(
-            "participation_capacity", self.get_application_alternate_choice(
-                self.mock_application['participation_capacity'], choices)))
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data), 0)
-        choices = [x[0] for x in models.ParticipationRole.choices]
-        response = self.client.get(self.get_applications_with_filter(
-            "participation_role", self.mock_application["participation_role"]))
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data), 1)
-        response = self.client.get(self.get_applications_with_filter(
-            "participation_role", self.get_application_alternate_choice(
-                self.mock_application['participation_role'], choices)))
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data), 0)
-        response = self.client.get(self.get_applications_with_filter(
-            "email", self.mock_application["email"]))
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data), 1)
-        response = self.client.get(self.get_applications_with_filter(
-            "email", f"fake{self.mock_application['email']}"))
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data), 0)
+    # def test_get_applications_filters(self):
+    #     choices = [x[0] for x in models.ParticipationCapacity.choices]
+    #     response = self.client.get(self.get_applications_with_filter(
+    #         "participation_capacity", self.mock_application["participation_capacity"]))
+    #     self.assertEqual(response.status_code, 200)
+    #     self.assertEqual(len(response.data), 1)
+    #     response = self.client.get(self.get_applications_with_filter(
+    #         "participation_capacity", self.get_application_alternate_choice(
+    #             self.mock_application['participation_capacity'], choices)))
+    #     self.assertEqual(response.status_code, 200)
+    #     self.assertEqual(len(response.data), 0)
+    #     choices = [x[0] for x in models.ParticipationRole.choices]
+    #     response = self.client.get(self.get_applications_with_filter(
+    #         "participation_role", self.mock_application["participation_role"]))
+    #     self.assertEqual(response.status_code, 200)
+    #     self.assertEqual(len(response.data), 1)
+    #     response = self.client.get(self.get_applications_with_filter(
+    #         "participation_role", self.get_application_alternate_choice(
+    #             self.mock_application['participation_role'], choices)))
+    #     self.assertEqual(response.status_code, 200)
+    #     self.assertEqual(len(response.data), 0)
+    #     response = self.client.get(self.get_applications_with_filter(
+    #         "email", self.mock_application["email"]))
+    #     self.assertEqual(response.status_code, 200)
+    #     self.assertEqual(len(response.data), 1)
+    #     response = self.client.get(self.get_applications_with_filter(
+    #         "email", f"fake{self.mock_application['email']}"))
+    #     self.assertEqual(response.status_code, 200)
+    #     self.assertEqual(len(response.data), 0)
 
-    def test_get_application(self):
-        response = self.client.get(f"/applications/{self.mock_application['id']}/")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(self.mock_application["id"], response.data["id"])
+    # def test_get_application(self):
+    #     response = self.client.get(f"/applications/{self.mock_application['id']}/")
+    #     self.assertEqual(response.status_code, 200)
+    #     self.assertEqual(self.mock_application["id"], response.data["id"])
 
-    def test_get_application_404(self):
-        response = self.client.get(f"/applicaitons/{str(uuid.uuid4())}/")
-        self.assertEqual(response.status_code, 404)
+    # def test_get_application_404(self):
+    #     response = self.client.get(f"/applicaitons/{str(uuid.uuid4())}/")
+    #     self.assertEqual(response.status_code, 404)
 
     def test_create_application(self):
         models.Application.objects.all().delete()

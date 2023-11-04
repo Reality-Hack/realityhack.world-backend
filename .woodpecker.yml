@@ -9,4 +9,8 @@ steps:
       - export "DEBUG=true"
       - export "DEPLOYED=false"
       - export "FRONTEND_DOMAIN=https://dev.realityhack.world"
+      - export "KEYCLOAK_SERVER_URL=https://dev-api.realityhack.world:8443/"
+      - export "KEYCLOAK_REALM=master"
+      - export "KEYCLOAK_CLIENT_ID=123456"
+      - export "KEYCLOAK_CLIENT_SECRET_KEY=123456"
       - ./test

@@ -79,6 +79,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
+    'django_keycloak_auth.middleware.KeycloakMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -86,7 +87,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'simple_history.middleware.HistoryRequestMiddleware'
+    'simple_history.middleware.HistoryRequestMiddleware',
 ]
 
 ROOT_URLCONF = 'event_server.urls'
@@ -203,3 +204,14 @@ ASGI_APPLICATION = "event_server.asgi.application"
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 PHONENUMBER_DEFAULT_REGION = 'US'
+
+KEYCLOAK_EXEMPT_URIS = [
+    'schema/swagger', 'schema/redoc', 'schema/spectacular',
+    'applications/'
+]
+KEYCLOAK_CONFIG = {
+    'KEYCLOAK_SERVER_URL': os.environ["KEYCLOAK_SERVER_URL"],
+    'KEYCLOAK_REALM': os.environ["KEYCLOAK_REALM"],
+    'KEYCLOAK_CLIENT_ID': os.environ["KEYCLOAK_CLIENT_ID"],
+    'KEYCLOAK_CLIENT_SECRET_KEY': os.environ["KEYCLOAK_CLIENT_SECRET_KEY"]
+}
