@@ -22,17 +22,19 @@ from dotenv import load_dotenv
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-DEPLOYED = False
-if sys.executable == "/usr/bin/python3" or sys.executable == "/usr/local/bin/daphne":
-    DEPLOYED = True
-
 load_dotenv()
 
-try:
-    SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]
-    DEBUG = strtobool(os.environ["DEBUG"])
-except (KeyError, django.core.exceptions.ImproperlyConfigured):
-    print("No .env secrets found in environment...")
+SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]
+DEBUG = strtobool(os.environ["DEBUG"])
+DEPLOYED = strtobool(os.environ["DEPLOYED"])
+
+CORS_ALLOWED_ORIGINS = [
+    os.environ["FRONTEND_DOMAIN"]
+]
+
+CORS_ALLOW_ALL_ORIGINS = False
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True
 
 LOGIN_REDIRECT_URL = "http://127.0.0.1:8080/realms/master/broker/codeberg/endpoint"
 LOGOUT_REDIRECT_URL = "<URL path to redirect to after logout>"
@@ -71,10 +73,12 @@ INSTALLED_APPS = [
     'django_filters',
     'simple_history',
     'phonenumber_field',
-    'drf_yasg'
+    'drf_yasg',
+    'corsheaders'
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',

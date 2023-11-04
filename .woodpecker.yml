@@ -7,4 +7,6 @@ steps:
       - pip install -r requirements.txt
       - export "DJANGO_SECRET_KEY=$DJANGO_SECRET_KEY"
       - export "DEBUG=true"
+      - export "DEPLOYED=false"
+      - export "FRONTEND_DOMAIN=https://dev.realityhack.world"
       - ./test

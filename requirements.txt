@@ -10,6 +10,7 @@ cryptography==41.0.1
 Cython==0.29.36
 daphne==4.0.0
 Django==4.2.2
+django-cors-headers==4.3.0
 django-filter==23.2
 django-multiselectfield==0.1.12
 django-phonenumber-field==7.2.0
