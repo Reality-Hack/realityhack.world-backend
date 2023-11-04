@@ -2,6 +2,7 @@ import os
 import shutil
 import uuid
 
+import language_tags
 import pycountry
 from django.contrib.auth.models import AbstractUser
 from django.db import models
@@ -58,6 +59,14 @@ class ShirtSize(models.TextChoices):
         L = 4, _('L')
         XL = 5, _('XL')
         XXL = 6, _('XXL')
+
+
+# RFC 5646-compliant mapping of languages
+SPOKEN_LANGUAGES = [
+    (x["Subtag"], ", ".join(x["Description"]))
+    for x in language_tags.data.cache['registry']
+    if x["Type"] == "language" and x.get("Scope") != "special"
+]
 
 
 def user_directory_path(instance, filename):
@@ -206,6 +215,7 @@ class Application(models.Model):
         null=True,
         default=None
     )
+    spoken_languages = MultiSelectField(choices=SPOKEN_LANGUAGES, max_choices=5, max_length=30)
     previously_participated = models.BooleanField(default=False, null=False)
     previous_participation = MultiSelectField(choices=PREVIOUS_PARTICIPATION, max_choices=7, max_length=7)
     participation_role = models.CharField(
@@ -214,15 +224,10 @@ class Application(models.Model):
         default=ParticipationRole.SPECIALIST,
         null=True
     )
-    experience_with_xr = models.BooleanField(default=False, null=False)
+    experience_with_xr = models.TextField(max_length=1000, blank=True, null=True)
     theme_essay = models.TextField(max_length=1000, blank=True, null=True)
     theme_essay_follow_up = models.TextField(max_length=1000, blank=True, null=True)
-    heard_about_us = models.CharField(
-        max_length=1,
-        choices=HeardAboutUs.choices,
-        null=True,
-        default=None
-    )
+    heard_about_us = MultiSelectField(choices=HeardAboutUs.choices, max_length=30)
     shirt_size = models.CharField(
         max_length=1,
         choices=ShirtSize.choices,
@@ -238,11 +243,6 @@ class Application(models.Model):
         default='US',
         null=True
     )
-    phone_number = PhoneNumberField(blank=False, null=False)
-    emergency_contact_name = models.CharField(max_length=200, null=False, blank=False)
-    emergency_contact_phone_number = PhoneNumberField(blank=False, null=False)
-    emergency_contact_email = models.EmailField(blank=False, null=False)
-    emergency_contact_relationship = models.CharField(max_length=100, null=False, blank=False)
     parental_consent_form = models.OneToOneField(
         UploadedFile, on_delete=models.DO_NOTHING,
         related_name="application_parental_constent_form_uploaded_file",

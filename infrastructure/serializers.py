@@ -1,10 +1,10 @@
 from django.contrib.auth.models import Group
 from rest_framework import fields, serializers
 
-from infrastructure.models import (Application, Attendee, Hardware,
-                                   HardwareDevice, HelpDesk, Location, Project,
-                                   Skill, SkillProficiency, Table, Team,
-                                   UploadedFile)
+from infrastructure.models import (SPOKEN_LANGUAGES, Application, Attendee,
+                                   Hardware, HardwareDevice, HelpDesk,
+                                   Location, Project, Skill, SkillProficiency,
+                                   Table, Team, UploadedFile)
 
 
 class GroupSerializer(serializers.ModelSerializer):
@@ -33,6 +33,8 @@ class ApplicationSerializer(serializers.ModelSerializer):
     race_ethnic_group = fields.MultipleChoiceField(choices=Application.RACE_ETHNIC_GROUPS)
     disabilities = fields.MultipleChoiceField(choices=Application.DISABILITIES)
     previous_participation = fields.MultipleChoiceField(choices=Application.PREVIOUS_PARTICIPATION)
+    spoken_languages = fields.MultipleChoiceField(choices=SPOKEN_LANGUAGES)
+    heard_about_us = fields.MultipleChoiceField(choices=Application.HeardAboutUs.choices)
 
     class Meta:
         model = Application

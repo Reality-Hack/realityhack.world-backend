@@ -315,8 +315,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     queryset = Application.objects.all()
     permission_classes = [permissions.AllowAny]
     serializer_class = ApplicationSerializer
-    filterset_fields = ['participation_capacity', 'participation_role',
-                        'experience_with_xr', 'email']
+    filterset_fields = ['participation_capacity', 'participation_role', 'email']
 
 
 class UploadedFileViewSet(viewsets.ModelViewSet):

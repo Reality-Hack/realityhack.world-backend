@@ -63,7 +63,7 @@ class ApplicationFactory(DjangoModelFactory):
     participation_role = factory.Faker(
         'random_element', elements=[x[0] for x in models.Application.ParticipationRole.choices]
     )
-    experience_with_xr = factory.Faker("boolean")
+    experience_with_xr = factory.fuzzy.FuzzyText(length=900)
     theme_essay = factory.fuzzy.FuzzyText(length=900)
     theme_essay_follow_up = factory.fuzzy.FuzzyText(length=900)
     heard_about_us = factory.Faker(
@@ -75,11 +75,6 @@ class ApplicationFactory(DjangoModelFactory):
     communications_platform_username = factory.Faker("user_name")
     dietary_restrictions = factory.fuzzy.FuzzyText(length=80)
     additional_accommodations = factory.fuzzy.FuzzyText(length=80)
-    phone_number = factory.Faker("phone_number")
-    emergency_contact_name = factory.Faker("name")
-    emergency_contact_phone_number = factory.Faker("phone_number")
-    emergency_contact_email = factory.Faker("email")
-    emergency_contact_relationship = factory.fuzzy.FuzzyText(length=10)
     us_visa_support_is_required = factory.Faker("boolean")
     us_visa_support_full_name = factory.Faker("name")
     us_visa_support_passport_number = factory.fuzzy.FuzzyText(length=10)

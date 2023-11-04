@@ -648,14 +648,10 @@ class TableTests(APITestCase):
 class ApplicationTests(APITestCase):
     def setUp(self):
         # Mocking fake phone numbers does not always succeed
-        fake_phone_number = "(800) 555-0199"
         self.client = APIClient()
         mock_skill = factories.SkillFactory()
         self.mock_skill = serializers.SkillSerializer(mock_skill).data
-        mock_application = factories.ApplicationFactory(
-            phone_number=fake_phone_number,
-            emergency_contact_phone_number=fake_phone_number
-        )
+        mock_application = factories.ApplicationFactory()
         self.mock_application = serializers.ApplicationSerializer(mock_application).data
         skill_proficiency = factories.SkillProficiencyFactory(
             application=mock_application, skill=mock_skill)
@@ -698,14 +694,6 @@ class ApplicationTests(APITestCase):
         response = self.client.get(self.get_applications_with_filter(
             "participation_role", self.get_application_alternate_choice(
                 self.mock_application['participation_role'], choices)))
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data), 0)
-        response = self.client.get(self.get_applications_with_filter(
-            "experience_with_xr", str(self.mock_application["experience_with_xr"])))
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data), 1)
-        response = self.client.get(self.get_applications_with_filter(
-            "experience_with_xr", str(not self.mock_application["experience_with_xr"])))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 0)
         response = self.client.get(self.get_applications_with_filter(
