@@ -1,16 +1,20 @@
 import os
 import shutil
+import sys
 import uuid
 
 import language_tags
 import pycountry
 from django.contrib.auth.models import AbstractUser
+from django.core.mail import send_mail
 from django.db import models
-from django.db.models.signals import post_delete
+from django.db.models.signals import post_delete, post_save
 from django.utils.translation import gettext_lazy as _
 from multiselectfield import MultiSelectField
 from phonenumber_field.modelfields import PhoneNumberField
 from simple_history.models import HistoricalRecords
+
+from infrastructure import email
 
 # settings.AUTH_USER_MODEL
 
@@ -88,6 +92,18 @@ def user_directory_path(instance, filename):
 def file_cleanup(sender, **kwargs):
     file_location = kwargs["origin"].file.path
     shutil.rmtree(os.path.dirname(file_location), ignore_errors=True)
+
+
+def post_application_send_email(sender, instance, created, **kwargs):
+    if created:
+        subject, body = email.get_hacker_application_confirmation_template(instance.first_name)
+        send_mail(
+            subject,
+            body,
+            "no-reply@mitrealityhack.com",
+            [instance.email],
+            fail_silently=False,
+        )
 
 
 class UploadedFile(models.Model):
@@ -464,3 +480,7 @@ class WorkshopAttendee(models.Model):
 post_delete.connect(
     file_cleanup, sender=UploadedFile, dispatch_uid="file"
 )
+if "test" not in sys.argv and "setup_test_data" not in sys.argv:
+    post_save.connect(
+        post_application_send_email, sender=Application, dispatch_uid="application_success"
+    )
