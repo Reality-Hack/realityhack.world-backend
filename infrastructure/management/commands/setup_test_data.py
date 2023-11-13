@@ -72,9 +72,12 @@ def add_all():  # noqa: C901
         skills.append(skill)
     skill_proficiencies = []
     applications = []
+    uploaded_files = []
     for _ in range(NUMBER_OF_ATTENDEES * 2):
         application_skill_proficiencies = []
-        application = factories.ApplicationFactory()
+        resume = factories.UploadedFileFactory()
+        uploaded_files.append(resume)
+        application = factories.ApplicationFactory(resume=resume)
         number_of_skill_proficiencies = random.randint(
             1, NUMBER_OF_SKILL_PROFICIENCIES)
         for _ in range(number_of_skill_proficiencies):

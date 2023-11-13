@@ -25,19 +25,20 @@ class ApplicationFactory(DjangoModelFactory):
     first_name = factory.Faker("first_name")
     middle_name = factory.Faker("first_name")
     last_name = factory.Faker("last_name")
-    nationality = factory.Faker("country")
-    current_country = factory.Faker("country")
+    current_country = factory.Faker(
+        'random_element', elements=[[x.alpha_2] for x in pycountry.countries]
+    )
     current_city = factory.Faker("city")
     pronouns = factory.fuzzy.FuzzyText(length=10)
     age_group = factory.Faker("random_element", elements=[
         x[0] for x in models.Application.AgeGroup.choices])
-    bio = factory.fuzzy.FuzzyText(length=1000)
     email = factory.Faker("email")
     portfolio = factory.Faker("url")
-    resume = factory.Faker("url")
-    city = factory.Faker("city")
-    country = factory.Faker("country")
-    nationality = factory.Faker("country")
+    secondary_portfolio = factory.Faker("url")
+    resume = factory.Iterator(models.UploadedFile.objects.all())
+    nationality = factory.Faker(
+        'random_element', elements=[[x.alpha_2] for x in pycountry.countries]
+    )
     gender_identity = factory.Faker(
         'random_element', elements=[str(x[0]) for x in models.Application.GENDER_IDENTITIES]
     )
@@ -58,6 +59,10 @@ class ApplicationFactory(DjangoModelFactory):
     student_field_of_study = factory.fuzzy.FuzzyText(length=90)
     occupation = factory.fuzzy.FuzzyText(length=90)
     employer = factory.fuzzy.FuzzyText(length=90)
+    industry = factory.Faker(
+        'random_element', elements=[[x[0]] for x in models.INDUSTRIES]
+    )
+    specialized_expertise = factory.fuzzy.FuzzyText(length=90)
     previously_participated = factory.Faker("boolean")
     previous_participation = factory.Faker(
         'random_element', elements=[str(x[0]) for x in models.Application.PREVIOUS_PARTICIPATION]
@@ -68,27 +73,17 @@ class ApplicationFactory(DjangoModelFactory):
     experience_with_xr = factory.fuzzy.FuzzyText(length=900)
     theme_essay = factory.fuzzy.FuzzyText(length=900)
     theme_essay_follow_up = factory.fuzzy.FuzzyText(length=900)
+    hardware_hack_interest = factory.Faker(
+        'random_element', elements=[x[0] for x in models.Application.HardwareHackInterest.choices]
+    )
     heard_about_us = factory.Faker(
         'random_element', elements=[x[0] for x in models.Application.HeardAboutUs.choices]
     )
-    shirt_size = factory.Faker(
-        'random_element', elements=[x[0] for x in models.ShirtSize.choices]
+    digital_designer_skills = factory.Faker(
+        'random_element', elements=[x[0] for x in models.Application.DigitalDesignerProficientSkills.choices]
     )
     communications_platform_username = factory.Faker("user_name")
-    dietary_restrictions = factory.fuzzy.FuzzyText(length=80)
-    additional_accommodations = factory.fuzzy.FuzzyText(length=80)
-    us_visa_support_is_required = factory.Faker("boolean")
-    us_visa_support_full_name = factory.Faker("name")
-    us_visa_support_passport_number = factory.fuzzy.FuzzyText(length=10)
-    us_visa_support_national_identification_document_information = factory.fuzzy.FuzzyText(length=99)
-    us_visa_support_citizenship = factory.Faker(
-        'random_element', elements=[x.alpha_2 for x in pycountry.countries]
-    )
-    us_visa_support_address_line_1 = factory.Faker("address")
-    us_visa_support_address_line_2 = factory.Faker("address")
-    parental_consent_form = factory.SubFactory(UploadedFileFactory)
-    media_release = factory.SubFactory(UploadedFileFactory)
-    liability_release = factory.SubFactory(UploadedFileFactory)
+    outreach_groups = factory.fuzzy.FuzzyText(length=900)
 
 
 class AttendeeFactory(DjangoModelFactory):

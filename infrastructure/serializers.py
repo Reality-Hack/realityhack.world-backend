@@ -1,11 +1,13 @@
+import pycountry
 from django.contrib.auth.models import Group
 from rest_framework import fields, serializers
 
-from infrastructure.models import (SPOKEN_LANGUAGES, Application, Attendee,
-                                   Hardware, HardwareDevice, HelpDesk,
-                                   Location, ParticipationRole, Project, Skill,
-                                   SkillProficiency, Table, Team, UploadedFile,
-                                   Workshop, WorkshopAttendee)
+from infrastructure.models import (INDUSTRIES, SPOKEN_LANGUAGES, Application,
+                                   Attendee, Hardware, HardwareDevice,
+                                   HelpDesk, Location, ParticipationRole,
+                                   Project, Skill, SkillProficiency, Table,
+                                   Team, UploadedFile, Workshop,
+                                   WorkshopAttendee)
 
 
 class GroupSerializer(serializers.ModelSerializer):
@@ -31,11 +33,14 @@ class FileUploadSerializer(serializers.ModelSerializer):
 
 class ApplicationSerializer(serializers.ModelSerializer):
     gender_identity = fields.MultipleChoiceField(choices=Application.GENDER_IDENTITIES)
+    nationality = fields.MultipleChoiceField(choices=[(x.alpha_2, x.name) for x in pycountry.countries])
+    current_country = fields.MultipleChoiceField(choices=[(x.alpha_2, x.name) for x in pycountry.countries])
     race_ethnic_group = fields.MultipleChoiceField(choices=Application.RACE_ETHNIC_GROUPS)
     disabilities = fields.MultipleChoiceField(choices=Application.DISABILITIES)
     previous_participation = fields.MultipleChoiceField(choices=Application.PREVIOUS_PARTICIPATION)
-    spoken_languages = fields.MultipleChoiceField(choices=SPOKEN_LANGUAGES)
     heard_about_us = fields.MultipleChoiceField(choices=Application.HeardAboutUs.choices)
+    digital_designer_skills = fields.MultipleChoiceField(choices=Application.DigitalDesignerProficientSkills.choices)
+    industry = fields.MultipleChoiceField(choices=INDUSTRIES)
 
     class Meta:
         model = Application

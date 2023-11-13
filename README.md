@@ -17,6 +17,7 @@ Modify the contents of the `.env` file to match KeyCloak configuration informati
 #### Basic setup
 
 ```shell
+sudo apt-get install libpq-dev
 pip install -r requirements.txt
 ./manage.py migrate
 ```

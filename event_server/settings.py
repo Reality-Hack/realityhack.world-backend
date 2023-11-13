@@ -118,7 +118,7 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
-if DEPLOYED:  # Not using a virtual env = is deployed
+if DEPLOYED or "makemigrations" in sys.argv:  # Not using a virtual env = is deployed
     DATABASES = {  # pragma: nocover
         'default': {
             'ENGINE': 'django.db.backends.postgresql_psycopg2',

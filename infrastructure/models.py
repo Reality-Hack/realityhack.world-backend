@@ -18,10 +18,15 @@ from infrastructure import email
 
 # settings.AUTH_USER_MODEL
 
+with open("infrastructure/industries.csv", "r") as f:
+    industries = f.read().strip().split(",\n")
+    INDUSTRIES = [(x, x) for x in industries]
+
 class ParticipationRole(models.TextChoices):
-    DESIGNER = 'A', _('Designer')
+    DESIGNER = 'A', _('Digital Designer')
     DEVELOPER = 'D', _('Developer')
-    SPECIALIST = 'S', _('Specialist')
+    SPECIALIST = 'S', _('Domain or other Specialized Skill Expert')
+    PROJECT_MANAGER = 'P', _('Project Manager')
 
 
 class ParticipationCapacity(models.TextChoices):
@@ -140,8 +145,8 @@ class Application(models.Model):
                        ('D', 'Transgender male'),
                        ('E', 'Gender non-conforming, non-binary, or gender queer'),
                        ('F', 'Two-spirit'),
-                       ('G', 'Other'),
-                       ('H', 'I prefer not to say'))
+                       ('G', 'I prefer not to say'),
+                       ('O', 'Other'))
     
     RACE_ETHNIC_GROUPS = (('A', 'Asian, Asian American, or of Asian descent'),
                        ('B', 'Black, African American, or of African descent'),
@@ -151,8 +156,8 @@ class Application(models.Model):
                        ('F', 'Pacific Islander or Native Hawaiian'),
                        ('G', 'White or of European descent'),
                        ('H', 'Multi-racial or multi-ethnic'),
-                       ('I', 'Other'),
-                       ('J', 'I prefer not to say'))
+                       ('I', 'I prefer not to say'),
+                       ('O', 'Other'))
     
     class DisabilityIdentity(models.TextChoices):
         A = 'A', _('Yes')
@@ -165,7 +170,8 @@ class Application(models.Model):
                     ('D', 'Ambulatory difficulty - Having serious difficulty walking or climbing stairs (DPHY).'),
                     ('E', 'Self-care difficulty - Having difficulty bathing or dressing (DDRS).'),
                     ('F', 'Independent living difficulty - Because of a physical, mental, or emotional problem, having difficulty doing errands alone such as visiting a doctor\'s office or shopping (DOUT).'),
-                    ('G', 'I prefer not to say'))
+                    ('G', 'I prefer not to say'),
+                    ('O', 'Other'))
 
     PREVIOUS_PARTICIPATION = (('A', '2016'),
                               ('B', '2017'),
@@ -184,12 +190,28 @@ class Application(models.Model):
         PARTICIPATED = 'P', _('I participated in the MIT XR Hackathon before')
         OTHER = 'O', _('Other')
 
+    class HardwareHackInterest(models.TextChoices):
+        A = 'A', _("Not at all interested; I'll pass")
+        B = 'B', _("Some mild interest")
+        C = 'C', _("Most likely")
+        D = 'D', _("100%; I want to join")
+
+    class DigitalDesignerProficientSkills(models.TextChoices):
+        A = 'A', _('Digital Art')
+        B = 'B', _('Animation')
+        C = 'C', _('Sound')
+        D = 'D', _('UX and UI')
+        E = 'E', _('Video')
+        F = 'F', _('Other')
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     first_name = models.CharField(max_length=100, blank=False, null=False)
     middle_name = models.CharField(max_length=100, blank=False, null=True)
     last_name = models.CharField(max_length=100, blank=False, null=False)
-    nationality = models.CharField(max_length=100, blank=False, null=False)
-    current_country = models.CharField(max_length=100, blank=False, null=False)
+    nationality = MultiSelectField(
+        choices=[(x.alpha_2, x.name) for x in pycountry.countries], max_choices=8, max_length=8)
+    current_country = MultiSelectField(
+        choices=[(x.alpha_2, x.name) for x in pycountry.countries], max_choices=8, max_length=8)
     current_city = models.CharField(max_length=100, blank=False, null=False)
     pronouns = models.CharField(max_length=30, blank=False, null=True)
     age_group = models.CharField(
@@ -198,16 +220,19 @@ class Application(models.Model):
         default=AgeGroup.H,
         null=False
     )
-    bio = models.TextField(max_length=1000, blank=True)
-    email = models.EmailField(blank=False, null=False)
+    email = models.EmailField(blank=False, null=False, unique=True)
     event_year = models.IntegerField(default=2024, null=False)
-    portfolio = models.URLField()
-    resume = models.URLField()
-    city = models.CharField(max_length=100)
-    country = models.CharField(max_length=100)
-    nationality = models.CharField(max_length=100)
+    portfolio = models.URLField(null=True)
+    secondary_portfolio = models.URLField(null=True)
+    resume = models.OneToOneField(
+        UploadedFile, on_delete=models.DO_NOTHING,
+        related_name="application_resume_uploaded_file",
+        null=False
+    )
     gender_identity = MultiSelectField(choices=GENDER_IDENTITIES, max_choices=8, max_length=8)
+    gender_identity_other = models.CharField(max_length=20, null=True)
     race_ethnic_group = MultiSelectField(choices=RACE_ETHNIC_GROUPS, max_choices=10, max_length=10)
+    race_ethnic_group_other = models.CharField(max_length=20, null=True)
     disability_identity = models.CharField(
         max_length=1,
         choices=DisabilityIdentity.choices,
@@ -215,6 +240,7 @@ class Application(models.Model):
         null=False
     )
     disabilities = MultiSelectField(choices=DISABILITIES, max_choices=7, max_length=7, null=True)
+    disabilities_other = models.CharField(max_length=20, null=True)
     disability_accommodations = models.TextField(max_length=1000, blank=True, null=True)
     participation_capacity = models.CharField(
         max_length=1,
@@ -226,67 +252,41 @@ class Application(models.Model):
     student_field_of_study = models.CharField(max_length=100, null=True, blank=False)
     occupation = models.CharField(max_length=100, null=True, blank=False)
     employer = models.CharField(max_length=100, null=True, blank=False)
+    industry = MultiSelectField(
+        max_length=100,
+        choices=INDUSTRIES,
+        null=True
+    )
+    industry_other = models.CharField(max_length=20, null=True)
+    specialized_expertise = models.TextField(max_length=1000, blank=False, null=True)
     status = models.CharField(
         max_length=2,
         choices=Status.choices,
         null=True,
         default=None
     )
-    spoken_languages = MultiSelectField(choices=SPOKEN_LANGUAGES, max_choices=5, max_length=30)
     previously_participated = models.BooleanField(default=False, null=False)
-    previous_participation = MultiSelectField(choices=PREVIOUS_PARTICIPATION, max_choices=7, max_length=7)
+    previous_participation = MultiSelectField(choices=PREVIOUS_PARTICIPATION, max_choices=7, max_length=7, null=True)
     participation_role = models.CharField(
         max_length=1,
         choices=ParticipationRole.choices,
         default=ParticipationRole.SPECIALIST,
-        null=True
     )
     experience_with_xr = models.TextField(max_length=1000, blank=True, null=True)
     theme_essay = models.TextField(max_length=1000, blank=True, null=True)
     theme_essay_follow_up = models.TextField(max_length=1000, blank=True, null=True)
-    heard_about_us = MultiSelectField(choices=HeardAboutUs.choices, max_length=30)
-    shirt_size = models.CharField(
+    hardware_hack_interest = models.CharField(
         max_length=1,
-        choices=ShirtSize.choices,
-        default=ShirtSize.M,
-        null=True
+        choices=HardwareHackInterest.choices,
+        default=HardwareHackInterest.B
     )
+    heard_about_us = MultiSelectField(choices=HeardAboutUs.choices, max_length=30)
+    heard_about_us_other = models.CharField(max_length=20, null=True)
+    digital_designer_skills = MultiSelectField(
+        choices=DigitalDesignerProficientSkills.choices, max_length=30, null=True)
+    digital_designer_skills_other = models.CharField(max_length=20, null=True)
     communications_platform_username = models.CharField(max_length=40, null=True)
-    dietary_restrictions = models.TextField(max_length=200, blank=True, null=True)
-    additional_accommodations = models.TextField(max_length=200, blank=True, null=True)
-    phone_number_country_alpha_2_options = models.CharField(
-        max_length=2,
-        choices=[(x.alpha_2, x.name) for x in pycountry.countries],
-        default='US',
-        null=True
-    )
-    parental_consent_form = models.OneToOneField(
-        UploadedFile, on_delete=models.DO_NOTHING,
-        related_name="application_parental_constent_form_uploaded_file",
-        null=True
-    )
-    us_visa_support_is_required = models.BooleanField(null=False)
-    us_visa_support_full_name = models.CharField(max_length=200, blank=False, null=True)
-    us_visa_support_passport_number = models.CharField(max_length=50, blank=False, null=True)
-    us_visa_support_national_identification_document_information = models.CharField(max_length=100, blank=False, null=True)
-    us_visa_support_citizenship = models.CharField(
-        max_length=2,
-        choices=[(x.alpha_2, x.name) for x in pycountry.countries],
-        blank=False,
-        null=True
-    )
-    us_visa_support_address_line_1 = models.CharField(max_length=200, null=True, blank=False)
-    us_visa_support_address_line_2 = models.CharField(max_length=200, null=True, blank=False)
-    media_release = models.OneToOneField(
-        UploadedFile, on_delete=models.DO_NOTHING,
-        related_name="application_media_release_form_uploaded_file",
-        null=True
-    )
-    liability_release = models.OneToOneField(
-        UploadedFile, on_delete=models.DO_NOTHING,
-        related_name="application_liability_release_form_uploaded_file",
-        null=True
-    )
+    outreach_groups = models.TextField(max_length=1000, blank=True, null=True)
     submitted_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
