@@ -32,6 +32,10 @@ CORS_ALLOWED_ORIGINS = [
     os.environ["FRONTEND_DOMAIN"]
 ]
 
+CSRF_TRUSTED_ORIGINS = [
+    os.environ["BACKEND_DOMAIN"]  # For /admin pages
+]
+
 CORS_ALLOW_ALL_ORIGINS = False
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
@@ -215,7 +219,7 @@ if "test" not in sys.argv and "setup_test_data" not in sys.argv:
 
 KEYCLOAK_EXEMPT_URIS = [
     'schema/swagger', 'schema/redoc', 'schema/spectacular',
-    'applications/'
+    'applications/', 'uploaded_files'
 ]
 KEYCLOAK_CONFIG = {
     'KEYCLOAK_SERVER_URL': os.environ["KEYCLOAK_SERVER_URL"],

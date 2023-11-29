@@ -94,24 +94,12 @@ def user_directory_path(instance, filename):
     return f"{instance.id}/{filename}"
 
 
-def file_cleanup(sender, **kwargs):
-    file_location = kwargs["origin"].file.path
-    shutil.rmtree(os.path.dirname(file_location), ignore_errors=True)
-
-
-def post_application_send_email(sender, instance, created, **kwargs):
-    if created:
-        subject, body = email.get_hacker_application_confirmation_template(instance.first_name)
-        send_mail(
-            subject,
-            body,
-            "no-reply@mitrealityhack.com",
-            [instance.email],
-            fail_silently=False,
-        )
-
-
 class UploadedFile(models.Model):
+    @classmethod
+    def post_delete(cls, sender, **kwargs):
+        file_location = kwargs["origin"].file.path
+        shutil.rmtree(os.path.dirname(file_location), ignore_errors=True)
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     file = models.FileField(upload_to=user_directory_path)
     claimed = models.BooleanField(null=False, default=False)  # If file remains unclaimed, eventually delete
@@ -119,6 +107,9 @@ class UploadedFile(models.Model):
 
     class Meta:
         verbose_name = "uploaded files"
+
+    def __str__(self):
+        return f"Claimed: {self.claimed}, File: {self.file}"
 
 
 class Application(models.Model):
@@ -204,14 +195,36 @@ class Application(models.Model):
         E = 'E', _('Video')
         F = 'F', _('Other')
 
+    @classmethod
+    def post_create(cls, sender, instance, created, **kwargs):
+        if created:
+            # claim resume file
+            if instance.resume:
+                instance.resume.claimed = True
+                instance.resume.save()
+            # send email
+            if "test" not in sys.argv and "setup_test_data" not in sys.argv:
+                subject, body = email.get_hacker_application_confirmation_template(instance.first_name)
+                send_mail(
+                    subject,
+                    body,
+                    "no-reply@mitrealityhack.com",
+                    [instance.email],
+                    fail_silently=False,
+                )
+
+    @classmethod
+    def post_delete(cls, sender, instance, **kwargs):
+        instance.resume.delete()
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     first_name = models.CharField(max_length=100, blank=False, null=False)
     middle_name = models.CharField(max_length=100, blank=False, null=True)
     last_name = models.CharField(max_length=100, blank=False, null=False)
     nationality = MultiSelectField(
-        choices=[(x.alpha_2, x.name) for x in pycountry.countries], max_choices=8, max_length=8)
+        choices=[(x.alpha_2, x.name) for x in pycountry.countries], max_choices=8, max_length=len(pycountry.countries))
     current_country = MultiSelectField(
-        choices=[(x.alpha_2, x.name) for x in pycountry.countries], max_choices=8, max_length=8)
+        choices=[(x.alpha_2, x.name) for x in pycountry.countries], max_choices=8, max_length=len(pycountry.countries))
     current_city = models.CharField(max_length=100, blank=False, null=False)
     pronouns = models.CharField(max_length=30, blank=False, null=True)
     age_group = models.CharField(
@@ -229,9 +242,9 @@ class Application(models.Model):
         related_name="application_resume_uploaded_file",
         null=False
     )
-    gender_identity = MultiSelectField(choices=GENDER_IDENTITIES, max_choices=8, max_length=8)
+    gender_identity = MultiSelectField(choices=GENDER_IDENTITIES, max_choices=8, max_length=len(GENDER_IDENTITIES))
     gender_identity_other = models.CharField(max_length=20, null=True)
-    race_ethnic_group = MultiSelectField(choices=RACE_ETHNIC_GROUPS, max_choices=10, max_length=10)
+    race_ethnic_group = MultiSelectField(choices=RACE_ETHNIC_GROUPS, max_choices=10, max_length=len(RACE_ETHNIC_GROUPS))
     race_ethnic_group_other = models.CharField(max_length=20, null=True)
     disability_identity = models.CharField(
         max_length=1,
@@ -239,7 +252,7 @@ class Application(models.Model):
         default=DisabilityIdentity.C,
         null=False
     )
-    disabilities = MultiSelectField(choices=DISABILITIES, max_choices=7, max_length=7, null=True)
+    disabilities = MultiSelectField(choices=DISABILITIES, max_choices=7, max_length=len(DISABILITIES), null=True)
     disabilities_other = models.CharField(max_length=20, null=True)
     disability_accommodations = models.TextField(max_length=1000, blank=True, null=True)
     participation_capacity = models.CharField(
@@ -253,7 +266,7 @@ class Application(models.Model):
     occupation = models.CharField(max_length=100, null=True, blank=False)
     employer = models.CharField(max_length=100, null=True, blank=False)
     industry = MultiSelectField(
-        max_length=100,
+        max_length=1000,
         choices=INDUSTRIES,
         null=True
     )
@@ -266,15 +279,15 @@ class Application(models.Model):
         default=None
     )
     previously_participated = models.BooleanField(default=False, null=False)
-    previous_participation = MultiSelectField(choices=PREVIOUS_PARTICIPATION, max_choices=7, max_length=7, null=True)
+    previous_participation = MultiSelectField(choices=PREVIOUS_PARTICIPATION, max_choices=7, max_length=len(PREVIOUS_PARTICIPATION), null=True)
     participation_role = models.CharField(
         max_length=1,
         choices=ParticipationRole.choices,
         default=ParticipationRole.SPECIALIST,
     )
-    experience_with_xr = models.TextField(max_length=1000, blank=True, null=True)
-    theme_essay = models.TextField(max_length=1000, blank=True, null=True)
-    theme_essay_follow_up = models.TextField(max_length=1000, blank=True, null=True)
+    experience_with_xr = models.TextField(max_length=2000, blank=True, null=True)
+    theme_essay = models.TextField(max_length=2000, blank=True, null=True)
+    theme_essay_follow_up = models.TextField(max_length=2000, blank=True, null=True)
     hardware_hack_interest = models.CharField(
         max_length=1,
         choices=HardwareHackInterest.choices,
@@ -285,8 +298,8 @@ class Application(models.Model):
     digital_designer_skills = MultiSelectField(
         choices=DigitalDesignerProficientSkills.choices, max_length=30, null=True)
     digital_designer_skills_other = models.CharField(max_length=20, null=True)
-    communications_platform_username = models.CharField(max_length=40, null=True)
-    outreach_groups = models.TextField(max_length=1000, blank=True, null=True)
+    communications_platform_username = models.CharField(max_length=300, null=True)
+    outreach_groups = models.TextField(max_length=2000, blank=True, null=True)
     submitted_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -478,9 +491,11 @@ class WorkshopAttendee(models.Model):
 
 
 post_delete.connect(
-    file_cleanup, sender=UploadedFile, dispatch_uid="file"
+    UploadedFile.post_delete, sender=UploadedFile, dispatch_uid="file_entry_deleted"
 )
-if "test" not in sys.argv and "setup_test_data" not in sys.argv:
-    post_save.connect(
-        post_application_send_email, sender=Application, dispatch_uid="application_success"
-    )
+post_delete.connect(
+    Application.post_delete, sender=Application, dispatch_uid="application_entry_deleted"
+)
+post_save.connect(
+    Application.post_create, sender=Application, dispatch_uid="application_entry_created"
+)

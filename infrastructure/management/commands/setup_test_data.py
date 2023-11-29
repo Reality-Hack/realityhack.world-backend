@@ -89,6 +89,7 @@ def add_all():  # noqa: C901
         application.email = f"{uuid.uuid4()}{application.email}"
         application.save()
         applications.append(application)
+    uploaded_files.append(factories.UploadedFileFactory())
     Location.objects.create(room=Location.Room.ATLANTIS)
     Location.objects.create(room=Location.Room.MAIN_HALL)
     tables = []

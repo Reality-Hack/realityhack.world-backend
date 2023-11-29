@@ -14,7 +14,7 @@ daphne==4.0.0
 Django==4.2.2
 django-cors-headers==4.3.0
 django-filter==23.2
--e git+https://github.com/singlerider/django-keycloak-auth@da2e89867438cabf484fab37e185a2e5aa63ba9a#egg=django_keycloak_auth
+-e git+https://github.com/singlerider/django-keycloak-auth@bf343f33ade1a87e05b5e8432af8bf788a9a2769#egg=django_keycloak_auth
 django-multiselectfield==0.1.12
 django-phonenumber-field==7.2.0
 django-simple-history==3.3.0

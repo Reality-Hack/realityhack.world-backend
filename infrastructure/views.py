@@ -329,6 +329,9 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     filterset_fields = ['participation_capacity', 'participation_role', 'email']
     keycloak_roles = {
         'GET': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        'DELETE': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        'PUT': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        'PATCH': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
     }
 
 
@@ -340,6 +343,11 @@ class UploadedFileViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
     serializer_class = FileUploadSerializer
     filterset_fields = ['claimed']
+    keycloak_roles = {
+        'GET': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        'DELETE': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        'PUT': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+    }
 
 
 class WorkshopViewSet(viewsets.ModelViewSet):
