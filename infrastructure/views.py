@@ -3,6 +3,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework import permissions, viewsets
 from rest_framework.response import Response
 
+from infrastructure.mixins import LoggingMixin
 from infrastructure.models import (Application, Attendee, Hardware,
                                    HardwareDevice, HelpDesk, Location, Project,
                                    Skill, SkillProficiency, Table, Team,
@@ -39,7 +40,7 @@ class KeycloakRoles(object):
     VOLUNTEER = "volunteer"
 
 
-class AttendeeViewSet(viewsets.ModelViewSet):
+class AttendeeViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint that allows users to be viewed or edited.
     """
@@ -59,7 +60,7 @@ class AttendeeViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-class SkillViewSet(viewsets.ModelViewSet):
+class SkillViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint that allows skills to be viewed or edited.
     """
@@ -68,7 +69,7 @@ class SkillViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
 
 
-class LocationViewSet(viewsets.ModelViewSet):
+class LocationViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint that allows locations to be viewed or edited.
     """
@@ -77,7 +78,7 @@ class LocationViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
 
 
-class TableViewSet(viewsets.ModelViewSet):
+class TableViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint that allows tables to be viewed or edited.
     """
@@ -105,7 +106,7 @@ class TableViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-class TeamViewSet(viewsets.ModelViewSet):
+class TeamViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint that allows teams to be viewed or edited.
     """
@@ -134,7 +135,7 @@ class TeamViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-class HelpDesksViewSet(viewsets.ViewSet):
+class HelpDesksViewSet(LoggingMixin, viewsets.ViewSet):
     """
     API endpoint that allows Reality Kits to be viewed or edited.
     """
@@ -178,7 +179,7 @@ class HelpDesksViewSet(viewsets.ViewSet):
         return Response(data=help_desk_message, status=201)
 
 
-class MentorRequestViewSet(viewsets.ViewSet):
+class MentorRequestViewSet(LoggingMixin, viewsets.ViewSet):
     """
     API endpoint that allows Mentor Requests to be viewed or edited.
     """
@@ -217,7 +218,7 @@ class MentorRequestViewSet(viewsets.ViewSet):
         return Response(serializer.data)
 
 
-class SkillProficiencyViewSet(viewsets.ModelViewSet):
+class SkillProficiencyViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint that allows skill proficiencies to be viewed or edited.
     """
@@ -236,7 +237,7 @@ class SkillProficiencyViewSet(viewsets.ModelViewSet):
         return SkillProficiencySerializer
 
 
-class ProjectViewSet(viewsets.ModelViewSet):
+class ProjectViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint that allows projects to be viewed or edited.
     """
@@ -245,7 +246,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
 
 
-class GroupViewSet(viewsets.ModelViewSet):
+class GroupViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint that allows groups to be viewed or edited.
     """
@@ -254,7 +255,7 @@ class GroupViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
 
 
-class HardwareViewSet(viewsets.ModelViewSet):
+class HardwareViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint that allows hardware to be viewed or edited.
     """
@@ -295,7 +296,7 @@ class HardwareViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-class HardwareDeviceViewSet(viewsets.ModelViewSet):
+class HardwareDeviceViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint that allows hardware devices to be viewed or edited.
     """
@@ -309,7 +310,7 @@ class HardwareDeviceViewSet(viewsets.ModelViewSet):
         return HardwareDeviceSerializer
     
 
-class HardwareDeviceHistoryViewSet(viewsets.ModelViewSet):
+class HardwareDeviceHistoryViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint that allows hardware device historical records to be viewed.
     """
@@ -319,7 +320,7 @@ class HardwareDeviceHistoryViewSet(viewsets.ModelViewSet):
     filterset_fields = ['hardware', 'checked_out_to', 'serial']
 
 
-class ApplicationViewSet(viewsets.ModelViewSet):
+class ApplicationViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint that allows applications to be viewed or edited.
     """
@@ -335,7 +336,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     }
 
 
-class UploadedFileViewSet(viewsets.ModelViewSet):
+class UploadedFileViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint that allows files to be viewed or edited.
     """
@@ -350,7 +351,7 @@ class UploadedFileViewSet(viewsets.ModelViewSet):
     }
 
 
-class WorkshopViewSet(viewsets.ModelViewSet):
+class WorkshopViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint that allows workshops to be viewed ot edited.
     """
@@ -360,7 +361,7 @@ class WorkshopViewSet(viewsets.ModelViewSet):
     filterset_fields = ['datetime', 'location', 'recommended_for', 'hardware']
 
 
-class WorkshopAttendeeViewSet(viewsets.ModelViewSet):
+class WorkshopAttendeeViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint that allows workshops to be viewed or edited.
     """
