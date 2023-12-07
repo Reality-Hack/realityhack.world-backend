@@ -113,6 +113,11 @@ class UploadedFile(models.Model):
 
 
 class Application(models.Model):
+    class ParticipationClass(models.TextChoices):
+        PARTICIPANT = 'P', _('Participant')
+        MENTOR = 'M', _('Mentor')
+        JUDGE = 'J', _('Judge')
+
     class Status(models.TextChoices):
         ACCEPTED_IN_PERSON = 'AI', _('Accepted, In-Person')
         ACCEPTED_ONLINE = 'AO', _('Accepted, Online')
@@ -221,17 +226,31 @@ class Application(models.Model):
     first_name = models.CharField(max_length=100, blank=False, null=False)
     middle_name = models.CharField(max_length=100, blank=False, null=True)
     last_name = models.CharField(max_length=100, blank=False, null=False)
+    participation_class = models.CharField(
+        choices=ParticipationClass.choices,
+        max_length=1,
+        null=False,
+        default=ParticipationClass.PARTICIPANT
+    )
     nationality = MultiSelectField(
-        choices=[(x.alpha_2, x.name) for x in pycountry.countries], max_choices=8, max_length=len(pycountry.countries))
+        choices=[(x.alpha_2, x.name) for x in pycountry.countries],
+        max_choices=8,
+        max_length=len(pycountry.countries),
+        null=True
+    )
     current_country = MultiSelectField(
-        choices=[(x.alpha_2, x.name) for x in pycountry.countries], max_choices=8, max_length=len(pycountry.countries))
-    current_city = models.CharField(max_length=100, blank=False, null=False)
+        choices=[(x.alpha_2, x.name) for x in pycountry.countries],
+        max_choices=8,
+        max_length=len(pycountry.countries),
+        null=True
+    )
+    current_city = models.CharField(max_length=100, blank=False, null=True)
     pronouns = models.CharField(max_length=30, blank=False, null=True)
     age_group = models.CharField(
         max_length=1,
         choices=AgeGroup.choices,
         default=AgeGroup.H,
-        null=False
+        null=True
     )
     email = models.EmailField(blank=False, null=False, unique=True)
     event_year = models.IntegerField(default=2024, null=False)
@@ -240,7 +259,7 @@ class Application(models.Model):
     resume = models.OneToOneField(
         UploadedFile, on_delete=models.DO_NOTHING,
         related_name="application_resume_uploaded_file",
-        null=False
+        null=True
     )
     gender_identity = MultiSelectField(choices=GENDER_IDENTITIES, max_choices=8, max_length=len(GENDER_IDENTITIES))
     gender_identity_other = models.CharField(max_length=20, null=True)
@@ -259,7 +278,7 @@ class Application(models.Model):
         max_length=1,
         choices=ParticipationCapacity.choices,
         default=ParticipationCapacity.HOBBYIST,
-        null=False
+        null=True
     )
     student_school = models.CharField(max_length=100, null=True, blank=False)
     student_field_of_study = models.CharField(max_length=100, null=True, blank=False)
@@ -278,12 +297,13 @@ class Application(models.Model):
         null=True,
         default=None
     )
-    previously_participated = models.BooleanField(default=False, null=False)
+    previously_participated = models.BooleanField(default=False, null=True)
     previous_participation = MultiSelectField(choices=PREVIOUS_PARTICIPATION, max_choices=7, max_length=len(PREVIOUS_PARTICIPATION), null=True)
     participation_role = models.CharField(
         max_length=1,
         choices=ParticipationRole.choices,
         default=ParticipationRole.SPECIALIST,
+        null=True
     )
     experience_with_xr = models.TextField(max_length=2000, blank=True, null=True)
     theme_essay = models.TextField(max_length=2000, blank=True, null=True)
@@ -302,9 +322,17 @@ class Application(models.Model):
     outreach_groups = models.TextField(max_length=2000, blank=True, null=True)
     submitted_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # mentor
+    mentor_qualified_fields = models.TextField(max_length=1000, blank=False, null=True)
+    mentor_mentoring_steps = models.TextField(max_length=1000, blank=False, null=True)
+    mentor_previously_mentored = models.BooleanField(null=True)
+    # judges
+    judge_judging_steps = models.TextField(max_length=1000, blank=False, null=True)
+    judge_invited_by = models.CharField(max_length=100, blank=False, null=True)
+    judge_previously_judged = models.BooleanField(null=True)
 
     def __str__(self) -> str:  # pragma: nocover
-        return f"Name: {self.first_name} {self.last_name}, Portfolio: {self.portfolio}"
+        return f"Participation Class: {self.participation_class}, Name: {self.first_name} {self.last_name}"
 
 
 class Attendee(AbstractUser):
