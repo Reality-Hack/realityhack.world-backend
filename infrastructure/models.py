@@ -269,7 +269,7 @@ class Application(models.Model):
         max_length=1,
         choices=DisabilityIdentity.choices,
         default=DisabilityIdentity.C,
-        null=False
+        null=True
     )
     disabilities = MultiSelectField(choices=DISABILITIES, max_choices=7, max_length=len(DISABILITIES), null=True)
     disabilities_other = models.CharField(max_length=20, null=True)
