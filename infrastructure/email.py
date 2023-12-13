@@ -1,4 +1,4 @@
-def get_hacker_application_confirmation_template(first_name):
+def get_hacker_application_confirmation_template(first_name, response_email_address="<apply@mitrealityhack.com>"):
     return "Application Confirmation for MIT Reality Hack 2024", (
         f"Hi there {first_name},"
         "\n\n"
@@ -6,14 +6,14 @@ def get_hacker_application_confirmation_template(first_name):
         "This email is to confirm that we have received your application."
         "\n\n"
         "Please keep an eye on your email to hear back from us regarding the status of your application. "
-        "If you have any questions regarding applications and the application process, please reply back or send an email to apply@mitrealityhack.com!"
+        f"If you have any questions regarding applications and the application process, please reply back or send an email to {response_email_address}"
         "\n\n"
         "Thank you,"
         "\n\n"
         "MIT Reality Hack Applications Team"
     )
 
-def get_mentor_application_confirmation_template(first_name, response_email_address="apply@mitrealityhack.com"):
+def get_mentor_application_confirmation_template(first_name, response_email_address="<apply@mitrealityhack.com>"):
     return "Mentor Interest Confirmation for MIT Reality Hack 2024", (
         f"Hi there {first_name},"
         "\n\n"
@@ -29,7 +29,7 @@ def get_mentor_application_confirmation_template(first_name, response_email_addr
         "MIT Reality Hack Organizing Team"
     )
 
-def get_judge_application_confirmation_template(first_name, response_email_address="apply@mitrealityhack.com"):
+def get_judge_application_confirmation_template(first_name, response_email_address="<apply@mitrealityhack.com>"):
     return "Judge Interest Confirmation for MIT Reality Hack 2024", (
         f"Hi there {first_name},"
         "\n\n"

@@ -209,7 +209,13 @@ class Application(models.Model):
                 instance.resume.save()
             # send email
             if "test" not in sys.argv and "setup_test_data" not in sys.argv:
-                subject, body = email.get_hacker_application_confirmation_template(instance.first_name)
+                subject, body = None, None
+                if instance.participation_class == Application.ParticipationClass.MENTOR:
+                    subject, body = email.get_mentor_application_confirmation_template(instance.first_name, response_email_address="Jared Bienz <jared@mitrealityhack.com>")
+                elif instance.participation_class == Application.ParticipationClass.JUDGE:
+                    subject, body = email.get_judge_application_confirmation_template(instance.first_name, response_email_address="Catherine Dumas <catherine@mitrealityhack.com>")
+                else:
+                    subject, body = email.get_hacker_application_confirmation_template(instance.first_name)
                 send_mail(
                     subject,
                     body,
