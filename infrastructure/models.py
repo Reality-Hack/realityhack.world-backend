@@ -226,7 +226,8 @@ class Application(models.Model):
 
     @classmethod
     def post_delete(cls, sender, instance, **kwargs):
-        instance.resume.delete()
+        if instance.resume:
+            instance.resume.delete()
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     first_name = models.CharField(max_length=100, blank=False, null=False)
