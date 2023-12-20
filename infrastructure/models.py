@@ -268,9 +268,9 @@ class Application(models.Model):
         related_name="application_resume_uploaded_file",
         null=True
     )
-    gender_identity = MultiSelectField(choices=GENDER_IDENTITIES, max_choices=8, max_length=len(GENDER_IDENTITIES))
+    gender_identity = MultiSelectField(choices=GENDER_IDENTITIES, max_choices=8, max_length=len(GENDER_IDENTITIES) * 2)
     gender_identity_other = models.CharField(max_length=20, null=True)
-    race_ethnic_group = MultiSelectField(choices=RACE_ETHNIC_GROUPS, max_choices=10, max_length=len(RACE_ETHNIC_GROUPS))
+    race_ethnic_group = MultiSelectField(choices=RACE_ETHNIC_GROUPS, max_choices=10, max_length=len(RACE_ETHNIC_GROUPS) * 2)
     race_ethnic_group_other = models.CharField(max_length=20, null=True)
     disability_identity = models.CharField(
         max_length=1,
@@ -305,7 +305,7 @@ class Application(models.Model):
         default=None
     )
     previously_participated = models.BooleanField(default=False, null=True)
-    previous_participation = MultiSelectField(choices=PREVIOUS_PARTICIPATION, max_choices=7, max_length=len(PREVIOUS_PARTICIPATION), null=True)
+    previous_participation = MultiSelectField(choices=PREVIOUS_PARTICIPATION, max_choices=7, max_length=len(PREVIOUS_PARTICIPATION) * 2, null=True)
     participation_role = models.CharField(
         max_length=1,
         choices=ParticipationRole.choices,
