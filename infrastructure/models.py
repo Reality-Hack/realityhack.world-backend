@@ -1,10 +1,16 @@
+import json
 import os
+import re
+import secrets
 import shutil
 import sys
+import urllib
 import uuid
+from datetime import datetime
 
 import language_tags
 import pycountry
+import requests
 from django.contrib.auth.models import AbstractUser
 from django.core.mail import send_mail
 from django.db import models
@@ -37,9 +43,15 @@ class ParticipationCapacity(models.TextChoices):
 
 class Skill(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=50)
+    name = models.CharField(max_length=50, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        re.sub(r'[^a-zA-Z0-7\_\-\ ]', '', self.name)
+        self.name = self.name.lower()
+        self.name.replace(" ", "_").replace("-", "_").replace("__", "_")
+        return super(Skill, self).save(*args, **kwargs)
 
     def __str__(self) -> str:  # pragma: no cover
         return f"{self.name}"
@@ -59,8 +71,8 @@ class SkillProficiency(models.Model):
         choices=Proficiency.choices,
         default=Proficiency.NOVICE
     )
+    is_xr_specific = models.BooleanField(default=False, null=False)
     attendee = models.ForeignKey('Attendee', on_delete=models.CASCADE, null=True)
-    application = models.ForeignKey('Application', on_delete=models.CASCADE, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -69,16 +81,16 @@ class SkillProficiency(models.Model):
         unique_together = [['attendee', 'skill']]
 
     def __str__(self) -> str:  # pragma: no cover
-        return f"Skill: {self.skill}, Proficiency: {self.proficiency}"
+        return f"Skill: {self.skill}, Proficiency: {self.proficiency}, RSVP: {self.rsvp}"
     
 
 class ShirtSize(models.TextChoices):
-        XS = 1, _('XS')
-        S = 2, _('S')
-        M = 3, _('M')
-        L = 4, _('L')
-        XL = 5, _('XL')
-        XXL = 6, _('XXL')
+        XS = '1', _('XS')
+        S = '2', _('S')
+        M = '3', _('M')
+        L = '4', _('L')
+        XL = '5', _('XL')
+        XXL = '6', _('XXL')
 
 
 # RFC 5646-compliant mapping of languages
@@ -87,6 +99,49 @@ SPOKEN_LANGUAGES = [
     for x in language_tags.data.cache['registry']
     if x["Type"] == "language" and x.get("Scope") != "special"
 ]
+
+
+class DisabilityIdentity(models.TextChoices):
+    A = 'A', _('Yes')
+    B = 'B', _('No')
+    C = 'C', _('I prefer not to say')
+
+
+class DietaryRestrictions(models.TextChoices):
+    VEGETARIAN = '1', _('Vegetarian')
+    VEGAN = '2', _('Vegan')
+    GLUTEN_FREE = '3', _('Gluten free')
+    HALAL = '4', _('Halal')
+    LACTOSE_INTOLERANT = '5', _('Lactose Intolerant')
+    KOSHER = '6', _('Kosher')
+    OTHER = '7', _('Other')
+
+
+class DietaryAllergies(models.TextChoices):
+    NUT= '1', _('Nut allergy')
+    SHELLFISH = '2', _('Shellfish allergy')
+    DAIRY = '3', _('Dairy allergy')
+    SOY = '4', _('Soy allergy')
+    OTHER = '5', _('Other')
+
+DISABILITIES = (('A', 'Hearing difficulty - Deaf or having serious difficulty hearing (DEAR).'),
+                ('B', 'Vision difficulty - Blind or having serious difficulty seeing, even when wearing glasses (DEYE).'),
+                ('C', 'Cognitive difficulty - Because of a physical, mental, or emotional problem, having difficulty remembering, concentrating, or making decisions (DREM).'),
+                ('D', 'Ambulatory difficulty - Having serious difficulty walking or climbing stairs (DPHY).'),
+                ('E', 'Self-care difficulty - Having difficulty bathing or dressing (DDRS).'),
+                ('F', 'Independent living difficulty - Because of a physical, mental, or emotional problem, having difficulty doing errands alone such as visiting a doctor\'s office or shopping (DOUT).'),
+                ('G', 'I prefer not to say'),
+                ('O', 'Other'))
+
+
+class HeardAboutUs(models.TextChoices):
+    FRIEND = 'F', _('A friend')
+    VOLUNTEER = 'V', _('A Reality Hack organizer or volunteer')
+    NETWORK = 'N', _('A teacher or someone in my professional network')
+    SOCIAL = 'S', _('Social media')
+    CAMPUS = 'C', _('Campus poster or ad')
+    PARTICIPATED = 'P', _('I participated in the MIT XR Hackathon before')
+    OTHER = 'O', _('Other')
 
 
 def user_directory_path(instance, filename):
@@ -113,6 +168,9 @@ class UploadedFile(models.Model):
 
 
 class Application(models.Model):
+    DISABILITIES = DISABILITIES
+    HeardAboutUs = HeardAboutUs
+
     class ParticipationClass(models.TextChoices):
         PARTICIPANT = 'P', _('Participant')
         MENTOR = 'M', _('Mentor')
@@ -154,20 +212,6 @@ class Application(models.Model):
                        ('H', 'Multi-racial or multi-ethnic'),
                        ('I', 'I prefer not to say'),
                        ('O', 'Other'))
-    
-    class DisabilityIdentity(models.TextChoices):
-        A = 'A', _('Yes')
-        B = 'B', _('No')
-        C = 'C', _('I prefer not to say')
-
-    DISABILITIES = (('A', 'Hearing difficulty - Deaf or having serious difficulty hearing (DEAR).'),
-                    ('B', 'Vision difficulty - Blind or having serious difficulty seeing, even when wearing glasses (DEYE).'),
-                    ('C', 'Cognitive difficulty - Because of a physical, mental, or emotional problem, having difficulty remembering, concentrating, or making decisions (DREM).'),
-                    ('D', 'Ambulatory difficulty - Having serious difficulty walking or climbing stairs (DPHY).'),
-                    ('E', 'Self-care difficulty - Having difficulty bathing or dressing (DDRS).'),
-                    ('F', 'Independent living difficulty - Because of a physical, mental, or emotional problem, having difficulty doing errands alone such as visiting a doctor\'s office or shopping (DOUT).'),
-                    ('G', 'I prefer not to say'),
-                    ('O', 'Other'))
 
     PREVIOUS_PARTICIPATION = (('A', '2016'),
                               ('B', '2017'),
@@ -176,15 +220,6 @@ class Application(models.Model):
                               ('E', '2020'),
                               ('F', '2022'),
                               ('G', '2023'))
-
-    class HeardAboutUs(models.TextChoices):
-        FRIEND = 'F', _('A friend')
-        VOLUNTEER = 'V', _('A Reality Hack organizer or volunteer')
-        NETWORK = 'N', _('A teacher or someone in my professional network')
-        SOCIAL = 'S', _('Social media')
-        CAMPUS = 'C', _('Campus poster or ad')
-        PARTICIPATED = 'P', _('I participated in the MIT XR Hackathon before')
-        OTHER = 'O', _('Other')
 
     class HardwareHackInterest(models.TextChoices):
         A = 'A', _("Not at all interested; I'll pass")
@@ -201,7 +236,7 @@ class Application(models.Model):
         F = 'F', _('Other')
 
     @classmethod
-    def post_create(cls, sender, instance, created, **kwargs):
+    def post_save(cls, sender, instance, created, **kwargs):
         if created:
             # claim resume file
             if instance.resume:
@@ -264,7 +299,7 @@ class Application(models.Model):
     portfolio = models.URLField(null=True)
     secondary_portfolio = models.URLField(null=True)
     resume = models.OneToOneField(
-        UploadedFile, on_delete=models.DO_NOTHING,
+        UploadedFile, on_delete=models.SET_NULL,
         related_name="application_resume_uploaded_file",
         null=True
     )
@@ -337,20 +372,219 @@ class Application(models.Model):
     judge_judging_steps = models.TextField(max_length=1000, blank=False, null=True)
     judge_invited_by = models.CharField(max_length=100, blank=False, null=True)
     judge_previously_judged = models.BooleanField(null=True)
+    # rsvp
+    rsvp_email_sent_at = models.DateTimeField(null=True)
 
     def __str__(self) -> str:  # pragma: nocover
         return f"Participation Class: {self.participation_class}, Name: {self.first_name} {self.last_name}"
 
 
 class Attendee(AbstractUser):
+
+    class ParticipationClass(models.TextChoices):
+        PARTICIPANT = 'P', _('Participant')
+        MENTOR = 'M', _('Mentor')
+        JUDGE = 'J', _('Judge')
+        SPONSOR = 'S', _('Sponsor')
+        VOLUNTEER = 'V', _('Volunteer')
+        ORGANIZER = 'O', _('Organizer')
+
+    class Status(models.TextChoices):
+        RSVP = 'R', _("RSVP'd")
+        ARRIVED = 'A', _('Arrived')
+        CANCELED = 'C', _('Canceled')
+
+    @classmethod
+    def post_save(cls, sender, instance, created, **kwargs):
+        if instance.profile_image:
+            instance.profile_image.claimed = True
+            instance.profile_image.save()
+        if "test" not in sys.argv and "setup_test_data" not in sys.argv:
+            if created:
+                instance.create_authentication_account()
+
+    @classmethod
+    def post_delete(cls, sender, instance, **kwargs):
+        if instance.profile_image:
+            instance.profile_image.delete()
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     application = models.OneToOneField(
-        Application, on_delete=models.CASCADE, null=True, blank=True)
+        Application, on_delete=models.CASCADE, null=True)
+    authentication_id = models.CharField(max_length=36, null=True)
+    participation_role = models.CharField(
+        max_length=1,
+        choices=ParticipationRole.choices,
+        default=ParticipationRole.SPECIALIST,
+        null=True
+    )
     bio = models.TextField(max_length=1000, blank=True)
     email = models.EmailField(unique=True)
+    shirt_size = models.CharField(
+        max_length=1,
+        choices=ShirtSize.choices,
+        default=ShirtSize.M,
+        null=True
+    )
+    initial_setup = models.BooleanField(default=False)
+    profile_image = models.OneToOneField(
+        UploadedFile, on_delete=models.SET_NULL,
+        related_name="attendee_profile_image_uploaded_file",
+        null=True
+    )
+    communications_platform_username = models.CharField(
+        max_length=40, null=True, help_text="I.e., a Discord username")
+    dietary_restrictions = MultiSelectField(
+        max_length=15, max_choices=7, null=True, choices=DietaryRestrictions.choices
+    )
+    dietary_restrictions_other = models.CharField(max_length=40, null=True)
+    dietary_allergies = MultiSelectField(
+        max_length=10, max_choices=5, null=True, choices=DietaryAllergies.choices
+    )
+    dietary_allergies_other = models.CharField(max_length=40, null=True)
+    additional_accommodations = models.TextField(max_length=200, blank=False, null=True)
+    us_visa_support_is_required = models.BooleanField(null=False)
+    us_visa_letter_of_invitation_required = models.BooleanField(null=True, default=False)
+    us_visa_support_full_name = models.CharField(max_length=200, blank=False, null=True)
+    us_visa_support_document_number = models.CharField(max_length=50, blank=False, null=True)
+    us_visa_support_national_identification_document_type = models.CharField(
+        choices=[('P', 'Passport'), ('N', 'National/State/Municipal ID')],
+        max_length=1, blank=False, null=True
+    )  # passport or national ID
+    us_visa_support_citizenship = models.CharField(
+        max_length=2,
+        choices=[(x.alpha_2, x.name) for x in pycountry.countries],
+        blank=False,
+        null=True
+    )
+    us_visa_support_address = models.TextField(max_length=500, null=True, blank=False)
+    under_18_by_date = models.BooleanField(null=True, help_text="Will you be under 18 on January 25, 2024")
+    parental_consent_form_signed = models.BooleanField(null=True, default=None)
+    agree_to_media_release = models.BooleanField(null=False, default=False)
+    agree_to_liability_release = models.BooleanField(null=False, default=False)
+    agree_to_rules_code_of_conduct = models.BooleanField(null=False, default=False)
+    emergency_contact_name = models.CharField(max_length=200, null=False, blank=False)
+    personal_phone_number = PhoneNumberField(blank=False, null=False)
+    emergency_contact_phone_number = PhoneNumberField(blank=False, null=False)
+    emergency_contact_email = models.EmailField(blank=False, null=False)
+    emergency_contact_relationship = models.CharField(max_length=100, null=False, blank=False)
+    special_track_snapdragon_spaces_interest = models.CharField(
+        max_length=1,
+        choices=[('Y', 'Yes'),('N', 'No')],
+        null=True
+    )
+    special_track_future_constructors_interest = models.CharField(
+        max_length=1,
+        choices=[('Y', 'Yes'),('N', 'No')],
+        null=True
+    )
+    app_in_store = models.CharField(
+        max_length=250, null=True, blank=False,
+        help_text="Do you already have an AR or VR app in any store? And if so, which store(s)?"
+    )
+    currently_build_for_xr = models.CharField(max_length=250, null=True, blank=False)
+    currently_use_xr = models.CharField(max_length=250, null=True, blank=False)
+    non_xr_talents = models.CharField(max_length=250, null=True, blank=False)
+    ar_vr_ap_in_store = models.CharField(max_length=250, null=True, blank=False)
+    reality_hack_project_to_product = models.BooleanField(default=False, null=False)
+    participation_class = models.CharField(
+        choices=ParticipationClass.choices,
+        max_length=1,
+        null=False,
+        default=ParticipationClass.PARTICIPANT
+    )
+    status = models.CharField(
+        max_length=1,
+        choices=Status.choices,
+        null=False,
+        default=Status.RSVP
+    )
+    checked_in_at = models.DateTimeField(null=True)
+    # sponsor
+    sponsor_company = models.CharField(max_length=100, null=True, blank=False)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    metadata = models.JSONField(default=dict, blank=True)
+
+
+    def __str__(self) -> str:  # pragma: nocover
+        return f"Name: {self.first_name} {self.last_name}, Username: {self.communications_platform_username}"
+
+    def create_authentication_account(self):
+        realm_role = None
+        if self.participation_class == self.ParticipationClass.PARTICIPANT:
+            realm_role = "attendee"
+        elif self.participation_class == self.ParticipationClass.MENTOR:
+            realm_role = "mentor"
+        elif self.participation_class == self.ParticipationClass.JUDGE:
+            realm_role = "judge"
+        elif self.participation_class == self.ParticipationClass.SPONSOR:
+            realm_role = "sponsor"
+        elif self.participation_class == self.ParticipationClass.VOLUNTEER:
+            realm_role = "volunteer"
+        elif self.participation_class == self.ParticipationClass.ORGANIZER:
+            realm_role = "organizer"
+        temporary_password = secrets.token_hex(10 // 2)
+        access_token_params = {"grant_type": "client_credentials", "client_id": os.environ['KEYCLOAK_CLIENT_ID'], "client_secret": os.environ['KEYCLOAK_CLIENT_SECRET_KEY']}
+        access_token = requests.post(
+            url=f"{os.environ['KEYCLOAK_SERVER_URL']}/realms/master/protocol/openid-connect/token",
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            data=urllib.parse.urlencode(access_token_params)
+        )
+        auth_user_dict = {
+            "id": str(uuid.uuid4()),
+            "username": f"{self.first_name}.{self.last_name}.{uuid.uuid4()}",
+            "enabled": True,
+            "email": self.email,
+            "firstName": self.first_name,
+            "lastName": self.last_name,
+            "credentials": [
+                {
+                    "type": "password",
+                    "value": temporary_password,
+                    "temporary": True
+                }
+            ],
+            "clientRoles": {
+                "account": [
+                    "manage-account",
+                    "view-profile"
+                ]
+            }
+        }
+        authentication_account = requests.post(
+            url=f"{os.environ['KEYCLOAK_SERVER_URL']}/admin/realms/master/users",
+            headers={"Authorization": f"Bearer {access_token.json()['access_token']}", "Content-Type": "application/json"},
+            data=json.dumps(auth_user_dict)
+        )
+        if authentication_account.ok:
+            authentication_account_id = authentication_account.headers["Location"].split("/")[-1]
+            self.authentication_id = authentication_account_id
+            self.save()
+            role_by_name = requests.get(
+                url=f"{os.environ['KEYCLOAK_SERVER_URL']}/admin/realms/master/roles/{realm_role}",
+                headers={"Authorization": f"Bearer {access_token.json()['access_token']}", "Content-Type": "application/json"},\
+            )
+            realm_roles = [role_by_name.json()]
+            created_realm_roles = requests.post(
+                url=f"{os.environ['KEYCLOAK_SERVER_URL']}/admin/realms/master/users/{authentication_account_id}/role-mappings/realm",
+                headers={"Authorization": f"Bearer {access_token.json()['access_token']}", "Content-Type": "application/json"},
+                data=json.dumps(realm_roles)
+            )
+            # send email with credentials
+            subject, body = None, None
+            if self.participation_class == Attendee.ParticipationClass.PARTICIPANT:
+                subject, body = email.get_hacker_rsvp_confirmation_template(self.first_name, temporary_password)
+            else:
+                subject, body = email.get_non_hacker_rsvp_confirmation_template(self.first_name, temporary_password)
+            send_mail(
+                subject,
+                body,
+                "no-reply@mitrealityhack.com",
+                [self.email],
+                fail_silently=False,
+            )
+            self.application.save()
 
     class Meta:
         verbose_name = "attendees"
@@ -360,8 +594,7 @@ class Attendee(AbstractUser):
             models.Index(fields=['last_name']),
             models.Index(fields=['username']),
             models.Index(fields=['email']),
-            models.Index(fields=['is_staff']),
-            models.Index(fields=['metadata'])
+            models.Index(fields=['is_staff'])
         ]
 
     def __str__(self) -> str:  # pragma: no cover
@@ -396,7 +629,7 @@ class Location(models.Model):
 class Table(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     number = models.PositiveBigIntegerField()
-    location = models.ForeignKey(Location, on_delete=models.DO_NOTHING)
+    location = models.ForeignKey(Location, on_delete=models.SET_NULL, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -408,7 +641,7 @@ class Team(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=50)
     attendees = models.ManyToManyField(Attendee)
-    table = models.OneToOneField(Table, on_delete=models.DO_NOTHING)
+    table = models.OneToOneField(Table, on_delete=models.SET_NULL, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -427,7 +660,7 @@ class Project(models.Model):
     name = models.CharField(max_length=50)
     repository_location = models.URLField()
     submission_location = models.URLField()
-    team = models.OneToOneField(Team, on_delete=models.DO_NOTHING, null=True)
+    team = models.OneToOneField(Team, on_delete=models.SET_NULL, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -532,5 +765,11 @@ post_delete.connect(
     Application.post_delete, sender=Application, dispatch_uid="application_entry_deleted"
 )
 post_save.connect(
-    Application.post_create, sender=Application, dispatch_uid="application_entry_created"
+    Application.post_save, sender=Application, dispatch_uid="application_entry_saved"
+)
+post_save.connect(
+    Attendee.post_save, sender=Attendee, dispatch_uid="attendee_entry_saved"
+)
+post_delete.connect(
+    Attendee.post_delete, sender=Attendee, dispatch_uid="attendee_entry_deleted"
 )

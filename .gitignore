@@ -96,3 +96,5 @@ db.sqlite3
 # Static
 static/
 
+src/
+logs/

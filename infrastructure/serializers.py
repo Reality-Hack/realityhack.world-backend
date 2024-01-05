@@ -2,6 +2,7 @@ import pycountry
 from django.contrib.auth.models import Group
 from rest_framework import fields, serializers
 
+from infrastructure import models
 from infrastructure.models import (INDUSTRIES, SPOKEN_LANGUAGES, Application,
                                    Attendee, Hardware, HardwareDevice,
                                    HelpDesk, Location, ParticipationRole,
@@ -48,14 +49,76 @@ class ApplicationSerializer(serializers.ModelSerializer):
 
 
 class AttendeeSerializer(serializers.ModelSerializer):
-    # metadata = SerializerMethodField()
 
     class Meta:
         model = Attendee
-        fields = ['id', 'first_name', 'last_name', 'groups',
-                  'username', 'email', 'is_staff', 'application',
-                  #   'metadata',
+        fields = ['id', 'first_name', 'last_name', 'participation_role',
+                  'profile_image', 'initial_setup',
+                  'communications_platform_username', 'email',
+                  'sponsor_company',  'participation_class', 'initial_setup', 'profile_image',
                   'created_at', 'updated_at']
+
+
+class AttendeeRSVPCreateSerializer(serializers.ModelSerializer):
+    dietary_restrictions = fields.MultipleChoiceField(choices=models.DietaryRestrictions.choices)
+    dietary_allergies = fields.MultipleChoiceField(choices=models.DietaryAllergies.choices)
+
+    class Meta:
+        model = Attendee
+        fields = [
+            "id", "first_name", "last_name",
+            'profile_image',
+            "application", "bio", "email", "shirt_size", "communications_platform_username",
+            "dietary_restrictions", "dietary_restrictions_other",
+            "dietary_allergies", "dietary_allergies_other",
+            "additional_accommodations",
+            "us_visa_support_is_required",  "us_visa_letter_of_invitation_required",
+            "us_visa_support_full_name", "us_visa_support_document_number",
+            "us_visa_support_national_identification_document_type",
+            "us_visa_support_citizenship", "us_visa_support_address",
+            "under_18_by_date", "parental_consent_form_signed",
+            "agree_to_media_release", "agree_to_liability_release", "agree_to_rules_code_of_conduct",
+            "emergency_contact_name", "personal_phone_number",
+            "emergency_contact_phone_number", "emergency_contact_email",
+            "emergency_contact_relationship",
+            "special_track_snapdragon_spaces_interest",
+            "special_track_future_constructors_interest",
+            "app_in_store", "currently_build_for_xr", "currently_use_xr",
+            "non_xr_talents", "ar_vr_ap_in_store",
+            "reality_hack_project_to_product",
+            "participation_class", "sponsor_company"
+        ]
+
+
+class AttendeeRSVPSerializer(serializers.ModelSerializer):
+    dietary_restrictions = fields.MultipleChoiceField(choices=models.DietaryRestrictions.choices)
+    dietary_allergies = fields.MultipleChoiceField(choices=models.DietaryAllergies.choices)
+
+    class Meta:
+        model = Attendee
+        fields = [
+            "id", "first_name", "last_name", "participation_role",
+            "profile_image", "initial_setup",
+            "application", "bio", "email", "shirt_size", "communications_platform_username",
+            "dietary_restrictions", "dietary_restrictions_other",
+            "dietary_allergies", "dietary_allergies_other",
+            "additional_accommodations",
+            "us_visa_support_is_required",  "us_visa_letter_of_invitation_required",
+            "us_visa_support_full_name", "us_visa_support_document_number",
+            "us_visa_support_national_identification_document_type",
+            "us_visa_support_citizenship", "us_visa_support_address",
+            "under_18_by_date", "parental_consent_form_signed",
+            "agree_to_media_release", "agree_to_liability_release", "agree_to_rules_code_of_conduct",
+            "emergency_contact_name", "personal_phone_number",
+            "emergency_contact_phone_number", "emergency_contact_email",
+            "emergency_contact_relationship",
+            "special_track_snapdragon_spaces_interest",
+            "special_track_future_constructors_interest",
+            "app_in_store", "currently_build_for_xr", "currently_use_xr",
+            "non_xr_talents", "ar_vr_ap_in_store",
+            "reality_hack_project_to_product",
+            "participation_class", "sponsor_company"
+        ]
 
 
 class SkillSerializer(serializers.ModelSerializer):
@@ -70,14 +133,14 @@ class SkillProficiencyDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SkillProficiency
-        fields = ['id', 'skill', 'proficiency', 'attendee', 'application',
+        fields = ['id', 'skill', 'proficiency', 'attendee',
                   'created_at', 'updated_at']
 
 
 class SkillProficiencySerializer(serializers.ModelSerializer):
     class Meta:
         model = SkillProficiency
-        fields = ['id', 'skill', 'proficiency', 'attendee', 'application',
+        fields = ['id', 'skill', 'proficiency', 'attendee',
                   'created_at', 'updated_at']
 
 
@@ -85,7 +148,7 @@ class SkillProficiencyCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SkillProficiency
-        fields = ['id', 'skill', 'proficiency', 'attendee', 'application']
+        fields = ['id', 'skill', 'proficiency', 'attendee']
 
 
 class SkillProficiencyAttendeeSerializer(serializers.ModelSerializer):
@@ -97,15 +160,27 @@ class SkillProficiencyAttendeeSerializer(serializers.ModelSerializer):
 
 
 class AttendeeDetailSerializer(serializers.ModelSerializer):
-    application = ApplicationSerializer()
-    groups = GroupSerializer(many=True, read_only=True)
+    skill_proficiencies = SkillProficiencyAttendeeSerializer(many=True)
+    profile_image = FileUploadSerializer()
+
+    class Meta:
+        model = Attendee
+        fields = ['id', 'first_name', 'last_name', 'skill_proficiencies',
+                  'profile_image', 'bio',
+                  'communications_platform_username', 'email',
+                  'sponsor_company',  'participation_class', 'initial_setup', 'profile_image',
+                  'created_at', 'updated_at']
+
+
+class AttendeePatchSerializer(serializers.ModelSerializer):
     skill_proficiencies = SkillProficiencyAttendeeSerializer(many=True)
 
     class Meta:
         model = Attendee
-        fields = ['id', 'first_name', 'last_name', 'groups', 'application',
-                  #   'metadata',
-                  'username', 'email', 'is_staff', 'skill_proficiencies',
+        fields = ['id', 'first_name', 'last_name', 'skill_proficiencies',
+                  'profile_image',
+                  'communications_platform_username', 'email',
+                  'sponsor_company',  'participation_class', 'initial_setup', 'profile_image',
                   'created_at', 'updated_at']
 
 

@@ -39,6 +39,9 @@ class ApplicationFactory(DjangoModelFactory):
     nationality = factory.Faker(
         'random_element', elements=[[x.alpha_2] for x in pycountry.countries]
     )
+    status = factory.Faker(
+        'random_element', elements=[str(x[0]) for x in models.Application.Status.choices]
+    )
     gender_identity = factory.Faker(
         'random_element', elements=[str(x[0]) for x in models.Application.GENDER_IDENTITIES]
     )
@@ -46,7 +49,7 @@ class ApplicationFactory(DjangoModelFactory):
         'random_element', elements=[str(x[0]) for x in models.Application.RACE_ETHNIC_GROUPS]
     )
     disability_identity = factory.Faker(
-        'random_element', elements=[x[0] for x in models.Application.DisabilityIdentity.choices]
+        'random_element', elements=[x[0] for x in models.DisabilityIdentity.choices]
     )
     disabilities = factory.Faker(
         'random_element', elements=[str(x[0]) for x in models.Application.DISABILITIES]
@@ -96,7 +99,51 @@ class AttendeeFactory(DjangoModelFactory):
     bio = factory.fuzzy.FuzzyText(length=1000)
     email = factory.Faker("email")
     username = factory.Faker("user_name")
-    metadata = factory.Dict({"shirt_size": factory.Faker("name")})
+    application = factory.Iterator(models.Application.objects.filter(status=models.Application.Status.ACCEPTED_IN_PERSON))
+    authentication_id = None
+    shirt_size = factory.Faker(
+        'random_element', elements=[x[0] for x in models.ShirtSize.choices]
+    )
+    communications_platform_username = factory.Faker("user_name")
+    dietary_restrictions = factory.Faker(
+        'random_element', elements=[str(x[0]) for x in models.DietaryRestrictions.choices]
+    )
+    dietary_restrictions_other = None
+    dietary_allergies = factory.Faker(
+        'random_element', elements=[str(x[0]) for x in models.DietaryAllergies.choices]
+    )
+    dietary_allergies_other = None
+    additional_accommodations = factory.fuzzy.FuzzyText(length=100)
+    us_visa_support_is_required = False
+    us_visa_letter_of_invitation_required = None
+    us_visa_support_full_name = None
+    us_visa_support_document_number = None
+    us_visa_support_national_identification_document_type = None
+    us_visa_support_citizenship = None
+    us_visa_support_address = None
+    under_18_by_date = False
+    parental_consent_form_signed = None
+    agree_to_media_release = True
+    agree_to_liability_release = True
+    agree_to_rules_code_of_conduct = True
+    emergency_contact_name = factory.Faker("first_name")
+    personal_phone_number = factory.Faker("phone_number")
+    emergency_contact_phone_number = factory.Faker("phone_number")
+    emergency_contact_email = email = factory.Faker("email")
+    emergency_contact_relationship = factory.fuzzy.FuzzyText(length=10)
+    special_track_snapdragon_spaces_interest = None
+    special_track_future_constructors_interest = None
+    app_in_store = False
+    currently_build_for_xr = True
+    currently_use_xr = True
+    non_xr_talents = None
+    ar_vr_ap_in_store = None
+    reality_hack_project_to_product = False
+    participation_class = factory.Faker(
+        'random_element', elements=[str(x[0]) for x in models.Application.ParticipationClass.choices]
+    )
+    # sponsor
+    sponsor_company = None
 
 
 class GroupFactory(DjangoModelFactory):

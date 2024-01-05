@@ -51,18 +51,6 @@ def add_all():  # noqa: C901
         group = factories.GroupFactory()
         group.name = f"{group}{uuid.uuid4()}"
         groups.append(group)
-    attendees = []
-    for _ in range(NUMBER_OF_ATTENDEES):
-        metadata_dict = dict()
-        metadata_dict["shirt_size"] = random.choice(SHIRT_SIZES)
-        attendee = factories.AttendeeFactory(metadata=metadata_dict)
-        attendee.username = f"{attendee.username}{uuid.uuid4()}"
-        attendee.email = f"{uuid.uuid4()}{attendee.email}"
-        number_of_attendee_groups = random.randint(1, NUMBER_OF_GROUPS)
-        attendee_groups = random.sample(groups, number_of_attendee_groups)
-        attendee.groups.set(attendee_groups)
-        attendee.save()
-        attendees.append(attendee)
     skills = []
     for _ in range(NUMBER_OF_SKILLS):
         skill = factories.SkillFactory()
@@ -90,6 +78,16 @@ def add_all():  # noqa: C901
         application.save()
         applications.append(application)
     uploaded_files.append(factories.UploadedFileFactory())
+    attendees = []
+    for _ in range(len([application for application in applications if application.status == Application.Status.ACCEPTED_IN_PERSON])):
+        attendee = factories.AttendeeFactory()
+        attendee.username = f"{attendee.username}{uuid.uuid4()}"
+        attendee.email = f"{uuid.uuid4()}{attendee.email}"
+        number_of_attendee_groups = random.randint(1, NUMBER_OF_GROUPS)
+        attendee_groups = random.sample(groups, number_of_attendee_groups)
+        attendee.groups.set(attendee_groups)
+        attendee.save()
+        attendees.append(attendee)
     Location.objects.create(room=Location.Room.ATLANTIS)
     Location.objects.create(room=Location.Room.MAIN_HALL)
     tables = []

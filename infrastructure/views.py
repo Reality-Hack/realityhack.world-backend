@@ -1,6 +1,10 @@
 from django.contrib.auth.models import Group
+from django.http import Http404
 from django.shortcuts import get_object_or_404
-from rest_framework import permissions, viewsets
+from django_keycloak_auth.decorators import keycloak_roles
+from rest_framework import permissions, status, views, viewsets
+from rest_framework.decorators import api_view
+from rest_framework.mixins import RetrieveModelMixin, UpdateModelMixin
 from rest_framework.response import Response
 
 from infrastructure.mixins import LoggingMixin
@@ -10,6 +14,9 @@ from infrastructure.models import (Application, Attendee, Hardware,
                                    UploadedFile, Workshop, WorkshopAttendee)
 from infrastructure.serializers import (ApplicationSerializer,
                                         AttendeeDetailSerializer,
+                                        AttendeePatchSerializer,
+                                        AttendeeRSVPCreateSerializer,
+                                        AttendeeRSVPSerializer,
                                         AttendeeSerializer,
                                         FileUploadSerializer,
                                         GroupDetailSerializer,
@@ -40,6 +47,47 @@ class KeycloakRoles(object):
     VOLUNTEER = "volunteer"
 
 
+@keycloak_roles([KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.ATTENDEE])
+@api_view(['GET', 'PATCH'])
+def me(request):
+    """
+    API endpoint for getting detailed information about an authenticated user.
+    """
+    if request.method == "GET":
+        try:
+            attendee = get_object_or_404(Attendee, authentication_id=request.userinfo.get("sub"))
+        except Application.DoesNotExist:
+            raise Http404(f"No attendee matches the authentication_id: \"{request.userinfo.get('sub')}\"")
+        attendee.skill_proficiencies = SkillProficiency.objects.filter(
+            attendee=attendee)
+        serializer = AttendeeDetailSerializer(attendee)
+        return Response(serializer.data)
+    else:  # PATCH
+        try:
+            attendee = get_object_or_404(Attendee, authentication_id=request.userinfo.get("sub"))
+        except Application.DoesNotExist:
+            raise Http404(f"No attendee matches the authentication_id: \"{request.userinfo.get('sub')}\"")
+        serializer = AttendeePatchSerializer(data=request.data, partial=True)
+        if serializer.is_valid():
+            for key in request.data.keys():
+                if key == "profile_image":
+                    try:
+                        uploaded_file = UploadedFile.objects.get(id=request.data["profile_image"])
+                        attendee.profile_image = uploaded_file
+                    except UploadedFile.DoesNotExist:
+                        raise Http404(f"No uploaded file matches the id: \"{request.userinfo.get('sub')}\"")
+                else:
+                    setattr(attendee, key, request.data[key])
+            attendee.skill_proficiencies = SkillProficiency.objects.filter(
+            attendee=attendee)
+            attendee.save()
+            serializer = AttendeeDetailSerializer(attendee)
+            return Response(serializer.data, status=200)
+        else:
+            return Response(serializer.errors,
+                            status=status.HTTP_400_BAD_REQUEST)
+
+
 class AttendeeViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint that allows users to be viewed or edited.
@@ -49,8 +97,12 @@ class AttendeeViewSet(LoggingMixin, viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
     filterset_fields = [
         'first_name', 'last_name', 'username', 'email', 'is_staff', 'groups',
-        # 'metadata'
     ]
+    keycloak_roles = {
+        'GET': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.ATTENDEE],
+        'DELETE': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        'PUT': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+    }
 
     def retrieve(self, request, pk=None):
         attendee = get_object_or_404(Attendee, pk=pk)
@@ -58,6 +110,62 @@ class AttendeeViewSet(LoggingMixin, viewsets.ModelViewSet):
             attendee=attendee)
         serializer = AttendeeDetailSerializer(attendee)
         return Response(serializer.data)
+
+
+class AttendeeRSVPViewSet(LoggingMixin, viewsets.ModelViewSet):
+    """
+    API endpoint that allows users to be viewed or edited.
+    """
+    queryset = Attendee.objects.all().order_by('-date_joined')
+    serializer_class = AttendeeRSVPSerializer
+    permission_classes = [permissions.AllowAny]
+    filterset_fields = [
+        'first_name', 'last_name', 'username', 'email', 'is_staff', 'groups',
+    ]
+    keycloak_roles = {
+        'GET': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        'DELETE': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        'PUT': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+    }
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return AttendeeRSVPCreateSerializer
+        return AttendeeRSVPSerializer
+    
+    def create(self, request):
+        application = None
+        if "application" in request.data:
+            try:
+                application = Application.objects.get(pk=request.data.get("application"))
+            except Application.DoesNotExist:
+                return Response(
+                    f"No application matches the query: \"{request.data.get('application')}\"",
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            request.data["first_name"] = application.first_name
+            request.data["middle_name"] = application.middle_name
+            request.data["last_name"] = application.last_name
+            request.data["participation_class"] = application.participation_class
+            request.data["email"] = application.email.lower()
+            del request.data["application"]
+        else:  # Volunteer or Organizer, or null
+            if request.data.get("email") is not None:
+                request.data["email"] = request.data.get("email").lower()
+        serializer = AttendeeRSVPSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer_data = serializer.data
+            del serializer_data["application"]
+            attendee = Attendee(application=application, **serializer_data)
+            attendee.username = attendee.email
+            attendee.participation_role = application.participation_role
+            attendee.save()
+            serializer = AttendeeRSVPSerializer(attendee)
+            return Response(serializer.data, status=201)
+        else:
+            return Response(serializer.errors,
+                            status=status.HTTP_400_BAD_REQUEST)
+
 
 
 class SkillViewSet(LoggingMixin, viewsets.ModelViewSet):

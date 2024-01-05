@@ -45,7 +45,8 @@ swagger_schema_view = get_schema_view(
 )
 
 router = routers.DefaultRouter()
-router.register(r'attendees', views.AttendeeViewSet)
+router.register(r'attendees', views.AttendeeViewSet, basename="attendees")
+router.register(r'rsvps', views.AttendeeRSVPViewSet, basename="rsvps")
 router.register(r'skills', views.SkillViewSet)
 router.register(r'locations', views.LocationViewSet)
 router.register(r'tables', views.TableViewSet)
@@ -85,8 +86,9 @@ urlpatterns = [
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('auth/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
     path('auth/schema/', SpectacularAPIView.as_view(), name='schema'),
-    path('schema/spectacular', SpectacularAPIView.as_view(), name='schema'),
+    path('schema/spectacular/', SpectacularAPIView.as_view(), name='schema'),
     path('schema/swagger<format>/', swagger_schema_view.without_ui(cache_timeout=0), name='swagger_schema_json'),
     path('schema/swagger/', swagger_schema_view.with_ui('swagger', cache_timeout=0), name='swagger_schema_swagger_ui'),
     path('schema/redoc/', swagger_schema_view.with_ui('redoc', cache_timeout=0), name='swagger_schema_redoc'),
+    path('me/', views.me, name='me')
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

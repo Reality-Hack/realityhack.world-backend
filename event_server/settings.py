@@ -83,9 +83,9 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
     'django_keycloak_auth.middleware.KeycloakMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -93,6 +93,8 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'simple_history.middleware.HistoryRequestMiddleware',
 ]
+
+LOCAL_DECODE = True
 
 ROOT_URLCONF = 'event_server.urls'
 
@@ -179,12 +181,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 REST_FRAMEWORK = {
     # Use Django's standard `django.contrib.auth` permissions,
     # or allow read-only access for unauthenticated users.
-    'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.DjangoModelPermissions',
-    ),
-        'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication'
-    ],
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'TEST_REQUEST_DEFAULT_FORMAT': 'json',
     'DEFAULT_FILTER_BACKENDS': [
@@ -192,8 +188,6 @@ REST_FRAMEWORK = {
         'rest_framework.filters.SearchFilter'
     ]
 }
-
-# AUTHENTICATION_BACKENDS = []
 
 ASGI_APPLICATION = "infrastructure.routing.application"
 CHANNEL_LAYERS = {
@@ -219,7 +213,7 @@ if "test" not in sys.argv and "setup_test_data" not in sys.argv:
 
 KEYCLOAK_EXEMPT_URIS = [
     'schema/swagger', 'schema/redoc', 'schema/spectacular',
-    'applications/', 'uploaded_files'
+    'applications/', 'uploaded_files/', 'attendees/', 'rsvps/'
 ]
 KEYCLOAK_CONFIG = {
     'KEYCLOAK_SERVER_URL': os.environ["KEYCLOAK_SERVER_URL"],
@@ -254,3 +248,7 @@ LOGGING = {
         },
     },
 }
+
+ACCOUNT_USERNAME_REQUIRED = False
+PHONENUMBER_DB_FORMAT = "RFC3966"
+PHONENUMBER_DEFAULT_FORMAT = "RFC3966"
