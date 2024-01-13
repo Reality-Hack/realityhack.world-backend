@@ -597,8 +597,8 @@ class TableTests(APITestCase):
         team = factories.TeamFactory(
             attendees=mock_attendees[0:setup_test_data.TEAM_SIZE], table=table)
         self.mock_team = serializers.TeamSerializer(team).data
-        help_desk = factories.HelpDeskFactory()
-        self.help_desk = serializers.HelpDeskSerializer(help_desk).data
+        lighthouse = factories.LightHouseFactory()
+        self.lighthouse = serializers.LightHouseSerializer(lighthouse).data
 
     def tearDown(self):
         setup_test_data.delete_all()

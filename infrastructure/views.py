@@ -1,6 +1,6 @@
 from django.contrib.auth.models import Group
 from django.http import Http404
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, render
 from django_keycloak_auth.decorators import keycloak_roles
 from rest_framework import permissions, status, views, viewsets
 from rest_framework.decorators import api_view
@@ -9,15 +9,17 @@ from rest_framework.response import Response
 
 from infrastructure.mixins import LoggingMixin
 from infrastructure.models import (Application, Attendee, Hardware,
-                                   HardwareDevice, HelpDesk, Location, Project,
-                                   Skill, SkillProficiency, Table, Team,
-                                   UploadedFile, Workshop, WorkshopAttendee)
+                                   HardwareDevice, LightHouse, Location,
+                                   MentorHelpRequest, Project, Skill,
+                                   SkillProficiency, Table, Team, UploadedFile,
+                                   Workshop, WorkshopAttendee)
 from infrastructure.serializers import (ApplicationSerializer,
                                         AttendeeDetailSerializer,
                                         AttendeePatchSerializer,
                                         AttendeeRSVPCreateSerializer,
                                         AttendeeRSVPSerializer,
                                         AttendeeSerializer,
+                                        DiscordUsernameRoleSerializer,
                                         FileUploadSerializer,
                                         GroupDetailSerializer,
                                         HardwareCountDetailSerializer,
@@ -25,8 +27,12 @@ from infrastructure.serializers import (ApplicationSerializer,
                                         HardwareDeviceDetailSerializer,
                                         HardwareDeviceHistorySerializer,
                                         HardwareDeviceSerializer,
-                                        HardwareSerializer, HelpDeskSerializer,
-                                        LocationSerializer, ProjectSerializer,
+                                        HardwareSerializer,
+                                        LightHouseSerializer,
+                                        LocationSerializer,
+                                        MentorHelpRequestHistorySerializer,
+                                        MentorHelpRequestSerializer,
+                                        ProjectSerializer,
                                         SkillProficiencyCreateSerializer,
                                         SkillProficiencyDetailSerializer,
                                         SkillProficiencySerializer,
@@ -207,9 +213,9 @@ class TableViewSet(LoggingMixin, viewsets.ModelViewSet):
         except Team.DoesNotExist:
             table.team = None
         try:
-            table.help_desk = HelpDesk.objects.get(table=table)
-        except HelpDesk.DoesNotExist:
-            table.help_desk = None
+            table.lighthouse = LightHouse.objects.get(table=table)
+        except LightHouse.DoesNotExist:
+            table.lighthouse = None
         serializer = TableDetailSerializer(table)
         return Response(serializer.data)
 
@@ -236,93 +242,148 @@ class TeamViewSet(LoggingMixin, viewsets.ModelViewSet):
         except Project.DoesNotExist:
             team.project = None
         try:
-            team.help_desk = HelpDesk.objects.get(table=team.table)
-        except (Table.DoesNotExist, HelpDesk.DoesNotExist):
-            team.help_desk = None
+            team.lighthouse = LightHouse.objects.get(table=team.table)
+        except (Table.DoesNotExist, LightHouse.DoesNotExist):
+            team.lighthouse = None
         serializer = TeamDetailSerializer(team)
         return Response(serializer.data)
 
 
-class HelpDesksViewSet(LoggingMixin, viewsets.ViewSet):
+class LightHouseViewSet(LoggingMixin, viewsets.ViewSet):
     """
     API endpoint that allows Reality Kits to be viewed or edited.
     """
     permission_classes = [permissions.AllowAny]
+    lookup_field = "table__number"
+    keycloak_roles = {
+        'GET': [KeycloakRoles.ATTENDEE],
+        'POST': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        'DELETE': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        'PUT': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        'PATCH': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN]
+    }
+
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return LightHouseSerializer
+        return LightHouseSerializer
 
     def list(self, request):
-        queryset = HelpDesk.objects.all()
-        help_desks = []
-        for help_desk in queryset:
-            help_desks.append(
+        queryset = LightHouse.objects.all()
+        lighthouses = []
+        for lighthouse in queryset:
+            lighthouses.append(
                 {
-                    "table": help_desk.table.number,
-                    "ip_address": help_desk.ip_address,
-                    "mentor_requested": help_desk.mentor_requested,
-                    "announcement_pending": help_desk.announcement_pending
+                    "id": lighthouse.id,
+                    "table": lighthouse.table.number,
+                    "ip_address": lighthouse.ip_address,
+                    "mentor_requested": lighthouse.mentor_requested,
+                    "announcement_pending": lighthouse.announcement_pending
                 }
             )
-        serializer = HelpDeskSerializer(help_desks, many=True)
+        serializer = LightHouseSerializer(lighthouses, many=True)
         return Response(serializer.data)
 
-    def retrieve(self, request, pk=None):
-        import pdb
-        pdb.set_trace()
+    def retrieve(self, request, table__number=None):
+        table = get_object_or_404(Table, number=table__number)
+        lighthouse = get_object_or_404(LightHouse, table=table.id)
+        serializer = LightHouseSerializer({
+            "id": lighthouse.id,
+            "table": lighthouse.table.number,
+            "ip_address": lighthouse.ip_address,
+            "mentor_requested": lighthouse.mentor_requested,
+            "announcement_pending": lighthouse.announcement_pending
+        })
+        return Response(serializer.data)
 
     def create(self, request):
-        help_desk_message = request.data
+        lighthouse_message = request.data
         # {'table': 1, 'ip_address': '10.198.1.112'}
-        help_desk_query = HelpDesk.objects.filter(
-            table__number=help_desk_message["table"])
-        if len(help_desk_query) > 0:
-            help_desk = help_desk_query[0]
-            help_desk.ip_address = help_desk_message["ip_address"]
-            help_desk.save()
+        lighthouse_query = LightHouse.objects.filter(
+            table__number=lighthouse_message["table"])
+        if len(lighthouse_query) > 0:
+            lighthouse = lighthouse_query[0]
+            lighthouse.ip_address = lighthouse_message["ip_address"]
+            lighthouse.save()
         else:
-            HelpDesk.objects.create(
-                table=help_desk_message["table"],
-                ip_address=help_desk_message["ip_address"]
+            LightHouse.objects.create(
+                table=lighthouse_message["table"],
+                ip_address=lighthouse_message["ip_address"]
             )
-        help_desk_message["mentor_requested"] = help_desk.mentor_requested
-        help_desk_message["announcement_pending"] = help_desk.announcement_pending
-        return Response(data=help_desk_message, status=201)
+        lighthouse_message["mentor_requested"] = lighthouse.mentor_requested
+        lighthouse_message["announcement_pending"] = lighthouse.announcement_pending
+        return Response(data=lighthouse_message, status=201)
 
 
-class MentorRequestViewSet(LoggingMixin, viewsets.ViewSet):
+class MentorHelpRequestViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
-    API endpoint that allows Mentor Requests to be viewed or edited.
+    API endpoint that allows mentor help requests to be viewed or edited.
+    """
+    queryset = MentorHelpRequest.objects.all()
+    permission_classes = [permissions.AllowAny]
+    filterset_fields = [
+        'reporter', 'mentor', 'team', 'status'
+    ]
+    serializer_class = MentorHelpRequestSerializer
+    keycloak_roles = {
+        'GET': [KeycloakRoles.ATTENDEE],
+        'POST': [KeycloakRoles.ATTENDEE],
+        'DELETE': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        'PUT': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        'PATCH': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN]
+    }
+
+
+class MentorHelpRequestViewSetHistoryViewSet(LoggingMixin, viewsets.ModelViewSet):
+    """
+    API endpoint that allows mentor help requests historical records to be viewed.
+    """
+    queryset = MentorHelpRequest.history.model.objects.all()
+    permission_classes = [permissions.AllowAny]
+    serializer_class = MentorHelpRequestHistorySerializer
+    filterset_fields = [
+        'id', 'reporter', 'mentor', 'team', 'status'
+    ]
+    keycloak_roles = {
+        'GET': [KeycloakRoles.ATTENDEE],
+        'POST': [KeycloakRoles.ADMIN],
+        'DELETE': [KeycloakRoles.ADMIN],
+        'PUT': [KeycloakRoles.ADMIN],
+        'PATCH': [KeycloakRoles.ADMIN]
+    }
+
+
+class DiscordViewSet(LoggingMixin, viewsets.ViewSet):
+    """
+    API Endpoint that allows for Discord information to be viewed or edited.
     """
     permission_classes = [permissions.AllowAny]
+    lookup_field = "attendee__communications_platform_username"
 
-    def create(self, request):
-        help_desk_message = request.data
-        # {'table': 1, 'requested': True}
-        help_desk_query = HelpDesk.objects.filter(
-            table__number=help_desk_message["table"])
-        if len(help_desk_query) > 0:
-            help_desk = help_desk_query[0]
-            if help_desk_message.get("mentor_requested"):
-                help_desk.mentor_requested = True
-                help_desk.save()
-                return Response(help_desk_message, status=201)
-            else:
-                help_desk.mentor_requested = False
-                help_desk.save()
-                return Response(help_desk_message, status=204)
-        else:
-            return Response(status=404)
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return DiscordUsernameRoleSerializer
+        return DiscordUsernameRoleSerializer
 
     def list(self, request):
-        queryset = HelpDesk.objects.filter(mentor_requested=True)
-        help_desks = []
-        for help_desk in queryset:
-            help_desks.append(
-                {
-                    "table": help_desk.table.number,
-                    "ip_address": help_desk.ip_address,
-                    "mentor_requested": help_desk.mentor_requested
-                }
-            )
-        serializer = HelpDeskSerializer(help_desks, many=True)
+        queryset = Attendee.objects.all()
+        serializer = DiscordUsernameRoleSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+    def destroy(self, request, attendee__communications_platform_username=None):
+        attendee = get_object_or_404(Attendee, communications_platform_username=attendee__communications_platform_username)
+        team = get_object_or_404(Team, attendees__id=attendee.id)
+        table = team.table
+        lighthouse = get_object_or_404(LightHouse, table=table.id)
+        lighthouse.announcement_pending = LightHouse.AnnouncementStatus.RESOLVE
+        lighthouse.save()
+        serializer = LightHouseSerializer({
+            "id": lighthouse.id,
+            "table": lighthouse.table.number,
+            "ip_address": lighthouse.ip_address,
+            "mentor_requested": lighthouse.mentor_requested,
+            "announcement_pending": lighthouse.announcement_pending
+        })
         return Response(serializer.data)
 
 
@@ -477,3 +538,9 @@ class WorkshopAttendeeViewSet(LoggingMixin, viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
     serializer_class = WorkshopAttendeeSerializer
     filterset_fields = ['workshop', 'attendee', 'participation']
+
+def lighthouse(request):
+    return render(request, "infrastructure/lighthouse.html")
+
+def lighthouse_table(request, table_number):
+    return render(request, "infrastructure/lighthouse_table.html", {"table_number": table_number})

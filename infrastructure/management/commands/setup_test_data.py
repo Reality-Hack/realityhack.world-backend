@@ -7,14 +7,16 @@ from django.db import transaction
 
 from infrastructure import factories
 from infrastructure.models import (Application, Attendee, Hardware,
-                                   HardwareDevice, HelpDesk, Location, Project,
-                                   Skill, SkillProficiency, Table, Team,
-                                   UploadedFile, Workshop, WorkshopAttendee)
+                                   HardwareDevice, LightHouse, Location,
+                                   Project, Skill, SkillProficiency, Table,
+                                   Team, UploadedFile, Workshop,
+                                   WorkshopAttendee, MentorHelpRequest)
 
 NUMBER_OF_ATTENDEES = 500
 NUMBER_OF_GROUPS = 5
 NUMBER_OF_SKILLS = 80
 NUMBER_OF_TEAMS = 80
+NUMBER_OF_MENTOR_HELP_REQUESTS = 10
 TEAM_SIZE = 5
 NUMBER_OF_SKILL_PROFICIENCIES = 4
 NUMBER_OF_HARDWARE_TYPES = 100
@@ -32,7 +34,7 @@ def delete_all():  # noqa: C901
     Table.objects.all().delete()
     Team.objects.all().delete()
     SkillProficiency.objects.all().delete()
-    HelpDesk.objects.all().delete()
+    LightHouse.objects.all().delete()
     Hardware.objects.all().delete()
     HardwareDevice.objects.all().delete()
     HardwareDevice.history.all().delete()
@@ -43,6 +45,8 @@ def delete_all():  # noqa: C901
         uploaded_file.delete()
     Workshop.objects.all().delete()
     WorkshopAttendee.objects.all().delete()
+    MentorHelpRequest.objects.all().delete()
+    MentorHelpRequest.history.all().delete()
 
 
 def add_all():  # noqa: C901
@@ -54,8 +58,7 @@ def add_all():  # noqa: C901
     skills = []
     for _ in range(NUMBER_OF_SKILLS):
         skill = factories.SkillFactory()
-        skill.name = skill.name.lower().replace(
-            " ", "_").replace("-", "_").replace(",", "")
+        skill.name = f'{skill.name.lower().replace(" ", "_").replace("-", "_").replace(",", "")}{str(uuid.uuid4()).split("-")[0]}'
         skill.save()
         skills.append(skill)
     skill_proficiencies = []
@@ -94,15 +97,16 @@ def add_all():  # noqa: C901
     for _ in range(NUMBER_OF_TEAMS):
         table = factories.TableFactory()
         tables.append(table)
-    help_desks = []
+    lighthouses = []
     for _ in range(NUMBER_OF_TEAMS):
-        help_desk = factories.HelpDeskFactory()
-        help_desks.append(help_desk)
+        lighthouse = factories.LightHouseFactory()
+        lighthouses.append(lighthouse)
     attendee_subset_index = 0
     teams = []
+    participants = list(Attendee.objects.filter(participation_class=Attendee.ParticipationClass.PARTICIPANT))
     for _ in range(NUMBER_OF_TEAMS):
         team = factories.TeamFactory(
-            attendees=attendees[
+            attendees=participants[
                 attendee_subset_index:attendee_subset_index + TEAM_SIZE
             ]
         )
@@ -114,6 +118,10 @@ def add_all():  # noqa: C901
             team=team
         )
         projects.append(project)
+    mentor_help_requests = []
+    for participant in random.sample(participants, NUMBER_OF_MENTOR_HELP_REQUESTS):
+        mentor_help_request = factories.MentorHelpRequestFactory(reporter=participant, team=Team.objects.get(attendees__id=participant.id))
+        mentor_help_requests.append(mentor_help_request)
     hardware = []
     hardware_devices = []
     for _ in range(NUMBER_OF_HARDWARE_TYPES):

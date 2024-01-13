@@ -140,7 +140,7 @@ class AttendeeFactory(DjangoModelFactory):
     ar_vr_ap_in_store = None
     reality_hack_project_to_product = False
     participation_class = factory.Faker(
-        'random_element', elements=[str(x[0]) for x in models.Application.ParticipationClass.choices]
+        'random_element', elements=[str(x[0]) for x in models.Attendee.ParticipationClass.choices]
     )
     # sponsor
     sponsor_company = None
@@ -168,15 +168,25 @@ class TableFactory(DjangoModelFactory):
     location = factory.Iterator(models.Location.objects.all())
 
 
-class HelpDeskFactory(DjangoModelFactory):
+class LightHouseFactory(DjangoModelFactory):
     class Meta:
-        model = models.HelpDesk
+        model = models.LightHouse
 
     table = factory.Iterator(models.Table.objects.all())
     ip_address = factory.Faker("ipv4_private")
-    announcement_pending = factory.Faker("boolean")
-    mentor_requested = factory.Faker("boolean")
+    announcement_pending = "F"
+    mentor_requested = "F"
 
+
+class MentorHelpRequestFactory(DjangoModelFactory):
+    class Meta:
+        model = models.MentorHelpRequest
+
+    title = factory.fuzzy.FuzzyText(length=30)
+    description = factory.fuzzy.FuzzyText(length=500)
+    reporter = factory.Iterator(models.Attendee.objects.filter(participation_class=models.Attendee.ParticipationClass.PARTICIPANT))
+    mentor = factory.Iterator(models.Attendee.objects.filter(participation_class=models.Attendee.ParticipationClass.MENTOR))
+    team = factory.Iterator(models.Team.objects.all())
 
 class ProjectFactory(DjangoModelFactory):
     class Meta:

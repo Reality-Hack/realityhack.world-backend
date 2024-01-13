@@ -5,10 +5,10 @@ from rest_framework import fields, serializers
 from infrastructure import models
 from infrastructure.models import (INDUSTRIES, SPOKEN_LANGUAGES, Application,
                                    Attendee, Hardware, HardwareDevice,
-                                   HelpDesk, Location, ParticipationRole,
-                                   Project, Skill, SkillProficiency, Table,
-                                   Team, UploadedFile, Workshop,
-                                   WorkshopAttendee)
+                                   LightHouse, Location, MentorHelpRequest,
+                                   ParticipationRole, Project, Skill,
+                                   SkillProficiency, Table, Team, UploadedFile,
+                                   Workshop, WorkshopAttendee)
 
 
 class GroupSerializer(serializers.ModelSerializer):
@@ -57,6 +57,13 @@ class AttendeeSerializer(serializers.ModelSerializer):
                   'communications_platform_username', 'email',
                   'sponsor_company',  'participation_class', 'initial_setup', 'profile_image',
                   'created_at', 'updated_at']
+
+
+class DiscordUsernameRoleSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Attendee
+        fields = ['communications_platform_username', 'participation_role', 'participation_class']
 
 
 class AttendeeRSVPCreateSerializer(serializers.ModelSerializer):
@@ -218,11 +225,31 @@ class ProjectSerializer(serializers.ModelSerializer):
                   'team', 'created_at', 'updated_at']
 
 
-class HelpDeskSerializer(serializers.ModelSerializer):
+class LightHouseSerializer(serializers.ModelSerializer):
+    table = serializers.IntegerField()
+
     class Meta:
-        model = HelpDesk
+        model = LightHouse
         fields = ['id', 'table', 'ip_address', 'mentor_requested',
                   'announcement_pending']
+
+
+class MentorHelpRequestSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = MentorHelpRequest
+        fields = ['id', 'title', 'description', 'team',
+                  'reporter', 'mentor', 'status',
+                  'created_at', 'updated_at']
+
+
+class MentorHelpRequestHistorySerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = MentorHelpRequest.history.model
+        fields = ['history_id', 'id', 'title', 'description', 'team',
+                  'reporter', 'mentor', 'status',
+                  'created_at', 'updated_at']
 
 
 class TeamSerializer(serializers.ModelSerializer):
@@ -238,9 +265,9 @@ class TeamProjectSerializer(serializers.ModelSerializer):
                   'created_at', 'updated_at']
 
 
-class TeamHelpDeskSerializer(serializers.ModelSerializer):
+class TeamLightHouseSerializer(serializers.ModelSerializer):
     class Meta:
-        model = HelpDesk
+        model = LightHouse
         fields = ['id', 'announcement_pending', 'mentor_requested',
                   'created_at', 'updated_at']
 
@@ -249,11 +276,11 @@ class TeamDetailSerializer(serializers.ModelSerializer):
     table = TableDetailSerializer()
     attendees = AttendeeSerializer(many=True)
     project = TeamProjectSerializer()
-    help_desk = TeamHelpDeskSerializer()
+    lighthouse = TeamLightHouseSerializer()
 
     class Meta:
         model = Team
-        fields = ['id', 'name', 'attendees', 'table', 'project', 'help_desk',
+        fields = ['id', 'name', 'attendees', 'table', 'project', 'lighthouse',
                   'created_at', 'updated_at']
 
 
@@ -265,11 +292,11 @@ class TeamCreateSerializer(serializers.ModelSerializer):
 
 class TableDetailSerializer(serializers.ModelSerializer):
     team = TeamSerializer()
-    help_desk = HelpDeskSerializer()
+    lighthouse = LightHouseSerializer()
 
     class Meta:
         model = Table
-        fields = ['id', 'number', 'location', 'team', 'help_desk',
+        fields = ['id', 'number', 'location', 'team', 'lighthouse',
                   'created_at', 'updated_at']
 
 
@@ -283,9 +310,9 @@ class MentorRequestSerializer(serializers.Serializer):
     table = serializers.IntegerField()
 
 
-class HelpDesksSerializer(serializers.ModelSerializer):
+class LightHousesSerializer(serializers.ModelSerializer):
     class Meta:
-        model = HelpDesk
+        model = LightHouse
         fields = ['id', 'table', 'ip_address', 'announcement_pending',
                   'mentor_requested', 'auxiliary_requested',
                   'created_at', 'updated_at']

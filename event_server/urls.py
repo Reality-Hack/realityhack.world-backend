@@ -27,9 +27,10 @@ from rest_framework_simplejwt.views import (TokenObtainPairView,
 
 from infrastructure import views
 from infrastructure.models import (Application, Attendee, Hardware,
-                                   HardwareDevice, HelpDesk, Location, Project,
-                                   Skill, SkillProficiency, Table, Team,
-                                   UploadedFile, Workshop, WorkshopAttendee)
+                                   HardwareDevice, LightHouse, Location,
+                                   MentorHelpRequest, Project, Skill,
+                                   SkillProficiency, Table, Team, UploadedFile,
+                                   Workshop, WorkshopAttendee)
 
 swagger_schema_view = get_schema_view(
    openapi.Info(
@@ -46,13 +47,15 @@ swagger_schema_view = get_schema_view(
 
 router = routers.DefaultRouter()
 router.register(r'attendees', views.AttendeeViewSet, basename="attendees")
+router.register(r'discord', views.DiscordViewSet, basename="discord")
 router.register(r'rsvps', views.AttendeeRSVPViewSet, basename="rsvps")
 router.register(r'skills', views.SkillViewSet)
 router.register(r'locations', views.LocationViewSet)
 router.register(r'tables', views.TableViewSet)
 router.register(r'teams', views.TeamViewSet)
-router.register(r'helpdesks', views.HelpDesksViewSet, basename='helpdesks')
-router.register(r'request_mentor', views.MentorRequestViewSet, basename='requestmentor')
+router.register(r'lighthouses', views.LightHouseViewSet, basename='lighthouses')
+router.register(r'mentorhelprequests', views.MentorHelpRequestViewSet, basename='mentorhelprequests')
+router.register(r'mentorhelprequestshistory', views.MentorHelpRequestViewSetHistoryViewSet, basename='mentorhelprequestshistory')
 router.register(r'skillproficiencies', views.SkillProficiencyViewSet)
 router.register(r'projects', views.ProjectViewSet)
 router.register(r'groups', views.GroupViewSet)
@@ -69,7 +72,7 @@ admin.site.register(Attendee)
 admin.site.register(Location)
 admin.site.register(Table)
 admin.site.register(Team)
-admin.site.register(HelpDesk)
+admin.site.register(LightHouse)
 admin.site.register(Project)
 admin.site.register(SkillProficiency)
 admin.site.register(Hardware)
@@ -90,5 +93,7 @@ urlpatterns = [
     path('schema/swagger<format>/', swagger_schema_view.without_ui(cache_timeout=0), name='swagger_schema_json'),
     path('schema/swagger/', swagger_schema_view.with_ui('swagger', cache_timeout=0), name='swagger_schema_swagger_ui'),
     path('schema/redoc/', swagger_schema_view.with_ui('redoc', cache_timeout=0), name='swagger_schema_redoc'),
-    path('me/', views.me, name='me')
+    path('me/', views.me, name='me'),
+    path("lighthouse/", views.lighthouse, name="lighthouse"),
+    path("lighthouse/<str:table_number>/", views.lighthouse_table, name="lighthouse_table"),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

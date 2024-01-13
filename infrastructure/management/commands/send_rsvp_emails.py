@@ -9,7 +9,7 @@ from infrastructure.models import Application
 
 
 class Command(BaseCommand):  # pragma: no cover
-    help = "Generates test data"
+    help = "Sends RSVP emails to those that have not received them"
 
     def add_arguments(self, parser):
         parser.add_argument("--email", nargs=1, type=str, required=False)
@@ -37,7 +37,6 @@ class Command(BaseCommand):  # pragma: no cover
         else:
             print(f"Error with str({application})")
 
-    @transaction.atomic
     def handle(self, *args, **kwargs):  # noqa: C901
         accepted_applications_with_unsent_rsvp_emails = []
         try:

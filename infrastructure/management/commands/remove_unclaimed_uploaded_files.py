@@ -5,9 +5,8 @@ from infrastructure.models import Application, UploadedFile
 
 
 class Command(BaseCommand):  # pragma: no cover
-    help = "Generates test data"
+    help = "Deletes orphaned resumes and images"
 
-    @transaction.atomic
     def handle(self, *args, **kwargs):  # noqa: C901
         unclaimed_files = UploadedFile.objects.all().filter(claimed=False)
         for unclaimed_file in unclaimed_files:

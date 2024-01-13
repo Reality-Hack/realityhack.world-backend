@@ -11,6 +11,8 @@ from datetime import datetime
 import language_tags
 import pycountry
 import requests
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 from django.contrib.auth.models import AbstractUser
 from django.core.mail import send_mail
 from django.db import models
@@ -23,6 +25,7 @@ from simple_history.models import HistoricalRecords
 from infrastructure import email
 
 # settings.AUTH_USER_MODEL
+
 
 with open("infrastructure/industries.csv", "r") as f:
     industries = f.read().strip().split(",\n")
@@ -412,6 +415,7 @@ class Attendee(AbstractUser):
     application = models.OneToOneField(
         Application, on_delete=models.CASCADE, null=True)
     authentication_id = models.CharField(max_length=36, null=True)
+    authentication_roles_assigned = models.BooleanField(default=False, null=False)
     participation_role = models.CharField(
         max_length=1,
         choices=ParticipationRole.choices,
@@ -510,7 +514,16 @@ class Attendee(AbstractUser):
     def __str__(self) -> str:  # pragma: nocover
         return f"Name: {self.first_name} {self.last_name}, Username: {self.communications_platform_username}"
 
-    def create_authentication_account(self):
+    def get_authentication_token(self):
+        access_token_params = {"grant_type": "client_credentials", "client_id": os.environ['KEYCLOAK_CLIENT_ID'], "client_secret": os.environ['KEYCLOAK_CLIENT_SECRET_KEY']}
+        return requests.post(
+            url=f"{os.environ['KEYCLOAK_SERVER_URL']}/realms/master/protocol/openid-connect/token",
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            data=urllib.parse.urlencode(access_token_params)
+        )
+
+    def assign_authentication_roles(self):
+        access_token = self.get_authentication_token()
         realm_role = None
         if self.participation_class == self.ParticipationClass.PARTICIPANT:
             realm_role = "attendee"
@@ -524,13 +537,24 @@ class Attendee(AbstractUser):
             realm_role = "volunteer"
         elif self.participation_class == self.ParticipationClass.ORGANIZER:
             realm_role = "organizer"
-        temporary_password = secrets.token_hex(10 // 2)
-        access_token_params = {"grant_type": "client_credentials", "client_id": os.environ['KEYCLOAK_CLIENT_ID'], "client_secret": os.environ['KEYCLOAK_CLIENT_SECRET_KEY']}
-        access_token = requests.post(
-            url=f"{os.environ['KEYCLOAK_SERVER_URL']}/realms/master/protocol/openid-connect/token",
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-            data=urllib.parse.urlencode(access_token_params)
+        role_by_name = requests.get(
+        url=f"{os.environ['KEYCLOAK_SERVER_URL']}/admin/realms/master/roles/{realm_role}",
+            headers={"Authorization": f"Bearer {access_token.json()['access_token']}", "Content-Type": "application/json"},\
         )
+        realm_roles = [role_by_name.json()]
+        created_realm_roles = requests.post(
+            url=f"{os.environ['KEYCLOAK_SERVER_URL']}/admin/realms/master/users/{self.authentication_id}/role-mappings/realm",
+            headers={"Authorization": f"Bearer {access_token.json()['access_token']}", "Content-Type": "application/json"},
+            data=json.dumps(realm_roles)
+        )
+        if created_realm_roles.ok:
+            self.authentication_roles_assigned = True
+            self.save()
+        return created_realm_roles
+
+    def create_authentication_account(self):
+        temporary_password = secrets.token_hex(10 // 2)
+        access_token = self.get_authentication_token()
         auth_user_dict = {
             "id": str(uuid.uuid4()),
             "username": f"{self.first_name}.{self.last_name}.{uuid.uuid4()}",
@@ -561,16 +585,7 @@ class Attendee(AbstractUser):
             authentication_account_id = authentication_account.headers["Location"].split("/")[-1]
             self.authentication_id = authentication_account_id
             self.save()
-            role_by_name = requests.get(
-                url=f"{os.environ['KEYCLOAK_SERVER_URL']}/admin/realms/master/roles/{realm_role}",
-                headers={"Authorization": f"Bearer {access_token.json()['access_token']}", "Content-Type": "application/json"},\
-            )
-            realm_roles = [role_by_name.json()]
-            created_realm_roles = requests.post(
-                url=f"{os.environ['KEYCLOAK_SERVER_URL']}/admin/realms/master/users/{authentication_account_id}/role-mappings/realm",
-                headers={"Authorization": f"Bearer {access_token.json()['access_token']}", "Content-Type": "application/json"},
-                data=json.dumps(realm_roles)
-            )
+            self.assign_authentication_roles()
             # send email with credentials
             subject, body = None, None
             if self.participation_class == Attendee.ParticipationClass.PARTICIPANT:
@@ -584,7 +599,6 @@ class Attendee(AbstractUser):
                 [self.email],
                 fail_silently=False,
             )
-            self.application.save()
 
     class Meta:
         verbose_name = "attendees"
@@ -668,17 +682,79 @@ class Project(models.Model):
         return f"{self.name}"
 
 
-class HelpDesk(models.Model):
+class MentorRequestStatus(models.TextChoices):
+        REQUESTED = "R"
+        ACKNOWLEDGED = "A"
+        EN_ROUTE = "E"
+        RESOLVED = "F"
+
+
+class LightHouse(models.Model):
+    class MessageType(models.TextChoices):
+        ANNOUNCEMENT = "A"
+        MENTOR_REQUEST = "M"
+
+    class AnnouncementStatus(models.TextChoices):
+        SEND = "S"
+        ALERT = "A"
+        RESOLVE = "F"
+
+    class ExtraData(models.TextChoices):
+        AUDIO_FILE = "A"
+        LIGHT_PATTERN = "L"
+
+    @classmethod
+    def post_save(cls, sender, instance, created, **kwargs):
+        channel_layer = get_channel_layer()
+        room_group_name = f"lighthouse_{instance.table.number}"
+        lighthouse = {
+            # "id": instance.id,
+            "table": instance.table.number,
+            "ip_address": instance.ip_address,
+            "mentor_requested": instance.mentor_requested,
+            "announcement_pending": instance.announcement_pending
+        }
+        async_to_sync(channel_layer.group_send)(
+            room_group_name, {"type": "chat.message", "message": lighthouse}
+        )
+        async_to_sync(channel_layer.group_send)(
+            "lighthouses", {"type": "chat.message", "message": lighthouse}
+        )
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     table = models.ForeignKey(Table, on_delete=models.CASCADE)
     ip_address = models.GenericIPAddressField()
-    announcement_pending = models.BooleanField(default=False)
-    mentor_requested = models.BooleanField(default=False)
+    announcement_pending = models.CharField(choices=AnnouncementStatus.choices ,max_length=1, default=AnnouncementStatus.RESOLVE.value)
+    mentor_requested = models.CharField(choices=MentorRequestStatus.choices, max_length=1, default=MentorRequestStatus.RESOLVED.value)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self) -> str:  # pragma: no cover
         return f"Table: {self.table}, IP: {self.ip_address}"
+
+
+class MentorHelpRequest(models.Model):
+
+    @classmethod
+    def post_save(cls, sender, instance, created, **kwargs):
+        table = instance.team.table
+        lighthouse = LightHouse.objects.get(table=table.id)
+        lighthouse.mentor_requested = instance.status
+        lighthouse.save()
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    title = models.CharField(max_length=250, null=True)
+    description = models.TextField(max_length=2000, null=True)
+    reporter = models.ForeignKey(Attendee, on_delete=models.SET_NULL, null=True, related_name="mentor_help_request_reporter")
+    mentor = models.ForeignKey(Attendee, on_delete=models.SET_NULL, null=True, related_name="mentor_help_request_mentor")
+    team = models.ForeignKey(Team, on_delete=models.CASCADE)
+    status = models.CharField(choices=MentorRequestStatus.choices, max_length=1, default=MentorRequestStatus.REQUESTED.value)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return f"Reporter: {self.reporter}, Mentor: {self.mentor}, Title: {self.title}"
 
 
 class Hardware(models.Model):
@@ -772,4 +848,10 @@ post_save.connect(
 )
 post_delete.connect(
     Attendee.post_delete, sender=Attendee, dispatch_uid="attendee_entry_deleted"
+)
+post_save.connect(
+    LightHouse.post_save, sender=LightHouse, dispatch_uid="lighthouse_entry_saved"
+)
+post_save.connect(
+    MentorHelpRequest.post_save, sender=MentorHelpRequest, dispatch_uid="mentor_help_request_entry_saved"
 )

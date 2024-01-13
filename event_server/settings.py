@@ -189,12 +189,27 @@ REST_FRAMEWORK = {
     ]
 }
 
+if not os.environ["DEBUG"]:
+    REST_FRAMEWORK['DEFAULT_RENDERER_CLASSES'] = ['rest_framework.renderers.JSONRenderer']
+
 ASGI_APPLICATION = "infrastructure.routing.application"
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': "channels.layers.InMemoryChannelLayer"
+
+if os.environ["DEPLOYED"]:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [("127.0.0.1", 6379)],
+            },
+        },
     }
-}
+else:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': "channels.layers.InMemoryChannelLayer"
+        }
+    }
+
 
 # Daphne
 ASGI_APPLICATION = "event_server.asgi.application"
@@ -213,7 +228,7 @@ if "test" not in sys.argv and "setup_test_data" not in sys.argv:
 
 KEYCLOAK_EXEMPT_URIS = [
     'schema/swagger', 'schema/redoc', 'schema/spectacular',
-    'applications/', 'uploaded_files/', 'attendees/', 'rsvps/'
+    'applications/', 'uploaded_files/', 'attendees/', 'rsvps/', 'discord/'
 ]
 KEYCLOAK_CONFIG = {
     'KEYCLOAK_SERVER_URL': os.environ["KEYCLOAK_SERVER_URL"],
