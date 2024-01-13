@@ -8,9 +8,9 @@ from django.db import transaction
 from infrastructure import factories
 from infrastructure.models import (Application, Attendee, Hardware,
                                    HardwareDevice, LightHouse, Location,
-                                   Project, Skill, SkillProficiency, Table,
-                                   Team, UploadedFile, Workshop,
-                                   WorkshopAttendee, MentorHelpRequest)
+                                   MentorHelpRequest, Project, Skill,
+                                   SkillProficiency, Table, Team, UploadedFile,
+                                   Workshop, WorkshopAttendee)
 
 NUMBER_OF_ATTENDEES = 500
 NUMBER_OF_GROUPS = 5

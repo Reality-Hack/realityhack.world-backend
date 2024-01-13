@@ -189,7 +189,7 @@ REST_FRAMEWORK = {
     ]
 }
 
-if not os.environ["DEBUG"]:
+if not DEBUG:
     REST_FRAMEWORK['DEFAULT_RENDERER_CLASSES'] = ['rest_framework.renderers.JSONRenderer']
 
 ASGI_APPLICATION = "infrastructure.routing.application"

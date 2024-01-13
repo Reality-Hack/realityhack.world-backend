@@ -391,6 +391,8 @@ class Attendee(AbstractUser):
         SPONSOR = 'S', _('Sponsor')
         VOLUNTEER = 'V', _('Volunteer')
         ORGANIZER = 'O', _('Organizer')
+        GUARDIAN = 'G', _('Guardian')
+        MEDIA = 'E', _('Media')
 
     class Status(models.TextChoices):
         RSVP = 'R', _("RSVP'd")
@@ -424,6 +426,8 @@ class Attendee(AbstractUser):
     )
     bio = models.TextField(max_length=1000, blank=True)
     email = models.EmailField(unique=True)
+    guardian_of = models.ManyToManyField("Attendee", related_name='attendee_guardian_of')
+    sponsor_handler = models.ForeignKey("Attendee", related_name="attendee_sponsor_of", null=True, on_delete=models.SET_NULL)
     shirt_size = models.CharField(
         max_length=1,
         choices=ShirtSize.choices,

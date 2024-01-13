@@ -53,7 +53,7 @@ class AttendeeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Attendee
         fields = ['id', 'first_name', 'last_name', 'participation_role',
-                  'profile_image', 'initial_setup',
+                  'profile_image', 'initial_setup', 'guardian_of', 'sponsor_handler',
                   'communications_platform_username', 'email',
                   'sponsor_company',  'participation_class', 'initial_setup', 'profile_image',
                   'created_at', 'updated_at']
@@ -105,7 +105,7 @@ class AttendeeRSVPSerializer(serializers.ModelSerializer):
         model = Attendee
         fields = [
             "id", "first_name", "last_name", "participation_role",
-            "profile_image", "initial_setup",
+            "profile_image", "initial_setup", 'guardian_of', 'sponsor_handler',
             "application", "bio", "email", "shirt_size", "communications_platform_username",
             "dietary_restrictions", "dietary_restrictions_other",
             "dietary_allergies", "dietary_allergies_other",
@@ -175,7 +175,8 @@ class AttendeeDetailSerializer(serializers.ModelSerializer):
         fields = ['id', 'first_name', 'last_name', 'skill_proficiencies',
                   'profile_image', 'bio',
                   'communications_platform_username', 'email',
-                  'sponsor_company',  'participation_class', 'initial_setup', 'profile_image',
+                  'sponsor_company',  'participation_class', 'initial_setup',
+                  'guardian_of', 'sponsor_handler', 'profile_image',
                   'created_at', 'updated_at']
 
 
@@ -187,8 +188,8 @@ class AttendeePatchSerializer(serializers.ModelSerializer):
         fields = ['id', 'first_name', 'last_name', 'skill_proficiencies',
                   'profile_image',
                   'communications_platform_username', 'email',
-                  'sponsor_company',  'participation_class', 'initial_setup', 'profile_image',
-                  'created_at', 'updated_at']
+                  'sponsor_company',  'participation_class', 'initial_setup', 'guardian_of', 'sponsor_handler',
+                  'profile_image', 'created_at', 'updated_at']
 
 
 class LocationSerializer(serializers.ModelSerializer):
