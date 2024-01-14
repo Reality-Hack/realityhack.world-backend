@@ -426,7 +426,7 @@ class Attendee(AbstractUser):
     )
     bio = models.TextField(max_length=1000, blank=True)
     email = models.EmailField(unique=True)
-    guardian_of = models.ManyToManyField("Attendee", related_name='attendee_guardian_of')
+    guardian_of = models.ManyToManyField("Attendee", related_name='attendee_guardian_of', blank=True)
     sponsor_handler = models.ForeignKey("Attendee", related_name="attendee_sponsor_of", null=True, on_delete=models.SET_NULL)
     shirt_size = models.CharField(
         max_length=1,
@@ -658,7 +658,7 @@ class Table(models.Model):
 class Team(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=50)
-    attendees = models.ManyToManyField(Attendee)
+    attendees = models.ManyToManyField(Attendee, related_name="team_attendees", blank=True)
     table = models.OneToOneField(Table, on_delete=models.SET_NULL, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -800,8 +800,8 @@ class Workshop(models.Model):
     course_materials = models.URLField(null=True, blank=True)
     recommended_for = MultiSelectField(
         choices=ParticipationRole.choices, max_choices=8, max_length=8, null=True)
-    skills = models.ManyToManyField(Skill, related_name="workshop_skills")
-    hardware = models.ManyToManyField(Hardware, related_name="workshop_hardware")
+    skills = models.ManyToManyField(Skill, related_name="workshop_skills", blank=True)
+    hardware = models.ManyToManyField(Hardware, related_name="workshop_hardware", blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

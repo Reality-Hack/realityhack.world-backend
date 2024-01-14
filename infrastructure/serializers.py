@@ -52,7 +52,7 @@ class AttendeeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Attendee
-        fields = ['id', 'first_name', 'last_name', 'participation_role',
+        fields = ['id', 'first_name', 'last_name', 'participation_role', 'checked_in_at',
                   'profile_image', 'initial_setup', 'guardian_of', 'sponsor_handler',
                   'communications_platform_username', 'email',
                   'sponsor_company',  'participation_class', 'initial_setup', 'profile_image',
@@ -109,7 +109,7 @@ class AttendeeRSVPSerializer(serializers.ModelSerializer):
             "application", "bio", "email", "shirt_size", "communications_platform_username",
             "dietary_restrictions", "dietary_restrictions_other",
             "dietary_allergies", "dietary_allergies_other",
-            "additional_accommodations",
+            "additional_accommodations", 'checked_in_at',
             "us_visa_support_is_required",  "us_visa_letter_of_invitation_required",
             "us_visa_support_full_name", "us_visa_support_document_number",
             "us_visa_support_national_identification_document_type",
@@ -164,32 +164,6 @@ class SkillProficiencyAttendeeSerializer(serializers.ModelSerializer):
     class Meta:
         model = SkillProficiency
         fields = ['id', 'skill', 'proficiency']
-
-
-class AttendeeDetailSerializer(serializers.ModelSerializer):
-    skill_proficiencies = SkillProficiencyAttendeeSerializer(many=True)
-    profile_image = FileUploadSerializer()
-
-    class Meta:
-        model = Attendee
-        fields = ['id', 'first_name', 'last_name', 'skill_proficiencies',
-                  'profile_image', 'bio',
-                  'communications_platform_username', 'email',
-                  'sponsor_company',  'participation_class', 'initial_setup',
-                  'guardian_of', 'sponsor_handler', 'profile_image',
-                  'created_at', 'updated_at']
-
-
-class AttendeePatchSerializer(serializers.ModelSerializer):
-    skill_proficiencies = SkillProficiencyAttendeeSerializer(many=True)
-
-    class Meta:
-        model = Attendee
-        fields = ['id', 'first_name', 'last_name', 'skill_proficiencies',
-                  'profile_image',
-                  'communications_platform_username', 'email',
-                  'sponsor_company',  'participation_class', 'initial_setup', 'guardian_of', 'sponsor_handler',
-                  'profile_image', 'created_at', 'updated_at']
 
 
 class LocationSerializer(serializers.ModelSerializer):
@@ -400,3 +374,42 @@ class WorkshopAttendeeSerializer(serializers.ModelSerializer):
     class Meta:
         model = WorkshopAttendee
         fields = "__all__"
+
+
+class WorkshopAttendeeWorkshopDetailSerializer(serializers.ModelSerializer):
+    workshop = WorkshopSerializer()
+
+    class Meta:
+        model = WorkshopAttendee
+        fields = ['id, workshop', 'participation', 'created_at', 'updated_at']
+
+
+class AttendeeDetailSerializer(serializers.ModelSerializer):
+    skill_proficiencies = SkillProficiencyAttendeeSerializer(many=True)
+    profile_image = FileUploadSerializer()
+    team = TeamDetailSerializer()
+    hardware_devices = HardwareDeviceDetailSerializer(many=True)
+    workshops = WorkshopAttendeeWorkshopDetailSerializer(many=True)
+
+    class Meta:
+        model = Attendee
+        fields = ['id', 'first_name', 'last_name', 'skill_proficiencies',
+                  'profile_image', 'bio', 'checked_in_at', 'team', 'hardware_devices',
+                  'communications_platform_username', 'email', 'workshops',
+                  'sponsor_company',  'participation_class', 'initial_setup',
+                  'guardian_of', 'sponsor_handler',
+                  'created_at', 'updated_at']
+
+
+class AttendeePatchSerializer(serializers.ModelSerializer):
+    skill_proficiencies = SkillProficiencyAttendeeSerializer(many=True)
+    workshops = WorkshopAttendeeWorkshopDetailSerializer(many=True)
+
+    class Meta:
+        model = Attendee
+        fields = ['id', 'first_name', 'last_name', 'skill_proficiencies',
+                  'profile_image', 'bio', 'checked_in_at', 'workshops',
+                  'communications_platform_username', 'email',
+                  'sponsor_company',  'participation_class', 'initial_setup',
+                  'guardian_of', 'sponsor_handler',
+                  'created_at', 'updated_at']

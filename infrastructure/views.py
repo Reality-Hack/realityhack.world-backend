@@ -67,6 +67,14 @@ def me(request):
         attendee.skill_proficiencies = SkillProficiency.objects.filter(
             attendee=attendee)
         serializer = AttendeeDetailSerializer(attendee)
+        attendee.skill_proficiencies = SkillProficiency.objects.filter(attendee=attendee)
+        try:
+            attendee.team = Team.objects.get(attendees__id=attendee.id)
+        except Team.DoesNotExist:
+            attendee.team = None
+        attendee.hardware_devices = HardwareDevice.objects.filter(checked_out_to=attendee.id)
+        attendee.workshops = WorkshopAttendee.objects.filter(attendee=attendee.id)
+        serializer = AttendeeDetailSerializer(attendee)
         return Response(serializer.data)
     else:  # PATCH
         try:
@@ -84,8 +92,13 @@ def me(request):
                         raise Http404(f"No uploaded file matches the id: \"{request.userinfo.get('sub')}\"")
                 else:
                     setattr(attendee, key, request.data[key])
-            attendee.skill_proficiencies = SkillProficiency.objects.filter(
-            attendee=attendee)
+            attendee.skill_proficiencies = SkillProficiency.objects.filter(attendee=attendee)
+            try:
+                attendee.team = Team.objects.get(attendees__id=attendee.id)
+            except Team.DoesNotExist:
+                attendee.team = None
+            attendee.hardware_devices = HardwareDevice.objects.filter(checked_out_to=attendee.id)
+            attendee.workshops = WorkshopAttendee.objects.filter(attendee=attendee.id)
             attendee.save()
             serializer = AttendeeDetailSerializer(attendee)
             return Response(serializer.data, status=200)
@@ -102,12 +115,12 @@ class AttendeeViewSet(LoggingMixin, viewsets.ModelViewSet):
     serializer_class = AttendeeSerializer
     permission_classes = [permissions.AllowAny]
     filterset_fields = [
-        'first_name', 'last_name', 'username', 'email', 'is_staff', 'groups',
+        'first_name', 'last_name', 'username', 'email', 'checked_in_at'
     ]
     keycloak_roles = {
         'GET': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.ATTENDEE],
         'DELETE': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
-        'PUT': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        'PATCH': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
     }
 
     def retrieve(self, request, pk=None):
@@ -126,12 +139,12 @@ class AttendeeRSVPViewSet(LoggingMixin, viewsets.ModelViewSet):
     serializer_class = AttendeeRSVPSerializer
     permission_classes = [permissions.AllowAny]
     filterset_fields = [
-        'first_name', 'last_name', 'username', 'email', 'is_staff', 'groups',
+        'first_name', 'last_name', 'username', 'email', 'checked_in_at'
     ]
     keycloak_roles = {
         'GET': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
         'DELETE': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
-        'PUT': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        'PATCH': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
     }
 
     def get_serializer_class(self):
