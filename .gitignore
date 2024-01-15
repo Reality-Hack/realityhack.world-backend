@@ -84,8 +84,9 @@ target/
 *.pot
 *.pyc
 __pycache__/
-local_settings.py
-media/
+local_settings.pyc
+media/*
+!media/grid.png
 
 .env
 db.sqlite3

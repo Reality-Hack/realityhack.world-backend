@@ -194,7 +194,7 @@ if not DEBUG:
 
 ASGI_APPLICATION = "infrastructure.routing.application"
 
-if os.environ["DEPLOYED"]:
+if strtobool(os.environ["DEPLOYED"]):
     CHANNEL_LAYERS = {
         "default": {
             "BACKEND": "channels_redis.core.RedisChannelLayer",

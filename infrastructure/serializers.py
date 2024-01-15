@@ -4,7 +4,7 @@ from rest_framework import fields, serializers
 
 from infrastructure import models
 from infrastructure.models import (INDUSTRIES, SPOKEN_LANGUAGES, Application,
-                                   Attendee, Hardware, HardwareDevice,
+                                   Attendee, Hardware, HardwareDevice, HardwareRequest,
                                    LightHouse, Location, MentorHelpRequest,
                                    ParticipationRole, Project, Skill,
                                    SkillProficiency, Table, Team, UploadedFile,
@@ -352,14 +352,42 @@ class HardwareDeviceHistorySerializer(serializers.ModelSerializer):
                   'created_at', 'updated_at']
 
 
+class HardwareRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HardwareRequest
+        fields = ["id", "hardware", "hardware_device", "requester", "team", "reason", "status", "created_at", "updated_at"]
+
+
 class HardwareDeviceDetailSerializer(serializers.ModelSerializer):
     hardware = HardwareDeviceHardwareSerializer(read_only=True)
-    checked_out_to = AttendeeSerializer(read_only=True)
+    checked_out_to = HardwareRequestSerializer(read_only=True)
 
     class Meta:
         model = HardwareDevice
         fields = ['id', 'hardware', 'serial', 'checked_out_to',
                   'created_at', 'updated_at']
+
+class HardwareRequestDetailSerializer(serializers.ModelSerializer):
+    hardware = HardwareCountSerializer(read_only=True)
+    hardware_device = HardwareDeviceDetailSerializer(read_only=True)
+    requester = AttendeeSerializer(read_only=True)
+    team = TeamSerializer()
+    
+    class Meta:
+        model = HardwareRequest
+        fields = ["id", "hardware", "hardware_device", "requester", "team", "reason", "status", "created_at", "updated_at"]
+
+
+class HardwareRequestCreateSerializer(serializers.ModelSerializer):
+    hardware = serializers.PrimaryKeyRelatedField(queryset=Hardware.objects.all())
+    requester = serializers.SlugRelatedField(
+        slug_field="email",
+        queryset=Attendee.objects.all()
+    )
+    
+    class Meta:
+        model = HardwareRequest
+        fields = ["id", "hardware", "hardware_device", "requester", "team", "reason", "status", "created_at", "updated_at"]
 
 
 class WorkshopSerializer(serializers.ModelSerializer):
@@ -387,7 +415,7 @@ class WorkshopAttendeeWorkshopDetailSerializer(serializers.ModelSerializer):
 class AttendeeDetailSerializer(serializers.ModelSerializer):
     skill_proficiencies = SkillProficiencyAttendeeSerializer(many=True)
     profile_image = FileUploadSerializer()
-    team = TeamDetailSerializer()
+    team = TeamSerializer()
     hardware_devices = HardwareDeviceDetailSerializer(many=True)
     workshops = WorkshopAttendeeWorkshopDetailSerializer(many=True)
 

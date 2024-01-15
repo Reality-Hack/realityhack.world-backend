@@ -28,7 +28,7 @@ from rest_framework_simplejwt.views import (TokenObtainPairView,
 from infrastructure import views
 from infrastructure.models import (Application, Attendee, Hardware,
                                    HardwareDevice, LightHouse, Location,
-                                   MentorHelpRequest, Project, Skill,
+                                   MentorHelpRequest, Project, Skill, HardwareRequest,
                                    SkillProficiency, Table, Team, UploadedFile,
                                    Workshop, WorkshopAttendee)
 
@@ -61,6 +61,7 @@ router.register(r'projects', views.ProjectViewSet)
 router.register(r'groups', views.GroupViewSet)
 router.register(r'hardware', views.HardwareViewSet)
 router.register(r'hardwaredevices', views.HardwareDeviceViewSet)
+router.register(r'hardwarerequests', views.HardwareRequestsViewSet)
 router.register(r'hardwaredevicehistory', views.HardwareDeviceHistoryViewSet)
 router.register(r'applications', views.ApplicationViewSet)
 router.register(r'uploaded_files', views.UploadedFileViewSet)
@@ -77,6 +78,7 @@ admin.site.register(Project)
 admin.site.register(SkillProficiency)
 admin.site.register(Hardware)
 admin.site.register(HardwareDevice)
+admin.site.register(HardwareRequest)
 admin.site.register(Application)
 admin.site.register(UploadedFile)
 admin.site.register(Workshop)

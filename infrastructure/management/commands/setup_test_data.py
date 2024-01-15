@@ -20,6 +20,7 @@ NUMBER_OF_MENTOR_HELP_REQUESTS = 10
 TEAM_SIZE = 5
 NUMBER_OF_SKILL_PROFICIENCIES = 4
 NUMBER_OF_HARDWARE_TYPES = 100
+NUMBER_OF_HARDWARE_REQUESTS = 50
 NUMBER_OF_HARDWARE_DEVICES = 25
 SHIRT_SIZES = ["SHIRT_SIZE_S", "SHIRT_SIZE_M", "SHIRT_SIZE_L",
                "SHIRT_SIZE_XL", "SHIRT_SIZE_XXL"]
@@ -64,11 +65,14 @@ def add_all():  # noqa: C901
     skill_proficiencies = []
     applications = []
     uploaded_files = []
-    for _ in range(NUMBER_OF_ATTENDEES * 2):
+    for i in range(NUMBER_OF_ATTENDEES * 2):
         application_skill_proficiencies = []
         resume = factories.UploadedFileFactory()
         uploaded_files.append(resume)
-        application = factories.ApplicationFactory(resume=resume)
+        application = factories.ApplicationFactory(
+            resume=resume,
+            **(dict(status=Application.Status.ACCEPTED_IN_PERSON)
+               if i < NUMBER_OF_ATTENDEES else {}))
         number_of_skill_proficiencies = random.randint(
             1, NUMBER_OF_SKILL_PROFICIENCIES)
         for _ in range(number_of_skill_proficiencies):
@@ -82,8 +86,11 @@ def add_all():  # noqa: C901
         applications.append(application)
     uploaded_files.append(factories.UploadedFileFactory())
     attendees = []
-    for _ in range(len([application for application in applications if application.status == Application.Status.ACCEPTED_IN_PERSON])):
-        attendee = factories.AttendeeFactory()
+    for application in applications[:NUMBER_OF_ATTENDEES]:
+        if application.status != Application.Status.ACCEPTED_IN_PERSON:
+            continue
+        attendee = factories.AttendeeFactory(
+            application=application)
         attendee.username = f"{attendee.username}{uuid.uuid4()}"
         attendee.email = f"{uuid.uuid4()}{attendee.email}"
         number_of_attendee_groups = random.randint(1, NUMBER_OF_GROUPS)
@@ -124,16 +131,17 @@ def add_all():  # noqa: C901
         mentor_help_requests.append(mentor_help_request)
     hardware = []
     hardware_devices = []
+    hardware_requests = []
     for _ in range(NUMBER_OF_HARDWARE_TYPES):
         hardware_type = factories.HardwareFactory()
         hardware.append(hardware_type)
+    for _ in range(NUMBER_OF_HARDWARE_REQUESTS):
+        hardware_request = factories.HardwareRequestFactory()
+        hardware_requests.append(hardware_request)
     for _ in range(NUMBER_OF_HARDWARE_TYPES * NUMBER_OF_HARDWARE_DEVICES):
-        checked_out = bool(random.getrandbits(1))
-        if checked_out:
-            hardware_device = factories.HardwareDeviceFactory()
-        else:
-            hardware_device = factories.HardwareDeviceFactory(
-                checked_out_to=None)
+        # no checkout.
+        hardware_device = factories.HardwareDeviceFactory(
+            checked_out_to=None)
         hardware_devices.append(hardware_device)
     workshops = []
     workshop_attendees = []

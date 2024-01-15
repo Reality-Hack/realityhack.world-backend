@@ -89,6 +89,10 @@ class ApplicationFactory(DjangoModelFactory):
     outreach_groups = factory.fuzzy.FuzzyText(length=900)
 
 
+class ApplicationOwnFactory(ApplicationFactory):
+    resume = factory.SubFactory(UploadedFileFactory)
+
+
 class AttendeeFactory(DjangoModelFactory):
     class Meta:
         model = models.Attendee
@@ -99,7 +103,9 @@ class AttendeeFactory(DjangoModelFactory):
     bio = factory.fuzzy.FuzzyText(length=1000)
     email = factory.Faker("email")
     username = factory.Faker("user_name")
-    application = factory.Iterator(models.Application.objects.filter(status=models.Application.Status.ACCEPTED_IN_PERSON))
+    application = factory.Iterator(
+        models.Application.objects.filter(status=models.Application.Status.ACCEPTED_IN_PERSON),
+        cycle=False)
     authentication_id = None
     shirt_size = factory.Faker(
         'random_element', elements=[x[0] for x in models.ShirtSize.choices]
@@ -146,6 +152,10 @@ class AttendeeFactory(DjangoModelFactory):
     sponsor_company = None
 
 
+class AttendeeOwnApplicationFactory(AttendeeFactory):
+    application = factory.SubFactory(ApplicationOwnFactory, status=models.Application.Status.ACCEPTED_IN_PERSON)
+
+
 class GroupFactory(DjangoModelFactory):
     class Meta:
         model = Group
@@ -153,11 +163,20 @@ class GroupFactory(DjangoModelFactory):
     name = factory.Faker('job')
 
 
+# https://github.com/FactoryBoy/factory_boy/issues/305
+class UniqueFaker(factory.Faker):
+    def evaluate(self, instance, step, extra):
+        locale = extra.pop('locale')
+        subfaker = self._get_faker(locale)
+        unique_proxy = subfaker.unique
+        return unique_proxy.format(self.provider, **extra)
+
+
 class SkillFactory(DjangoModelFactory):
     class Meta:
         model = models.Skill
 
-    name = factory.Faker("company")
+    name = UniqueFaker("company")
 
 
 class TableFactory(DjangoModelFactory):
@@ -247,7 +266,16 @@ class HardwareDeviceFactory(DjangoModelFactory):
 
     hardware = factory.Iterator(models.Hardware.objects.all())
     serial = factory.fuzzy.FuzzyText(length=50)
-    checked_out_to = factory.Iterator(models.Attendee.objects.all())
+    checked_out_to = factory.Iterator(
+        models.HardwareRequest.objects.filter(hardware_device__isnull=True))
+
+
+class HardwareRequestFactory(DjangoModelFactory):
+    class Meta:
+        model = models.HardwareRequest
+
+    hardware = factory.Iterator(models.Hardware.objects.all())
+    requester = factory.Iterator(models.Attendee.objects.all())
 
 
 class WorkshopFactory(DjangoModelFactory):

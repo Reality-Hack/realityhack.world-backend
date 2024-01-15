@@ -2,6 +2,7 @@ from django.contrib.auth.models import Group
 from django.http import Http404
 from django.shortcuts import get_object_or_404, render
 from django_keycloak_auth.decorators import keycloak_roles
+from django.db import transaction
 from rest_framework import permissions, status, views, viewsets
 from rest_framework.decorators import api_view
 from rest_framework.mixins import RetrieveModelMixin, UpdateModelMixin
@@ -9,10 +10,9 @@ from rest_framework.response import Response
 
 from infrastructure.mixins import LoggingMixin
 from infrastructure.models import (Application, Attendee, Hardware,
-                                   HardwareDevice, LightHouse, Location,
-                                   MentorHelpRequest, Project, Skill,
-                                   SkillProficiency, Table, Team, UploadedFile,
-                                   Workshop, WorkshopAttendee)
+                                   HardwareDevice, HardwareRequest, HardwareRequestStatus, LightHouse, Location,
+                                   Project, Skill, SkillProficiency, Table, Team, MentorHelpRequest,
+                                   UploadedFile, Workshop, WorkshopAttendee)
 from infrastructure.serializers import (ApplicationSerializer,
                                         AttendeeDetailSerializer,
                                         AttendeePatchSerializer,
@@ -27,11 +27,13 @@ from infrastructure.serializers import (ApplicationSerializer,
                                         HardwareDeviceDetailSerializer,
                                         HardwareDeviceHistorySerializer,
                                         HardwareDeviceSerializer,
-                                        HardwareSerializer,
+                                        HardwareSerializer, HardwareRequestDetailSerializer,
+                                        HardwareRequestSerializer,
                                         LightHouseSerializer,
                                         LocationSerializer,
                                         MentorHelpRequestHistorySerializer,
                                         MentorHelpRequestSerializer,
+                                        HardwareRequestCreateSerializer,
                                         ProjectSerializer,
                                         SkillProficiencyCreateSerializer,
                                         SkillProficiencyDetailSerializer,
@@ -53,6 +55,24 @@ class KeycloakRoles(object):
     VOLUNTEER = "volunteer"
 
 
+def attendee_from_userinfo(request):
+    try:
+        return get_object_or_404(Attendee, authentication_id=request.userinfo.get("sub"))
+    except Application.DoesNotExist:
+        raise Http404(f"No attendee matches the authentication_id: \"{request.userinfo.get('sub')}\"")
+
+
+def prepare_attendee_for_detail(attendee):
+    attendee.skill_proficiencies = SkillProficiency.objects.filter(attendee=attendee)
+    try:
+        attendee.team = Team.objects.get(attendees__id=attendee.id)
+    except Team.DoesNotExist:
+        attendee.team = None
+    attendee.hardware_devices = HardwareDevice.objects.filter(checked_out_to=attendee.id)
+    attendee.workshops = WorkshopAttendee.objects.filter(attendee=attendee.id)
+    return attendee
+
+
 @keycloak_roles([KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.ATTENDEE])
 @api_view(['GET', 'PATCH'])
 def me(request):
@@ -60,27 +80,15 @@ def me(request):
     API endpoint for getting detailed information about an authenticated user.
     """
     if request.method == "GET":
-        try:
-            attendee = get_object_or_404(Attendee, authentication_id=request.userinfo.get("sub"))
-        except Application.DoesNotExist:
-            raise Http404(f"No attendee matches the authentication_id: \"{request.userinfo.get('sub')}\"")
+        attendee = attendee_from_userinfo(request)
         attendee.skill_proficiencies = SkillProficiency.objects.filter(
             attendee=attendee)
         serializer = AttendeeDetailSerializer(attendee)
-        attendee.skill_proficiencies = SkillProficiency.objects.filter(attendee=attendee)
-        try:
-            attendee.team = Team.objects.get(attendees__id=attendee.id)
-        except Team.DoesNotExist:
-            attendee.team = None
-        attendee.hardware_devices = HardwareDevice.objects.filter(checked_out_to=attendee.id)
-        attendee.workshops = WorkshopAttendee.objects.filter(attendee=attendee.id)
+        attendee = prepare_attendee_for_detail(attendee)
         serializer = AttendeeDetailSerializer(attendee)
         return Response(serializer.data)
     else:  # PATCH
-        try:
-            attendee = get_object_or_404(Attendee, authentication_id=request.userinfo.get("sub"))
-        except Application.DoesNotExist:
-            raise Http404(f"No attendee matches the authentication_id: \"{request.userinfo.get('sub')}\"")
+        attendee = attendee_from_userinfo(request)
         serializer = AttendeePatchSerializer(data=request.data, partial=True)
         if serializer.is_valid():
             for key in request.data.keys():
@@ -89,7 +97,7 @@ def me(request):
                         uploaded_file = UploadedFile.objects.get(id=request.data["profile_image"])
                         attendee.profile_image = uploaded_file
                     except UploadedFile.DoesNotExist:
-                        raise Http404(f"No uploaded file matches the id: \"{request.userinfo.get('sub')}\"")
+                        raise Http404(f"No uploaded file matches the id: \"{request.data['profile_image']}\"")
                 else:
                     setattr(attendee, key, request.data[key])
             attendee.skill_proficiencies = SkillProficiency.objects.filter(attendee=attendee)
@@ -115,18 +123,17 @@ class AttendeeViewSet(LoggingMixin, viewsets.ModelViewSet):
     serializer_class = AttendeeSerializer
     permission_classes = [permissions.AllowAny]
     filterset_fields = [
-        'first_name', 'last_name', 'username', 'email', 'checked_in_at'
+        'first_name', 'last_name', 'communications_platform_username', 'email', 'is_staff', 'groups', 'checked_in_at'
     ]
     keycloak_roles = {
         'GET': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.ATTENDEE],
         'DELETE': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
-        'PATCH': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        'PATCH': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN]
     }
 
     def retrieve(self, request, pk=None):
         attendee = get_object_or_404(Attendee, pk=pk)
-        attendee.skill_proficiencies = SkillProficiency.objects.filter(
-            attendee=attendee)
+        attendee = prepare_attendee_for_detail(attendee)
         serializer = AttendeeDetailSerializer(attendee)
         return Response(serializer.data)
 
@@ -437,6 +444,23 @@ class GroupViewSet(LoggingMixin, viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
 
 
+def hardware_count(hardware_type):
+    hardware_devices = HardwareDevice.objects.filter(
+        hardware=hardware_type)
+    hardware_requests = HardwareRequest.objects.filter(
+        hardware=hardware_type)
+    hardware_devices_total = hardware_devices.count()
+    requests_checked_out = hardware_requests.filter(status="C").count()
+    requests_approved = hardware_requests.filter(status="A").count()
+    # not necessarily true with one of the ways this could work
+    # assert requests_checked_out == hardware_devices.filter(checked_out_to__isnull=False).count()
+    hardware_devices_taken = requests_approved + requests_checked_out
+    hardware_devices_available = (
+        hardware_devices_total - hardware_devices_taken
+    )
+    return hardware_devices_available, requests_checked_out, hardware_devices_total
+
+
 class HardwareViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint that allows hardware to be viewed or edited.
@@ -447,15 +471,7 @@ class HardwareViewSet(LoggingMixin, viewsets.ModelViewSet):
 
     @classmethod
     def _iterate_hardware_count(cls, hardware_type):
-        hardware_devices = HardwareDevice.objects.filter(
-            hardware=hardware_type)
-        hardware_devices_available = hardware_devices.filter(
-            checked_out_to__isnull=True).count()
-        hardware_devices_checked_out = hardware_devices.filter(
-            checked_out_to__isnull=False).count()
-        hardware_devices_total = (
-            hardware_devices_available + hardware_devices_checked_out
-        )
+        hardware_devices_available, hardware_devices_checked_out, hardware_devices_total = hardware_count(hardware_type)
         hardware_type.available = hardware_devices_available
         hardware_type.checked_out = hardware_devices_checked_out
         hardware_type.total = hardware_devices_total
@@ -490,7 +506,129 @@ class HardwareDeviceViewSet(LoggingMixin, viewsets.ModelViewSet):
         if self.action == 'retrieve':
             return HardwareDeviceDetailSerializer
         return HardwareDeviceSerializer
+
+
+class HardwareRequestsViewSet(LoggingMixin, viewsets.ModelViewSet):
+    """
+    API endpoint that allows hardware devices to be viewed or edited.
+    """
+    queryset = HardwareRequest.objects.all()
+    permission_classes = [permissions.AllowAny]
+    filterset_fields = ["hardware", "requester", "team"]
     
+    keycloak_roles = {
+        "GET": [KeycloakRoles.ATTENDEE, KeycloakRoles.MENTOR, KeycloakRoles.JUDGE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER],
+        "POST": [KeycloakRoles.ATTENDEE, KeycloakRoles.MENTOR, KeycloakRoles.JUDGE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER],
+        "PATCH": [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        "DELETE": [KeycloakRoles.ATTENDEE, KeycloakRoles.MENTOR, KeycloakRoles.JUDGE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER]
+    }
+    
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return HardwareRequestCreateSerializer
+        if self.action == 'update':
+            return HardwareRequestSerializer
+        if self.action == 'partial_update':
+            return HardwareRequestSerializer
+        if self.action == 'retrieve':
+            return HardwareRequestDetailSerializer
+        return HardwareRequestDetailSerializer
+    
+    def create(self, request):
+        serializer = HardwareRequestCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        saved = serializer.save()
+        teams = Team.objects.filter(attendees=saved.requester)
+        if teams.count() > 0:
+            saved.team = teams.first()
+            saved.save()
+        return Response(status=201, data=serializer.data)
+
+    def update(self, request, pk=None, partial=None):
+        hardware_request = get_object_or_404(HardwareRequest, pk=pk)
+        if (len({KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN} & set(request.roles)) > 0
+            and set(request.data.keys()) <= {"status", "hardware_device"}):
+            status = request.data["status"]
+            if status not in ["P", "A", "R", "C"]:
+                return Response(status=400)
+            old_status = hardware_request.status
+            hardware_request.status = request.data["status"]
+            if status == "A":
+                if old_status in ["P", "R"]:
+                    hardware_devices_available, _, _ = hardware_count(hardware_request.hardware)
+                    if hardware_devices_available < 1:
+                        return Response(status=400,
+                                        data=f"No hardware devices of type {hardware_request.hardware.name} available.")
+                    hardware_request.save()
+                else:
+                    assert old_status == "C"
+                    hardware_device = hardware_request.hardware_device
+                    hardware_device.checked_out_to = None
+                    hardware_request.hardware_device = None
+                    with transaction.atomic():
+                        hardware_device.save()
+                        hardware_request.save()
+            elif status == "C":
+                hardware_device = get_object_or_404(HardwareDevice, id=request.data["hardware_device"])
+                if hardware_device.hardware != hardware_request.hardware:
+                    return Response(status=400,
+                                    data=f"Hardware device {hardware_device.id} is not of type {hardware_request.hardware.name}.")
+                hardware_device.checked_out_to = hardware_request
+                hardware_request.hardware_device = hardware_device
+                with transaction.atomic():
+                    hardware_device.save()
+                    hardware_request.save()
+            else:
+                hardware_request.save()
+        elif set(request.data.keys()) <= {"reason"}:
+            hardware_request.reason = request.data["reason"]
+            hardware_request.save()
+        else:
+            return Response(status=400)
+        
+        hardware_type = hardware_request.hardware
+        HardwareViewSet._iterate_hardware_count(hardware_type)
+        hardware_type.hardware_devices = HardwareDevice.objects.filter(
+            hardware=hardware_type)
+        return Response(status=200, data=HardwareRequestDetailSerializer(hardware_request).data)
+    
+    def delete(self, request, pk=None):
+        hardware_request = get_object_or_404(HardwareRequest, pk=pk)
+        attendee = attendee_from_userinfo(request)
+        if hardware_request.requester != attendee:
+            return Response(status=400)
+        if hardware_request.status == HardwareRequestStatus.REJECTED:
+            return Response(status=400)
+        return super().delete(request, pk=pk)
+    
+    def retrieve(self, request, pk=None):
+        hardware_request = get_object_or_404(HardwareRequest, pk=pk)
+        hardware_type = get_object_or_404(Hardware, pk=hardware_request.hardware)
+        HardwareViewSet._iterate_hardware_count(hardware_type)
+        hardware_type.hardware_devices = HardwareDevice.objects.filter(
+            hardware=hardware_type)
+        hardware_request.hardware = hardware_type
+        serializer = HardwareRequestDetailSerializer(hardware_request)
+        return Response(serializer.data)
+
+    def list(self, request):
+        requester = request.GET.get("requester", None)
+        if requester is None:
+            if len({KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN} & set(request.roles)) > 0:
+                queryset = HardwareRequest.objects.all()
+            else:
+                Response(status=400, data="Must be an organizer or admin to view all hardware requests")
+        elif requester == "me":
+            attendee = attendee_from_userinfo(request)
+            queryset = HardwareRequest.objects.filter(requester=attendee)
+        else:
+            queryset = HardwareRequest.objects.filter(requester=requester)
+        hardware_requests = list(queryset)
+        for hardware_request in hardware_requests:
+            HardwareViewSet._iterate_hardware_count(hardware_request.hardware)
+        serializer = HardwareRequestDetailSerializer(hardware_requests, many=True)
+        return Response(serializer.data)
+
 
 class HardwareDeviceHistoryViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
@@ -516,6 +654,9 @@ class ApplicationViewSet(LoggingMixin, viewsets.ModelViewSet):
         'PUT': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
         'PATCH': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
     }
+    
+    def create(self, request, *args, **kwargs):
+        return super().create(request, *args, **kwargs)
 
 
 class UploadedFileViewSet(LoggingMixin, viewsets.ModelViewSet):

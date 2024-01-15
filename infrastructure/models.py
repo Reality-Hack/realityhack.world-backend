@@ -737,6 +737,11 @@ class LightHouse(models.Model):
         return f"Table: {self.table}, IP: {self.ip_address}"
 
 
+class HardwareTags(models.TextChoices):
+    VR = 'VR', _('VR Hardware')
+    AR = 'AR', _('AR Hardware')
+
+
 class MentorHelpRequest(models.Model):
 
     @classmethod
@@ -768,6 +773,8 @@ class Hardware(models.Model):
     image = models.URLField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    tags = MultiSelectField(
+        choices=HardwareTags.choices, max_length=2, null=True)
 
     def __str__(self) -> str:  # pragma: no cover
         return f"Name: {self.name}"
@@ -777,8 +784,8 @@ class HardwareDevice(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     hardware = models.ForeignKey(Hardware, on_delete=models.CASCADE)
     serial = models.CharField(max_length=100)
-    checked_out_to = models.ForeignKey(
-        Attendee, on_delete=models.CASCADE, null=True, default=None)
+    checked_out_to = models.OneToOneField(
+        'HardwareRequest', on_delete=models.CASCADE, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     history = HistoricalRecords()
@@ -786,6 +793,31 @@ class HardwareDevice(models.Model):
     def __str__(self) -> str:  # pragma: no cover
         return f"Hardware: {self.hardware}, Serial: {self.serial}"
 
+
+class HardwareRequestStatus(models.TextChoices):
+    PENDING = 'P', _('Pending')
+    APPROVED = 'A', _('Approved')
+    REJECTED = 'R', _('Rejected')
+    CHECKED_OUT = 'C', _('Checked out')
+
+
+class HardwareRequest(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    hardware = models.ForeignKey(Hardware, on_delete=models.CASCADE)
+    hardware_device = models.OneToOneField(HardwareDevice, on_delete=models.CASCADE, null=True, blank=True)
+    requester = models.ForeignKey(Attendee, on_delete=models.CASCADE, null=True)
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, null=True)
+    reason = models.TextField(max_length=1000, blank=True)
+    status = models.CharField(
+        max_length=1,
+        choices=HardwareRequestStatus.choices,
+        default=HardwareRequestStatus.PENDING
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self) -> str:  # pragma: no cover
+        return f"Hardware: {self.hardware}, Requester: {self.requester} (Team: {self.team})"
 
 class Workshop(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
