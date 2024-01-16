@@ -492,6 +492,13 @@ class HardwareViewSet(LoggingMixin, viewsets.ModelViewSet):
     queryset = Hardware.objects.all()
     serializer_class = HardwareSerializer
     permission_classes = [permissions.AllowAny]
+    filterset_fields = ['relates_to_destiny_hardware', 'tags']
+    keycloak_roles = {
+        'GET': [KeycloakRoles.ATTENDEE],
+        'POST': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER],
+        'DELETE': [KeycloakRoles.ADMIN],
+        'PATCH': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER]
+    }
 
     @classmethod
     def _iterate_hardware_count(cls, hardware_type):
@@ -524,7 +531,14 @@ class HardwareDeviceViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
     queryset = HardwareDevice.objects.all()
     permission_classes = [permissions.AllowAny]
-    filterset_fields = ['hardware', 'checked_out_to', 'serial']
+    filterset_fields = ['hardware', 'checked_out_to', 'serial',
+                        'hardware__relates_to_destiny_hardware']
+    keycloak_roles = {
+        'GET': [KeycloakRoles.ATTENDEE],
+        'POST': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER],
+        'DELETE': [KeycloakRoles.ADMIN],
+        'PATCH': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER]
+    }
 
     def get_serializer_class(self):
         if self.action == 'retrieve':

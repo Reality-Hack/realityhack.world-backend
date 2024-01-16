@@ -382,6 +382,23 @@ class Application(models.Model):
         return f"Participation Class: {self.participation_class}, Name: {self.first_name} {self.last_name}"
 
 
+class Track(models.TextChoices):
+    FUTURE_CONSTRUCTORS = 'F', _('Future Constructors')
+    LEARNING = 'L', _('Learning')
+    WORK = 'W', _('Work')
+    HEALTH = 'H', _('Health and Well-Being')
+    SMART_CITIES = 'S', _('Smart Cities and Sustainability')
+    COMMUNITY_HACKS = 'C', ('Community Hacks')
+
+
+class DestinyHardware(models.TextChoices):
+    HARDWARE_HACK = 'H', _('Hardware Hack')
+    META = 'M', _('Meta')
+    SNAPDRAGON_SPACES = 'Q', _('Snapdragon Spaces')
+    XREAL = 'X', _('XREAL')
+    SNAP = 'S', _('Snap Spectacles')
+
+
 class Attendee(AbstractUser):
 
     class ParticipationClass(models.TextChoices):
@@ -442,6 +459,10 @@ class Attendee(AbstractUser):
     )
     communications_platform_username = models.CharField(
         max_length=40, null=True, help_text="I.e., a Discord username")
+    intended_tracks = MultiSelectField(max_choices=2, max_length=7, null=True, choices=Track.choices)
+    intended_hardware_hack = models.BooleanField(default=False, null=False)
+    hardware_hack = models.BooleanField(default=False, null=False)
+    prefers_destiny_hardware = MultiSelectField(max_choices=len(DestinyHardware.choices), max_length=len(DestinyHardware.choices) * 2 + 1, null=True)
     dietary_restrictions = MultiSelectField(
         max_length=15, max_choices=7, null=True, choices=DietaryRestrictions.choices
     )
@@ -660,6 +681,7 @@ class Team(models.Model):
     name = models.CharField(max_length=50)
     attendees = models.ManyToManyField(Attendee, related_name="team_attendees", blank=True)
     table = models.OneToOneField(Table, on_delete=models.SET_NULL, null=True)
+    track = models.CharField(choices=Track.choices, max_length=1, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -810,6 +832,7 @@ class Hardware(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     tags = MultiSelectField(
         choices=HardwareTags.choices, max_length=2, null=True)
+    relates_to_destiny_hardware = models.CharField(choices=DestinyHardware.choices, max_length=1, null=True)
 
     def __str__(self) -> str:  # pragma: no cover
         return f"Name: {self.name}"

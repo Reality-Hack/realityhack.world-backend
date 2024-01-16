@@ -5,11 +5,12 @@ from rest_framework import fields, serializers
 from infrastructure import models
 from infrastructure.models import (INDUSTRIES, MENTOR_HELP_REQUEST_TOPICS,
                                    SPOKEN_LANGUAGES, Application, Attendee,
-                                   Hardware, HardwareDevice, HardwareRequest,
-                                   LightHouse, Location, MentorHelpRequest,
+                                   DestinyHardware, Hardware, HardwareDevice,
+                                   HardwareRequest, HardwareTags, LightHouse,
+                                   Location, MentorHelpRequest,
                                    ParticipationRole, Project, Skill,
-                                   SkillProficiency, Table, Team, UploadedFile,
-                                   Workshop, WorkshopAttendee)
+                                   SkillProficiency, Table, Team, Track,
+                                   UploadedFile, Workshop, WorkshopAttendee)
 
 
 class GroupSerializer(serializers.ModelSerializer):
@@ -50,12 +51,14 @@ class ApplicationSerializer(serializers.ModelSerializer):
 
 
 class AttendeeSerializer(serializers.ModelSerializer):
+    intended_tracks = fields.MultipleChoiceField(choices=Track.choices)
+    prefers_destiny_hardware = fields.MultipleChoiceField(choices=DestinyHardware.choices)
 
     class Meta:
         model = Attendee
         fields = ['id', 'first_name', 'last_name', 'participation_role', 'checked_in_at',
-                  'profile_image', 'initial_setup', 'guardian_of', 'sponsor_handler',
-                  'communications_platform_username', 'email',
+                  'profile_image', 'initial_setup', 'guardian_of', 'sponsor_handler', 'prefers_destiny_hardware',
+                  'communications_platform_username', 'email', 'intended_tracks', 'intended_hardware_hack',
                   'sponsor_company',  'participation_class', 'initial_setup', 'profile_image',
                   'created_at', 'updated_at']
 
@@ -329,9 +332,12 @@ class HardwareCountDetailSerializer(serializers.ModelSerializer):
 
 
 class HardwareSerializer(serializers.ModelSerializer):
+    tags = fields.MultipleChoiceField(choices=HardwareTags)
+
     class Meta:
         model = Hardware
-        fields = ['id', 'name', 'description', 'image',
+        fields = ['id', 'name', 'description', 'image', 'tags',
+                  'relates_to_destiny_hardware',
                   'created_at', 'updated_at']
 
 
@@ -421,26 +427,30 @@ class AttendeeDetailSerializer(serializers.ModelSerializer):
     team = TeamSerializer()
     hardware_devices = HardwareDeviceDetailSerializer(many=True)
     workshops = WorkshopAttendeeWorkshopDetailSerializer(many=True)
+    intended_tracks = fields.MultipleChoiceField(choices=Track.choices)
+    prefers_destiny_hardware = fields.MultipleChoiceField(choices=DestinyHardware.choices)
 
     class Meta:
         model = Attendee
         fields = ['id', 'first_name', 'last_name', 'skill_proficiencies',
                   'profile_image', 'bio', 'checked_in_at', 'team', 'hardware_devices',
                   'communications_platform_username', 'email', 'workshops',
-                  'sponsor_company',  'participation_class', 'initial_setup',
-                  'guardian_of', 'sponsor_handler',
+                  'sponsor_company',  'participation_class', 'initial_setup', 'prefers_destiny_hardware',
+                  'guardian_of', 'sponsor_handler', 'intended_tracks', 'intended_hardware_hack',
                   'created_at', 'updated_at']
 
 
 class AttendeePatchSerializer(serializers.ModelSerializer):
     skill_proficiencies = SkillProficiencyAttendeeSerializer(many=True)
     workshops = WorkshopAttendeeWorkshopDetailSerializer(many=True)
+    intended_tracks = fields.MultipleChoiceField(choices=Track.choices)
+    prefers_destiny_hardware = fields.MultipleChoiceField(choices=DestinyHardware.choices)
 
     class Meta:
         model = Attendee
         fields = ['id', 'first_name', 'last_name', 'skill_proficiencies',
-                  'profile_image', 'bio', 'checked_in_at', 'workshops',
-                  'communications_platform_username', 'email',
+                  'profile_image', 'bio', 'checked_in_at', 'workshops', 'prefers_destiny_hardware',
+                  'communications_platform_username', 'email', 'prefers_destiny_hardware',
                   'sponsor_company',  'participation_class', 'initial_setup',
-                  'guardian_of', 'sponsor_handler',
+                  'guardian_of', 'sponsor_handler', 'intended_tracks', 'intended_hardware_hack',
                   'created_at', 'updated_at']
