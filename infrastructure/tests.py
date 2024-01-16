@@ -6,15 +6,15 @@ from datetime import datetime
 
 from django.conf import settings
 from django.contrib.auth.models import Group
-from django.test.client import BOUNDARY, MULTIPART_CONTENT, encode_multipart
-from rest_framework.test import APIClient, APITestCase
-from django.test import override_settings
-from rest_framework.exceptions import PermissionDenied
 from django.http.response import JsonResponse
+from django.test import override_settings
+from django.test.client import BOUNDARY, MULTIPART_CONTENT, encode_multipart
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.test import APIClient, APITestCase
 
 from infrastructure import factories, models, serializers
-from infrastructure.views import KeycloakRoles
 from infrastructure.management.commands import setup_test_data
+from infrastructure.views import KeycloakRoles
 
 
 class OmnipotenceMiddleware(object):

@@ -737,9 +737,35 @@ class LightHouse(models.Model):
         return f"Table: {self.table}, IP: {self.ip_address}"
 
 
-class HardwareTags(models.TextChoices):
-    VR = 'VR', _('VR Hardware')
-    AR = 'AR', _('AR Hardware')
+class MentorHelpRequestCategory(models.TextChoices):
+    DEVELOPMENT = 'D', _('Development')
+    DESIGN = 'A', _('Design')
+    PROTOTYPING = 'P', ('Prototyping')
+    PROJECT_MANAGEMENT = 'M', ('Project Management and Leadership')
+    SPECIALTY = 'S', ('Specialty')
+
+
+MENTOR_HELP_REQUEST_TOPICS = [
+    ('1', 'Development and Programming'), ('2', 'Unity Timeline Animations'), ('3', 'Embedded Systems (C)'), ('4', 'Embedded Systems (Python)'),
+    ('5', 'C++ Android JavaScript'), ('6', 'Backend Development'), ('7', 'Unreal App Development'), ('8', 'Unreal Blueprints'),
+    ('9', 'Unity AR Foundation'), ('10', 'WebXR'), ('11', 'Lens Studio'), ('12', 'Meta Spark'), ('13', 'Virtual Reality'), ('14', 'Augmented Reality'),
+    ('15', 'Mixed Reality'), ('16', 'Mixed Reality Toolkit'), ('17', 'Meta XR SDK'), ('18', 'C#'), ('19', 'Regression Testing'),
+    ('20', 'OOP Design Patterns'), ('21', 'Distributed Computing'), ('22', 'Cybersecurity'), ('23', 'Swift SwiftUI ARKit'), ('24', 'Software Builds'),
+    ('25', 'Containers'), ('26', 'Deployment Automation'), ('27', 'Site-reliability engineering (SRE) Work'), ('28', 'Python Shell Scripting'),
+    ('29', 'Search Implementation'), ('30', 'Generative AI'), ('31', 'IoT'), ('32', '3D Rendering'), ('33', 'Video Encoding'),
+    ('34', 'Linux OS Configuration'), ('35', 'Cross-platform Work'), ('36', 'Web Frontend/Backend'), ('37', 'Project Scope'), ('38', 'Technical Approach'),
+    ('39', 'App-driven Architecture'), ('40', 'Problem-solving'), ('41', 'Design and Prototyping'), ('42', 'ShapesXR'),
+    ('43', 'Figma'), ('44', 'Miro'), ('45', 'Adobe Creative Suite'), ('46', 'Mocap'), ('47', '3D Stereoscopic Recording'),
+    ('48', 'Mobile AR'), ('49', '3D Modeling'), ('50', 'Animation'), ('51', 'Motion Capture'), ('52', 'XR Design Execution'),
+    ('53', 'Interactive Learning Programs'), ('54', 'Computer Vision'), ('55', 'Graphics Shaders'), ('56', 'Git'), ('57', 'XR/AR VR Expert'),
+    ('58', 'Storytelling'), ('59', 'Visual Design'), ('60', 'Prototyping'), ('61', 'Analog Painting'), ('62', 'Drawing'), ('63', 'Sculpture'),
+    ('64', 'Project Management and Leadership'), ('65', 'Producer'), ('66', 'Peace-maker Conflict Resolution'), ('67', 'Storyteller'),
+    ('68', 'Project Management'), ('69', 'Agile Scrum'), ('70', 'Conflict Resolution'), ('71', 'Communication'), ('72', 'Digital Experience Production'),
+    ('73', 'User Flow Design'), ('74', 'Hardware Development (Arduino)'), ('75', 'Hardware Development (Esp32)'),
+    ('76', 'Hardware Development (Raspberry Pi)'), ('77', 'Innovation and Specialized Expertise'), ('78', 'Biometrics in VR'),
+    ('79', 'Brain-Computer Interface (BCI)'), ('80', 'Game Design'), ('81', 'Lens Studio Projects'), ('82', 'Snap Lens'),
+    ('83', '8thWall Expertise'), ('84', 'Web Development'), ('85', 'Blockchain'), ('86', 'Networking'), ('87', '.NET'), ('O', 'Other')
+]
 
 
 class MentorHelpRequest(models.Model):
@@ -754,6 +780,10 @@ class MentorHelpRequest(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=250, null=True)
     description = models.TextField(max_length=2000, null=True)
+    category = models.CharField(choices=MentorHelpRequestCategory.choices, null=True, max_length=1)
+    category_specialty = models.CharField(max_length=100, null=True)
+    topic = MultiSelectField(choices=MENTOR_HELP_REQUEST_TOPICS, max_choices=85, max_length=len(MENTOR_HELP_REQUEST_TOPICS) * 3)
+    topic_other = models.CharField(max_length=50, null=True)
     reporter = models.ForeignKey(Attendee, on_delete=models.SET_NULL, null=True, related_name="mentor_help_request_reporter")
     mentor = models.ForeignKey(Attendee, on_delete=models.SET_NULL, null=True, related_name="mentor_help_request_mentor")
     team = models.ForeignKey(Team, on_delete=models.CASCADE)
@@ -764,6 +794,11 @@ class MentorHelpRequest(models.Model):
 
     def __str__(self):
         return f"Reporter: {self.reporter}, Mentor: {self.mentor}, Title: {self.title}"
+
+
+class HardwareTags(models.TextChoices):
+    VR = 'VR', _('VR Hardware')
+    AR = 'AR', _('AR Hardware')
 
 
 class Hardware(models.Model):

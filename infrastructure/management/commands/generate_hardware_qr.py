@@ -1,17 +1,17 @@
 # based on https://github.com/Reality-Hack/realityhack.world/blob/4e87c3a49941cb971b3b42113de30ffb50f5bcfb/src/python/hardware_qr.py
 
-from pathlib import Path
 import base64
 import os
+from pathlib import Path
 
-
-from django.core.management.base import BaseCommand
 from django.conf import settings
+from django.core.management.base import BaseCommand
 from django.db import transaction
 from PIL import Image
 
+from infrastructure.models import Hardware, HardwareDevice
+
 from ...qr_generator import QRGenerator
-from infrastructure.models import HardwareDevice, Hardware
 
 
 class Command(BaseCommand):  # pragma: no cover

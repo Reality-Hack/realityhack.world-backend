@@ -1,18 +1,19 @@
 from django.contrib.auth.models import Group
+from django.db import transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404, render
 from django_keycloak_auth.decorators import keycloak_roles
-from django.db import transaction
-from rest_framework import permissions, status, views, viewsets
+from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import api_view
-from rest_framework.mixins import RetrieveModelMixin, UpdateModelMixin
 from rest_framework.response import Response
 
 from infrastructure.mixins import LoggingMixin
 from infrastructure.models import (Application, Attendee, Hardware,
-                                   HardwareDevice, HardwareRequest, HardwareRequestStatus, LightHouse, Location,
-                                   Project, Skill, SkillProficiency, Table, Team, MentorHelpRequest,
-                                   UploadedFile, Workshop, WorkshopAttendee)
+                                   HardwareDevice, HardwareRequest,
+                                   HardwareRequestStatus, LightHouse, Location,
+                                   MentorHelpRequest, Project, Skill,
+                                   SkillProficiency, Table, Team, UploadedFile,
+                                   Workshop, WorkshopAttendee)
 from infrastructure.serializers import (ApplicationSerializer,
                                         AttendeeDetailSerializer,
                                         AttendeePatchSerializer,
@@ -27,13 +28,14 @@ from infrastructure.serializers import (ApplicationSerializer,
                                         HardwareDeviceDetailSerializer,
                                         HardwareDeviceHistorySerializer,
                                         HardwareDeviceSerializer,
-                                        HardwareSerializer, HardwareRequestDetailSerializer,
+                                        HardwareRequestCreateSerializer,
+                                        HardwareRequestDetailSerializer,
                                         HardwareRequestSerializer,
+                                        HardwareSerializer,
                                         LightHouseSerializer,
                                         LocationSerializer,
                                         MentorHelpRequestHistorySerializer,
                                         MentorHelpRequestSerializer,
-                                        HardwareRequestCreateSerializer,
                                         ProjectSerializer,
                                         SkillProficiencyCreateSerializer,
                                         SkillProficiencyDetailSerializer,
@@ -108,7 +110,7 @@ def me(request):
             attendee.hardware_devices = HardwareDevice.objects.filter(checked_out_to=attendee.id)
             attendee.workshops = WorkshopAttendee.objects.filter(attendee=attendee.id)
             attendee.save()
-            serializer = AttendeeDetailSerializer(attendee)
+            serializer = AttendeePatchSerializer(attendee)
             return Response(serializer.data, status=200)
         else:
             return Response(serializer.errors,
@@ -161,6 +163,21 @@ class AttendeeRSVPViewSet(LoggingMixin, viewsets.ModelViewSet):
     
     def create(self, request):
         application = None
+        sponsor_handler = None
+        guardian_of = []
+        try:
+            if "sponsor_handler" in request.data:
+                sponsor_handler = get_object_or_404(Attendee, pk=request.data["sponsor_handler"])
+                del request.data["sponsor_handler"]
+        except Attendee.DoesNotExist:
+            pass
+        try:
+            if "guardian_of" in request.data:
+                guardian_of_attendees = list(Attendee.objects.filter(id__in=request.data["guardian_of"]))
+                guardian_of = guardian_of_attendees
+                del request.data["guardian_of"]
+        except Attendee.DoesNotExist:
+            pass
         if "application" in request.data:
             try:
                 application = Application.objects.get(pk=request.data.get("application"))
@@ -178,14 +195,23 @@ class AttendeeRSVPViewSet(LoggingMixin, viewsets.ModelViewSet):
         else:  # Volunteer or Organizer, or null
             if request.data.get("email") is not None:
                 request.data["email"] = request.data.get("email").lower()
-        serializer = AttendeeRSVPSerializer(data=request.data)
+        serializer = AttendeeRSVPSerializer(data=request.data, partial=True)
         if serializer.is_valid():
             serializer_data = serializer.data
-            del serializer_data["application"]
-            attendee = Attendee(application=application, **serializer_data)
+            attendee = None
+            if serializer_data.get("application"):
+                del serializer_data["application"]
+                attendee = Attendee(application=application, **serializer_data)
+                attendee.participation_role = application.participation_role
+            else:
+                attendee = Attendee(**serializer_data)
             attendee.username = attendee.email
-            attendee.participation_role = application.participation_role
+            if request.data.get("authentication_id"):
+                attendee.authentication_id = request.data["authentication_id"]
+            attendee.sponsor_handler = sponsor_handler
             attendee.save()
+            if guardian_of:
+                attendee.guardian_of.set([guardian_of_attendee.id for guardian_of_attendee in guardian_of])
             serializer = AttendeeRSVPSerializer(attendee)
             return Response(serializer.data, status=201)
         else:
@@ -342,14 +368,13 @@ class MentorHelpRequestViewSet(LoggingMixin, viewsets.ModelViewSet):
     queryset = MentorHelpRequest.objects.all()
     permission_classes = [permissions.AllowAny]
     filterset_fields = [
-        'reporter', 'mentor', 'team', 'status'
+        'reporter', 'mentor', 'team', 'status', 'team__table__number'
     ]
     serializer_class = MentorHelpRequestSerializer
     keycloak_roles = {
         'GET': [KeycloakRoles.ATTENDEE],
         'POST': [KeycloakRoles.ATTENDEE],
         'DELETE': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
-        'PUT': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
         'PATCH': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN]
     }
 
@@ -368,7 +393,6 @@ class MentorHelpRequestViewSetHistoryViewSet(LoggingMixin, viewsets.ModelViewSet
         'GET': [KeycloakRoles.ATTENDEE],
         'POST': [KeycloakRoles.ADMIN],
         'DELETE': [KeycloakRoles.ADMIN],
-        'PUT': [KeycloakRoles.ADMIN],
         'PATCH': [KeycloakRoles.ADMIN]
     }
 

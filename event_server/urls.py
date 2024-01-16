@@ -27,8 +27,8 @@ from rest_framework_simplejwt.views import (TokenObtainPairView,
 
 from infrastructure import views
 from infrastructure.models import (Application, Attendee, Hardware,
-                                   HardwareDevice, LightHouse, Location,
-                                   MentorHelpRequest, Project, Skill, HardwareRequest,
+                                   HardwareDevice, HardwareRequest, LightHouse,
+                                   Location, MentorHelpRequest, Project, Skill,
                                    SkillProficiency, Table, Team, UploadedFile,
                                    Workshop, WorkshopAttendee)
 

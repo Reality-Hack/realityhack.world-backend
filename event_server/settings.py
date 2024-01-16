@@ -218,6 +218,27 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 PHONENUMBER_DEFAULT_REGION = 'US'
 
+SPECTACULAR_SETTINGS = {
+    'REDOC_DIST': 'SIDECAR',
+    'SWAGGER_UI_DIST': 'SIDECAR',
+    'SWAGGER_UI_FAVICON_HREF': 'SIDECAR',
+}
+CSP_DEFAULT_SRC = ("'self'", "'unsafe-inline'")
+CSP_IMG_SRC = ("'self'", "data:")
+
+# Option: CDN
+CSP_DEFAULT_SRC = ("'self'", "'unsafe-inline'", "cdn.jsdelivr.net")
+CSP_IMG_SRC = ("'self'", "data:", "cdn.jsdelivr.net")
+
+# Option: CDN
+CSP_DEFAULT_SRC = ("'self'", "cdn.jsdelivr.net")
+
+# required for both CDN and SIDECAR
+CSP_WORKER_SRC = ("'self'", "blob:")
+CSP_IMG_SRC = ("'self'", "data:", "cdn.redoc.ly")
+CSP_STYLE_SRC = ("'self'", "'unsafe-inline'", "fonts.googleapis.com")
+CSP_FONT_SRC = ("'self'", "fonts.gstatic.com")
+
 # Do not send emails during testing
 if "test" not in sys.argv and "setup_test_data" not in sys.argv:
     EMAIL_HOST = os.environ["EMAIL_HOST"]

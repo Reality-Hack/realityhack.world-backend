@@ -1,8 +1,9 @@
 # has to be in a separate file so it can be pickled without pulling in django
-from PIL import Image, ImageDraw, ImageFont, ImageOps
-from more_itertools import chunked
 from multiprocessing import Pool
+
 import qrcode
+from more_itertools import chunked
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 
 class QRGenerator(object):

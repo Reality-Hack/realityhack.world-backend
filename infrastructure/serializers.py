@@ -3,8 +3,9 @@ from django.contrib.auth.models import Group
 from rest_framework import fields, serializers
 
 from infrastructure import models
-from infrastructure.models import (INDUSTRIES, SPOKEN_LANGUAGES, Application,
-                                   Attendee, Hardware, HardwareDevice, HardwareRequest,
+from infrastructure.models import (INDUSTRIES, MENTOR_HELP_REQUEST_TOPICS,
+                                   SPOKEN_LANGUAGES, Application, Attendee,
+                                   Hardware, HardwareDevice, HardwareRequest,
                                    LightHouse, Location, MentorHelpRequest,
                                    ParticipationRole, Project, Skill,
                                    SkillProficiency, Table, Team, UploadedFile,
@@ -74,7 +75,7 @@ class AttendeeRSVPCreateSerializer(serializers.ModelSerializer):
         model = Attendee
         fields = [
             "id", "first_name", "last_name",
-            'profile_image',
+            'profile_image', "authentication_id",
             "application", "bio", "email", "shirt_size", "communications_platform_username",
             "dietary_restrictions", "dietary_restrictions_other",
             "dietary_allergies", "dietary_allergies_other",
@@ -210,20 +211,22 @@ class LightHouseSerializer(serializers.ModelSerializer):
 
 
 class MentorHelpRequestSerializer(serializers.ModelSerializer):
+    topic = fields.MultipleChoiceField(choices=MENTOR_HELP_REQUEST_TOPICS)
 
     class Meta:
         model = MentorHelpRequest
-        fields = ['id', 'title', 'description', 'team',
-                  'reporter', 'mentor', 'status',
+        fields = ['id', 'title', 'description', 'team', 'category', 'topic',
+                  'reporter', 'mentor', 'status', 'category_specialty', 'topic_other',
                   'created_at', 'updated_at']
 
 
 class MentorHelpRequestHistorySerializer(serializers.ModelSerializer):
+    topic = fields.MultipleChoiceField(choices=MENTOR_HELP_REQUEST_TOPICS)
 
     class Meta:
         model = MentorHelpRequest.history.model
-        fields = ['history_id', 'id', 'title', 'description', 'team',
-                  'reporter', 'mentor', 'status',
+        fields = ['history_id', 'id', 'title', 'description', 'team', 'category', 'topic',
+                  'reporter', 'mentor', 'status', 'category_specialty', 'topic_other',
                   'created_at', 'updated_at']
 
 
