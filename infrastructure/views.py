@@ -59,8 +59,8 @@ class KeycloakRoles(object):
 
 def attendee_from_userinfo(request):
     try:
-        return get_object_or_404(Attendee, authentication_id=request.userinfo.get("sub"))
-    except Application.DoesNotExist:
+        return Attendee.objects.get(authentication_id=request.userinfo.get("sub"))
+    except Attendee.DoesNotExist:
         raise Http404(f"No attendee matches the authentication_id: \"{request.userinfo.get('sub')}\"")
 
 
