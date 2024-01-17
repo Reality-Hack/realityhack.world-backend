@@ -213,6 +213,16 @@ class LightHouseSerializer(serializers.ModelSerializer):
                   'announcement_pending']
 
 
+def serialize_lighthouse(lighthouse):
+    return LightHouseSerializer({
+            "id": lighthouse.id,
+            "table": lighthouse.table.number,
+            "ip_address": lighthouse.ip_address,
+            "mentor_requested": lighthouse.mentor_requested,
+            "announcement_pending": lighthouse.announcement_pending
+        })
+
+
 class MentorHelpRequestSerializer(serializers.ModelSerializer):
     topic = fields.MultipleChoiceField(choices=MENTOR_HELP_REQUEST_TOPICS)
 
@@ -303,19 +313,20 @@ class HardwareCountSerializer(serializers.ModelSerializer):
     available = serializers.IntegerField()
     checked_out = serializers.IntegerField()
     total = serializers.IntegerField()
+    image = FileUploadSerializer()
 
     class Meta:
         model = Hardware
         fields = ['id', 'name', 'description', 'image',
                   'available', 'checked_out', 'total',
-                  'created_at', 'updated_at']
+                  'created_at', 'updated_at', 'tags']
 
 
 class HardwareDeviceHardwareCountDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = HardwareDevice
         fields = ['id', 'serial', 'checked_out_to',
-                  'created_at', 'updated_at']
+                  'created_at', 'updated_at', 'tags']
 
 
 class HardwareCountDetailSerializer(serializers.ModelSerializer):
@@ -323,17 +334,19 @@ class HardwareCountDetailSerializer(serializers.ModelSerializer):
     checked_out = serializers.IntegerField()
     total = serializers.IntegerField()
     hardware_devices = HardwareDeviceHardwareCountDetailSerializer(many=True)
+    image = FileUploadSerializer()
 
     class Meta:
         model = Hardware
         fields = ['id', 'name', 'description', 'image',
                   'available', 'checked_out', 'total',
-                  'created_at', 'updated_at', 'hardware_devices']
+                  'created_at', 'updated_at', 'hardware_devices', 'tags']
 
 
 class HardwareSerializer(serializers.ModelSerializer):
+    image = FileUploadSerializer()
     tags = fields.MultipleChoiceField(choices=HardwareTags)
-
+    
     class Meta:
         model = Hardware
         fields = ['id', 'name', 'description', 'image', 'tags',
@@ -344,7 +357,7 @@ class HardwareSerializer(serializers.ModelSerializer):
 class HardwareDeviceHardwareSerializer(serializers.ModelSerializer):
     class Meta:
         model = Hardware
-        fields = ['id', 'name']
+        fields = ['id', 'name', 'tags']
 
 
 class HardwareDeviceSerializer(serializers.ModelSerializer):

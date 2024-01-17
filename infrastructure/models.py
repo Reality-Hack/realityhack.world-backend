@@ -819,15 +819,27 @@ class MentorHelpRequest(models.Model):
 
 
 class HardwareTags(models.TextChoices):
-    VR = 'VR', _('VR Hardware')
-    AR = 'AR', _('AR Hardware')
+    AC = 'AC', _('Accessory')
+    SE = 'SE', _('Sensor')
+    VR = 'VR', _('Virtual Reality')
+    AR = 'AR', _('Augmented Reality')
+    MR = 'MR', _('Mixed Reality')
+    CO = 'CO', _('Computer')
+    HA = 'HA', _('Haptics')
+    CA = 'CA', _('Camera')
+    TA = 'TA', _('Tablet')
+    HD = 'HD', _('Holographic Display')
 
 
 class Hardware(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=50)
     description = models.TextField(max_length=1000, blank=True)
-    image = models.URLField()
+    image = models.OneToOneField(
+        UploadedFile, on_delete=models.SET_NULL,
+        related_name="hardware_image_uploaded_file",
+        null=True
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     tags = MultiSelectField(

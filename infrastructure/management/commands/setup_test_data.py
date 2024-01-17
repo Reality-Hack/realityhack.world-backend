@@ -15,9 +15,9 @@ from infrastructure.models import (Application, Attendee, Hardware,
 NUMBER_OF_ATTENDEES = 500
 NUMBER_OF_GROUPS = 5
 NUMBER_OF_SKILLS = 80
-NUMBER_OF_TEAMS = 80
-NUMBER_OF_MENTOR_HELP_REQUESTS = 10
 TEAM_SIZE = 5
+NUMBER_OF_TEAMS = max(0, NUMBER_OF_ATTENDEES // TEAM_SIZE - 1)
+NUMBER_OF_MENTOR_HELP_REQUESTS = 10
 NUMBER_OF_SKILL_PROFICIENCIES = 4
 NUMBER_OF_HARDWARE_TYPES = 100
 NUMBER_OF_HARDWARE_REQUESTS = 50
@@ -86,11 +86,14 @@ def add_all():  # noqa: C901
         applications.append(application)
     uploaded_files.append(factories.UploadedFileFactory())
     attendees = []
-    for application in applications[:NUMBER_OF_ATTENDEES]:
+    for application in applications:
         if application.status != Application.Status.ACCEPTED_IN_PERSON:
             continue
         attendee = factories.AttendeeFactory(
-            application=application)
+            application=application, **(
+                dict(participation_class=Attendee.ParticipationClass.PARTICIPANT)
+                if len(attendees) < NUMBER_OF_ATTENDEES else {}
+            ))
         attendee.username = f"{attendee.username}{uuid.uuid4()}"
         attendee.email = f"{uuid.uuid4()}{attendee.email}"
         number_of_attendee_groups = random.randint(1, NUMBER_OF_GROUPS)
@@ -127,7 +130,11 @@ def add_all():  # noqa: C901
         projects.append(project)
     mentor_help_requests = []
     for participant in random.sample(participants, NUMBER_OF_MENTOR_HELP_REQUESTS):
-        mentor_help_request = factories.MentorHelpRequestFactory(reporter=participant, team=Team.objects.get(attendees__id=participant.id))
+        try:
+            team = Team.objects.get(attendees__id=participant.id)
+        except Team.DoesNotExist:
+            continue
+        mentor_help_request = factories.MentorHelpRequestFactory(reporter=participant, team=team)
         mentor_help_requests.append(mentor_help_request)
     hardware = []
     hardware_devices = []

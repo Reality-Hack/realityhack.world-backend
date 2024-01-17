@@ -258,32 +258,33 @@ KEYCLOAK_CONFIG = {
     'KEYCLOAK_CLIENT_SECRET_KEY': os.environ["KEYCLOAK_CLIENT_SECRET_KEY"]
 }
 
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'handlers': {
-        'file': {
-            'class': 'logging.handlers.RotatingFileHandler',
-            'filename': 'logs/request.log',
-            'maxBytes': 10485760,  # 10 MB
-            'backupCount': 5,
-            'encoding': 'utf-8',
-            'formatter': 'verbose'
+if "test" not in sys.argv:
+    LOGGING = {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'handlers': {
+            'file': {
+                'class': 'logging.handlers.RotatingFileHandler',
+                'filename': 'logs/request.log',
+                'maxBytes': 10485760,  # 10 MB
+                'backupCount': 5,
+                'encoding': 'utf-8',
+                'formatter': 'verbose'
+            },
         },
-    },
-    'formatters': {
-        'verbose': {
-            'format': '%(asctime)s [%(levelname)s] %(message)s (%(filename)s:%(lineno)s)',
+        'formatters': {
+            'verbose': {
+                'format': '%(asctime)s [%(levelname)s] %(message)s (%(filename)s:%(lineno)s)',
+            },
         },
-    },
-    'loggers': {
-        'django.request': {
-            'handlers': ['file'],
-            'level': 'DEBUG',
-            'propagate': True,
+        'loggers': {
+            'django.request': {
+                'handlers': ['file'],
+                'level': 'DEBUG',
+                'propagate': True,
+            },
         },
-    },
-}
+    }
 
 ACCOUNT_USERNAME_REQUIRED = False
 PHONENUMBER_DB_FORMAT = "RFC3966"

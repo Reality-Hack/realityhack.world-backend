@@ -89,10 +89,6 @@ class ApplicationFactory(DjangoModelFactory):
     outreach_groups = factory.fuzzy.FuzzyText(length=900)
 
 
-class ApplicationOwnFactory(ApplicationFactory):
-    resume = factory.SubFactory(UploadedFileFactory)
-
-
 class AttendeeFactory(DjangoModelFactory):
     class Meta:
         model = models.Attendee
@@ -101,6 +97,7 @@ class AttendeeFactory(DjangoModelFactory):
     first_name = factory.Faker("first_name")
     last_name = factory.Faker("last_name")
     bio = factory.fuzzy.FuzzyText(length=1000)
+    authentication_id = factory.Faker("uuid4")
     email = factory.Faker("email")
     username = factory.Faker("user_name")
     application = factory.Iterator(
@@ -150,10 +147,6 @@ class AttendeeFactory(DjangoModelFactory):
     )
     # sponsor
     sponsor_company = None
-
-
-class AttendeeOwnApplicationFactory(AttendeeFactory):
-    application = factory.SubFactory(ApplicationOwnFactory, status=models.Application.Status.ACCEPTED_IN_PERSON)
 
 
 class GroupFactory(DjangoModelFactory):
@@ -257,7 +250,7 @@ class HardwareFactory(DjangoModelFactory):
 
     name = factory.Faker("company")
     description = factory.fuzzy.FuzzyText(length=100)
-    image = factory.Faker("url")
+    image = factory.SubFactory(UploadedFileFactory)
 
 
 class HardwareDeviceFactory(DjangoModelFactory):
@@ -276,6 +269,8 @@ class HardwareRequestFactory(DjangoModelFactory):
 
     hardware = factory.Iterator(models.Hardware.objects.all())
     requester = factory.Iterator(models.Attendee.objects.all())
+    reason = factory.fuzzy.FuzzyText(length=900)
+    team = factory.Iterator(models.Team.objects.all())
 
 
 class WorkshopFactory(DjangoModelFactory):
