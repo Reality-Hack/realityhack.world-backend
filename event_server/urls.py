@@ -96,6 +96,6 @@ urlpatterns = [
     path('schema/swagger/', swagger_schema_view.with_ui('swagger', cache_timeout=0), name='swagger_schema_swagger_ui'),
     path('schema/redoc/', swagger_schema_view.with_ui('redoc', cache_timeout=0), name='swagger_schema_redoc'),
     path('me/', views.me, name='me'),
-    path("lighthouse/", views.lighthouse, name="lighthouse"),
-    path("lighthouse/<str:table_number>/", views.lighthouse_table, name="lighthouse_table"),
+    # path("lighthouse/", views.lighthouse, name="lighthouse"),
+    # path("lighthouse/<str:table_number>/", views.lighthouse_table, name="lighthouse_table"),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

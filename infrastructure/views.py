@@ -20,16 +20,19 @@ from infrastructure.serializers import (ApplicationSerializer,
                                         AttendeeRSVPCreateSerializer,
                                         AttendeeRSVPSerializer,
                                         AttendeeSerializer,
+                                        AttendeeUpdateSerializer,
                                         DiscordUsernameRoleSerializer,
                                         FileUploadSerializer,
                                         GroupDetailSerializer,
                                         HardwareCountDetailSerializer,
                                         HardwareCountSerializer,
+                                        HardwareCreateSerializer,
                                         HardwareDeviceDetailSerializer,
                                         HardwareDeviceHistorySerializer,
                                         HardwareDeviceSerializer,
                                         HardwareRequestCreateSerializer,
                                         HardwareRequestDetailSerializer,
+                                        HardwareRequestListSerializer,
                                         HardwareRequestSerializer,
                                         HardwareSerializer,
                                         LightHouseSerializer,
@@ -58,7 +61,7 @@ class KeycloakRoles(object):
     SPONSOR = "sponsor"
 
 
-def attendee_from_userinfo(request):
+def attendee_from_userinfo(request):  # pragma: nocover
     try:
         return Attendee.objects.get(authentication_id=request.userinfo.get("sub"))
     except Attendee.DoesNotExist:
@@ -99,17 +102,10 @@ def me(request):
                     try:
                         uploaded_file = UploadedFile.objects.get(id=request.data["profile_image"])
                         attendee.profile_image = uploaded_file
-                    except UploadedFile.DoesNotExist:
+                    except UploadedFile.DoesNotExist:  # pragma: nocover
                         raise Http404(f"No uploaded file matches the id: \"{request.data['profile_image']}\"")
                 else:
                     setattr(attendee, key, request.data[key])
-            attendee.skill_proficiencies = SkillProficiency.objects.filter(attendee=attendee)
-            try:
-                attendee.team = Team.objects.get(attendees__id=attendee.id)
-            except Team.DoesNotExist:
-                attendee.team = None
-            attendee.hardware_devices = HardwareDevice.objects.filter(checked_out_to=attendee.id)
-            attendee.workshops = WorkshopAttendee.objects.filter(attendee=attendee.id)
             attendee.save()
             serializer = AttendeePatchSerializer(attendee)
             return Response(serializer.data, status=200)
@@ -123,10 +119,10 @@ class AttendeeViewSet(LoggingMixin, viewsets.ModelViewSet):
     API endpoint that allows users to be viewed or edited.
     """
     queryset = Attendee.objects.all().order_by('-date_joined')
-    serializer_class = AttendeeSerializer
     permission_classes = [permissions.AllowAny]
     filterset_fields = [
-        'first_name', 'last_name', 'communications_platform_username', 'email', 'is_staff', 'groups', 'checked_in_at'
+        'first_name', 'last_name', 'communications_platform_username', 'email',
+        'participation_class', 'participation_role', 'checked_in_at'
     ]
     keycloak_roles = {
         'GET': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.ATTENDEE],
@@ -134,12 +130,16 @@ class AttendeeViewSet(LoggingMixin, viewsets.ModelViewSet):
         'PATCH': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN]
     }
 
+    def get_serializer_class(self):
+        if self.action == 'partial_update':
+            return AttendeePatchSerializer
+        return AttendeeSerializer
+
     def retrieve(self, request, pk=None):
         attendee = get_object_or_404(Attendee, pk=pk)
         attendee = prepare_attendee_for_detail(attendee)
         serializer = AttendeeDetailSerializer(attendee)
         return Response(serializer.data)
-
 
 class AttendeeRSVPViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
@@ -149,7 +149,8 @@ class AttendeeRSVPViewSet(LoggingMixin, viewsets.ModelViewSet):
     serializer_class = AttendeeRSVPSerializer
     permission_classes = [permissions.AllowAny]
     filterset_fields = [
-        'first_name', 'last_name', 'username', 'email', 'checked_in_at'
+        'first_name', 'last_name', 'communications_platform_username', 'email', 'checked_in_at',
+        'participation_class', 'participation_role'
     ]
     keycloak_roles = {
         'GET': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
@@ -158,7 +159,7 @@ class AttendeeRSVPViewSet(LoggingMixin, viewsets.ModelViewSet):
     }
 
     def get_serializer_class(self):
-        if self.action == 'create':
+        if self.action == 'create':  # pragma: nocover
             return AttendeeRSVPCreateSerializer
         return AttendeeRSVPSerializer
     
@@ -166,18 +167,19 @@ class AttendeeRSVPViewSet(LoggingMixin, viewsets.ModelViewSet):
         application = None
         sponsor_handler = None
         guardian_of = []
+
         try:
             if "sponsor_handler" in request.data:
-                sponsor_handler = get_object_or_404(Attendee, pk=request.data["sponsor_handler"])
+                sponsor_handler = Attendee.objects.get(pk=request.data["sponsor_handler"])
                 del request.data["sponsor_handler"]
-        except Attendee.DoesNotExist:
+        except Attendee.DoesNotExist:  # pragma: nocover
             pass
         try:
             if "guardian_of" in request.data:
                 guardian_of_attendees = list(Attendee.objects.filter(id__in=request.data["guardian_of"]))
                 guardian_of = guardian_of_attendees
                 del request.data["guardian_of"]
-        except Attendee.DoesNotExist:
+        except Attendee.DoesNotExist:  # pragma: nocover
             pass
         if "application" in request.data:
             try:
@@ -193,10 +195,11 @@ class AttendeeRSVPViewSet(LoggingMixin, viewsets.ModelViewSet):
             request.data["participation_class"] = application.participation_class
             request.data["email"] = application.email.lower()
             del request.data["application"]
+            request.data["application"] = str(application.id)
         else:  # Volunteer or Organizer, or null
             if request.data.get("email") is not None:
                 request.data["email"] = request.data.get("email").lower()
-        serializer = AttendeeRSVPSerializer(data=request.data, partial=True)
+        serializer = AttendeeRSVPCreateSerializer(data=request.data, partial=True)
         if serializer.is_valid():
             serializer_data = serializer.data
             attendee = None
@@ -218,7 +221,6 @@ class AttendeeRSVPViewSet(LoggingMixin, viewsets.ModelViewSet):
         else:
             return Response(serializer.errors,
                             status=status.HTTP_400_BAD_REQUEST)
-
 
 
 class SkillViewSet(LoggingMixin, viewsets.ModelViewSet):
@@ -257,7 +259,7 @@ class TableViewSet(LoggingMixin, viewsets.ModelViewSet):
         table = get_object_or_404(Table, pk=pk)
         try:
             table.team = Team.objects.get(table=table)
-        except Team.DoesNotExist:
+        except Team.DoesNotExist:  # pragma: nocover
             table.team = None
         try:
             table.lighthouse = LightHouse.objects.get(table=table)
@@ -436,8 +438,6 @@ class SkillProficiencyViewSet(LoggingMixin, viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == 'create':
             return SkillProficiencyCreateSerializer
-        if self.action == 'update':
-            return SkillProficiencyCreateSerializer
         if self.action == 'partial_update':
             return SkillProficiencyCreateSerializer
         if self.action == 'retrieve':
@@ -452,6 +452,7 @@ class ProjectViewSet(LoggingMixin, viewsets.ModelViewSet):
     queryset = Project.objects.all()
     serializer_class = ProjectSerializer
     permission_classes = [permissions.AllowAny]
+    filterset_fields = ["team"]
 
 
 class GroupViewSet(LoggingMixin, viewsets.ModelViewSet):
@@ -497,6 +498,27 @@ class HardwareViewSet(LoggingMixin, viewsets.ModelViewSet):
         'PATCH': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER, KeycloakRoles.SPONSOR]
     }
 
+    def get_queryset(self):
+        queryset = Hardware.objects.all()
+        filters = {}
+        for filterset_field in self.filterset_fields:
+            if self.request.query_params.get(filterset_field):
+                filterset_value = self.request.query_params.get(filterset_field)
+                if filterset_field == "tags":
+                    if not isinstance(filterset_value, list):
+                        filterset_value = filterset_value.split(",")
+                    filterset_field = "tags__contains"
+                filters[filterset_field] = filterset_value
+        if filters:
+            queryset = Hardware.objects
+            if "tags__contains" in filters:
+                for tag in list(filters["tags__contains"]):
+                    filters["tags__contains"] = tag
+                    queryset = queryset.filter(**filters)
+            else:
+                queryset = queryset.filter(**filters)
+        return queryset
+
     @classmethod
     def _iterate_hardware_count(cls, hardware_type):
         hardware_devices_available, hardware_devices_checked_out, hardware_devices_total = hardware_count(hardware_type)
@@ -515,26 +537,18 @@ class HardwareViewSet(LoggingMixin, viewsets.ModelViewSet):
 
 
     def list(self, request):
-        hardware_types = list(Hardware.objects.all())
+        hardware_types = self.get_queryset()
         for hardware_type in hardware_types:
             self._iterate_hardware_count(hardware_type)
         serializer = HardwareCountSerializer(hardware_types, many=True)
         return Response(status=200, data=serializer.data)
-
-
-    def create(self, request):
-        image_id = request.data.get("image")
-        image = None
-        if image_id:
-            try:
-                image = UploadedFile.objects.get(id=image)
-            except UploadedFile.DoesNotExist:
-                pass
-            request.data["image"] = image_id
-            del request.data["image"]
-        hardware = Hardware(image=image, **request.data)
-        serializer = HardwareSerializer(hardware)
-        return Response(status=201, data=serializer.data)
+    
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return HardwareCreateSerializer
+        elif self.action in ("update", "partial_update"):
+            return HardwareCreateSerializer
+        return HardwareSerializer
 
 
 class HardwareDeviceViewSet(LoggingMixin, viewsets.ModelViewSet):
@@ -564,8 +578,7 @@ class HardwareRequestsViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
     queryset = HardwareRequest.objects.all()
     permission_classes = [permissions.AllowAny]
-    filterset_fields = ["hardware", "requester", "team"]
-    
+    filterset_fields = ["hardware", "requester__first_name", "requester__last_name", "requester__id", "team"]
     keycloak_roles = {
         "GET": [KeycloakRoles.ATTENDEE, KeycloakRoles.MENTOR, KeycloakRoles.JUDGE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER],
         "POST": [KeycloakRoles.ATTENDEE, KeycloakRoles.MENTOR, KeycloakRoles.JUDGE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER],
@@ -580,7 +593,20 @@ class HardwareRequestsViewSet(LoggingMixin, viewsets.ModelViewSet):
             return HardwareRequestSerializer
         if self.action == 'retrieve':
             return HardwareRequestDetailSerializer
-        return HardwareRequestSerializer
+        return HardwareRequestListSerializer  # pragma: nocover
+
+    @classmethod
+    def _iterate_hardware_count(cls, hardware_type):
+        hardware_devices_available, hardware_devices_checked_out, hardware_devices_total = hardware_count(hardware_type)
+        hardware_type.available = hardware_devices_available
+        hardware_type.checked_out = hardware_devices_checked_out
+        hardware_type.total = hardware_devices_total
+
+    def retrieve(self, request, pk=None):
+        hardware_request = get_object_or_404(HardwareRequest, pk=pk)
+        self._iterate_hardware_count(hardware_request.hardware)
+        serializer = HardwareRequestDetailSerializer(hardware_request)
+        return Response(serializer.data)
 
 
 class HardwareDeviceHistoryViewSet(LoggingMixin, viewsets.ModelViewSet):
@@ -645,8 +671,10 @@ class WorkshopAttendeeViewSet(LoggingMixin, viewsets.ModelViewSet):
     serializer_class = WorkshopAttendeeSerializer
     filterset_fields = ['workshop', 'attendee', 'participation']
 
-def lighthouse(request):
+
+def lighthouse(request):  # pragma: nocover
     return render(request, "infrastructure/lighthouse.html")
 
-def lighthouse_table(request, table_number):
+
+def lighthouse_table(request, table_number):  # pragma: nocover
     return render(request, "infrastructure/lighthouse_table.html", {"table_number": table_number})

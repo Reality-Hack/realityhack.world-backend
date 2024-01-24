@@ -99,3 +99,4 @@ static/
 
 src/
 logs/
+keycloak_data/

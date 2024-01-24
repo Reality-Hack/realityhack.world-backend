@@ -246,7 +246,7 @@ class Application(models.Model):
                 instance.resume.claimed = True
                 instance.resume.save()
             # send email
-            if "test" not in sys.argv and "setup_test_data" not in sys.argv:
+            if "test" not in sys.argv and "setup_test_data" not in sys.argv and "setup_fake_users" not in sys.argv:
                 subject, body = None, None
                 if instance.participation_class == Application.ParticipationClass.MENTOR:
                     subject, body = email.get_mentor_application_confirmation_template(instance.first_name, response_email_address="Jared Bienz <jared@mitrealityhack.com>")
@@ -421,7 +421,7 @@ class Attendee(AbstractUser):
         if instance.profile_image:
             instance.profile_image.claimed = True
             instance.profile_image.save()
-        if "test" not in sys.argv and "setup_test_data" not in sys.argv:
+        if "test" not in sys.argv and "setup_test_data" not in sys.argv and "setup_fake_users" not in sys.argv:
             if created:
                 instance.create_authentication_account()
 
@@ -698,6 +698,7 @@ class Team(models.Model):
 class Project(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=50)
+    description = models.TextField(max_length=1000, blank=False, null=False)
     repository_location = models.URLField()
     submission_location = models.URLField()
     team = models.OneToOneField(Team, on_delete=models.SET_NULL, null=True)
@@ -843,7 +844,7 @@ class Hardware(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     tags = MultiSelectField(
-        choices=HardwareTags.choices, max_length=2, null=True)
+        choices=HardwareTags.choices, max_length=len(HardwareTags.choices) * 2 * 2 + 1, null=True)
     relates_to_destiny_hardware = models.CharField(choices=DestinyHardware.choices, max_length=1, null=True)
 
     def __str__(self) -> str:  # pragma: no cover

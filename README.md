@@ -79,8 +79,32 @@ This server and database are deployed using Google Cloud. The guide to deploying
 ./rundeploy
 ```
 
-## Keycloak / OpenIDConnect
+## Containerization
 
-Codeberg (Forgejo/Gitea) is used as the primary identity provider. Documentation on using Codeberg with Keycloak:
+### Local Image
 
-<https://docs.codeberg.org/integrations/keycloak/>
+#### Build the Image (Required)
+
+```shell
+./build-image.sh
+```
+
+#### Run the Image (Optional)
+
+```shell
+./run-container.sh
+```
+
+### Docker Compose
+
+#### Run
+
+```shell
+docker compose up
+```
+
+#### Destroy Volume (Optional)
+
+```shell
+docker compose down -v
+```

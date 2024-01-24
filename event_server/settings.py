@@ -131,7 +131,7 @@ if DEPLOYED or "makemigrations" in sys.argv:  # Not using a virtual env = is dep
             'NAME': 'django',
             'USER': 'django',
             'PASSWORD': os.getenv("DJANGO_POSTGRESS_PASS"),
-            'HOST': '127.0.0.1',
+            'HOST': os.getenv("POSTGRES_HOST") or "127.0.0.1",
             'PORT': '5432',
         }
     }
@@ -199,7 +199,7 @@ if strtobool(os.environ["DEPLOYED"]):
         "default": {
             "BACKEND": "channels_redis.core.RedisChannelLayer",
             "CONFIG": {
-                "hosts": [("127.0.0.1", 6379)],
+                "hosts": [(os.getenv("REDIS_HOST") or "127.0.0.1", 6379)],
             },
         },
     }
@@ -255,7 +255,8 @@ KEYCLOAK_CONFIG = {
     'KEYCLOAK_SERVER_URL': os.environ["KEYCLOAK_SERVER_URL"],
     'KEYCLOAK_REALM': os.environ["KEYCLOAK_REALM"],
     'KEYCLOAK_CLIENT_ID': os.environ["KEYCLOAK_CLIENT_ID"],
-    'KEYCLOAK_CLIENT_SECRET_KEY': os.environ["KEYCLOAK_CLIENT_SECRET_KEY"]
+    'KEYCLOAK_CLIENT_SECRET_KEY': os.environ["KEYCLOAK_CLIENT_SECRET_KEY"],
+    "LOCAL_DECODE": LOCAL_DECODE
 }
 
 if "test" not in sys.argv:

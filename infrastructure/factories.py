@@ -103,7 +103,6 @@ class AttendeeFactory(DjangoModelFactory):
     application = factory.Iterator(
         models.Application.objects.filter(status=models.Application.Status.ACCEPTED_IN_PERSON),
         cycle=False)
-    authentication_id = None
     shirt_size = factory.Faker(
         'random_element', elements=[x[0] for x in models.ShirtSize.choices]
     )
@@ -149,13 +148,6 @@ class AttendeeFactory(DjangoModelFactory):
     sponsor_company = None
 
 
-class GroupFactory(DjangoModelFactory):
-    class Meta:
-        model = Group
-
-    name = factory.Faker('job')
-
-
 # https://github.com/FactoryBoy/factory_boy/issues/305
 class UniqueFaker(factory.Faker):
     def evaluate(self, instance, step, extra):
@@ -163,6 +155,13 @@ class UniqueFaker(factory.Faker):
         subfaker = self._get_faker(locale)
         unique_proxy = subfaker.unique
         return unique_proxy.format(self.provider, **extra)
+
+
+class GroupFactory(DjangoModelFactory):
+    class Meta:
+        model = Group
+
+    name = UniqueFaker('job')
 
 
 class SkillFactory(DjangoModelFactory):
@@ -207,6 +206,7 @@ class ProjectFactory(DjangoModelFactory):
     name = factory.Faker("company")
     repository_location = factory.Faker("url")
     submission_location = factory.Faker("url")
+    description = factory.fuzzy.FuzzyText(length=200)
 
     @factory.post_generation
     def team(self, create, team, **kwargs):
@@ -251,6 +251,13 @@ class HardwareFactory(DjangoModelFactory):
     name = factory.Faker("company")
     description = factory.fuzzy.FuzzyText(length=100)
     image = factory.SubFactory(UploadedFileFactory)
+    tags = factory.Faker(
+        'random_elements', elements=[x[0] for x in models.HardwareTags.choices],
+        length=2
+    )
+    relates_to_destiny_hardware = factory.Faker(
+        'random_element', elements=[x[0] for x in models.DestinyHardware.choices]
+    )
 
 
 class HardwareDeviceFactory(DjangoModelFactory):

@@ -77,7 +77,7 @@ class AttendeeRSVPCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Attendee
         fields = [
-            "id", "first_name", "last_name",
+            "id", "first_name", "last_name", "participation_role",
             'profile_image', "authentication_id",
             "application", "bio", "email", "shirt_size", "communications_platform_username",
             "dietary_restrictions", "dietary_restrictions_other",
@@ -200,7 +200,7 @@ class TableDetailSerializer(serializers.ModelSerializer):
 class ProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
-        fields = ['id', 'name', 'repository_location', 'submission_location',
+        fields = ['id', 'name', 'repository_location', "description", 'submission_location',
                   'team', 'created_at', 'updated_at']
 
 
@@ -314,6 +314,7 @@ class HardwareCountSerializer(serializers.ModelSerializer):
     checked_out = serializers.IntegerField()
     total = serializers.IntegerField()
     image = FileUploadSerializer()
+    tags = fields.MultipleChoiceField(choices=HardwareTags)
 
     class Meta:
         model = Hardware
@@ -326,7 +327,7 @@ class HardwareDeviceHardwareCountDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = HardwareDevice
         fields = ['id', 'serial', 'checked_out_to',
-                  'created_at', 'updated_at', 'tags']
+                  'created_at', 'updated_at']
 
 
 class HardwareCountDetailSerializer(serializers.ModelSerializer):
@@ -335,6 +336,8 @@ class HardwareCountDetailSerializer(serializers.ModelSerializer):
     total = serializers.IntegerField()
     hardware_devices = HardwareDeviceHardwareCountDetailSerializer(many=True)
     image = FileUploadSerializer()
+    tags = fields.MultipleChoiceField(choices=HardwareTags)
+
 
     class Meta:
         model = Hardware
@@ -352,6 +355,14 @@ class HardwareSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'description', 'image', 'tags',
                   'relates_to_destiny_hardware',
                   'created_at', 'updated_at']
+
+
+class HardwareCreateSerializer(serializers.ModelSerializer):
+    tags = fields.MultipleChoiceField(choices=HardwareTags)
+    
+    class Meta:
+        model = Hardware
+        fields = ['id', 'name', 'description', 'image', 'tags', 'relates_to_destiny_hardware']
 
 
 class HardwareDeviceHardwareSerializer(serializers.ModelSerializer):
@@ -375,6 +386,20 @@ class HardwareDeviceHistorySerializer(serializers.ModelSerializer):
 
 
 class HardwareRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HardwareRequest
+        fields = ["id", "hardware", "hardware_device", "requester", "team", "reason", "status", "created_at", "updated_at"]
+
+
+class HardwareRequestRequesterSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Attendee
+        fields = ["id", "first_name", "last_name"]
+
+
+class HardwareRequestListSerializer(serializers.ModelSerializer):
+    requester = HardwareRequestRequesterSerializer()
+
     class Meta:
         model = HardwareRequest
         fields = ["id", "hardware", "hardware_device", "requester", "team", "reason", "status", "created_at", "updated_at"]
@@ -454,16 +479,28 @@ class AttendeeDetailSerializer(serializers.ModelSerializer):
 
 
 class AttendeePatchSerializer(serializers.ModelSerializer):
-    skill_proficiencies = SkillProficiencyAttendeeSerializer(many=True)
-    workshops = WorkshopAttendeeWorkshopDetailSerializer(many=True)
     intended_tracks = fields.MultipleChoiceField(choices=Track.choices)
     prefers_destiny_hardware = fields.MultipleChoiceField(choices=DestinyHardware.choices)
 
     class Meta:
         model = Attendee
-        fields = ['id', 'first_name', 'last_name', 'skill_proficiencies',
-                  'profile_image', 'bio', 'checked_in_at', 'workshops', 'prefers_destiny_hardware',
+        fields = ['id', 'first_name', 'last_name', 'authentication_id',
+                  'profile_image', 'bio', 'checked_in_at', 'prefers_destiny_hardware',
                   'communications_platform_username', 'email', 'prefers_destiny_hardware',
                   'sponsor_company',  'participation_class', 'initial_setup',
                   'guardian_of', 'sponsor_handler', 'intended_tracks', 'intended_hardware_hack',
                   'created_at', 'updated_at']
+
+
+class AttendeeUpdateSerializer(serializers.ModelSerializer):
+    intended_tracks = fields.MultipleChoiceField(choices=Track.choices)
+    prefers_destiny_hardware = fields.MultipleChoiceField(choices=DestinyHardware.choices)
+
+    class Meta:
+        model = Attendee
+        fields = ['id', 'first_name', 'last_name',
+                  'profile_image', 'bio', 'checked_in_at', 'prefers_destiny_hardware',
+                  'communications_platform_username', 'email', 'prefers_destiny_hardware',
+                  'sponsor_company',  'participation_class', 'initial_setup',
+                  'guardian_of', 'sponsor_handler', 'intended_tracks', 'intended_hardware_hack',
+                  'created_at', 'updated_at', 'authentication_id']
