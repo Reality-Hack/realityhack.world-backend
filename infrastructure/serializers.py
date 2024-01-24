@@ -296,7 +296,7 @@ class TeamCreateSerializer(serializers.ModelSerializer):
 
 class TableDetailSerializer(serializers.ModelSerializer):
     team = TeamSerializer()
-    lighthouse = LightHouseSerializer()
+    lighthouse = TeamLightHouseSerializer()
 
     class Meta:
         model = Table
