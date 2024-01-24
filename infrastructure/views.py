@@ -1,6 +1,7 @@
 from django.contrib.auth.models import Group
 from django.db import transaction
 from django.http import Http404
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, render
 from django_keycloak_auth.decorators import keycloak_roles
 from rest_framework import permissions, status, viewsets
@@ -20,7 +21,7 @@ from infrastructure.serializers import (ApplicationSerializer,
                                         AttendeeRSVPCreateSerializer,
                                         AttendeeRSVPSerializer,
                                         AttendeeSerializer,
-                                        AttendeeUpdateSerializer,
+                                        AttendeeListSerializer,
                                         DiscordUsernameRoleSerializer,
                                         FileUploadSerializer,
                                         GroupDetailSerializer,
@@ -66,6 +67,14 @@ def attendee_from_userinfo(request):  # pragma: nocover
         return Attendee.objects.get(authentication_id=request.userinfo.get("sub"))
     except Attendee.DoesNotExist:
         raise Http404(f"No attendee matches the authentication_id: \"{request.userinfo.get('sub')}\"")
+
+
+def check_user(request, pk, special_roles={KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER}):
+    if any(special_role in request.roles for special_role in special_roles):
+        return "admin"
+    if str(attendee_from_userinfo(request).id) != str(pk):
+        raise PermissionDenied("You cannot modify people other than yourself.")
+    return "user"
 
 
 def prepare_attendee_for_detail(attendee):
@@ -127,19 +136,37 @@ class AttendeeViewSet(LoggingMixin, viewsets.ModelViewSet):
     keycloak_roles = {
         'GET': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.ATTENDEE],
         'DELETE': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
-        'PATCH': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN]
+        'PATCH': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.ATTENDEE]
     }
 
     def get_serializer_class(self):
         if self.action == 'partial_update':
             return AttendeePatchSerializer
+        elif self.action == "list":
+            return AttendeeListSerializer
         return AttendeeSerializer
 
     def retrieve(self, request, pk=None):
+        check_user(request, pk)
         attendee = get_object_or_404(Attendee, pk=pk)
         attendee = prepare_attendee_for_detail(attendee)
         serializer = AttendeeDetailSerializer(attendee)
         return Response(serializer.data)
+
+    def update(self, request, pk=None, **kwargs):
+        check_user(request, pk)
+        return super().update(request, pk=pk, **kwargs)
+    
+    
+    def partial_update(self, request, pk=None, **kwargs):
+        check_user(request, pk)
+        return super().partial_update(request, pk, **kwargs)
+
+
+    def partial_update(self, request, pk=None, **kwargs):
+        check_user(request, pk)
+        return super().partial_update(request, pk, **kwargs)
+
 
 class AttendeeRSVPViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
@@ -582,7 +609,7 @@ class HardwareRequestsViewSet(LoggingMixin, viewsets.ModelViewSet):
     keycloak_roles = {
         "GET": [KeycloakRoles.ATTENDEE, KeycloakRoles.MENTOR, KeycloakRoles.JUDGE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER],
         "POST": [KeycloakRoles.ATTENDEE, KeycloakRoles.MENTOR, KeycloakRoles.JUDGE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER],
-        "PATCH": [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        "PATCH": [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.ATTENDEE],
         "DELETE": [KeycloakRoles.ATTENDEE, KeycloakRoles.MENTOR, KeycloakRoles.JUDGE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER]
     }
     
@@ -607,6 +634,20 @@ class HardwareRequestsViewSet(LoggingMixin, viewsets.ModelViewSet):
         self._iterate_hardware_count(hardware_request.hardware)
         serializer = HardwareRequestDetailSerializer(hardware_request)
         return Response(serializer.data)
+
+    def update(self, request, pk=None, **kwargs):
+        hardware_request = get_object_or_404(HardwareRequest, pk=pk)
+        role = check_user(request, hardware_request.requester.id)
+        if role != "admin":
+            if set(request.data.keys()) != set(["reason"]):
+                raise PermissionDenied("Attendee cannot modify anything other than the reason of a request")
+        return super().update(request, pk=pk, **kwargs)
+    
+    def delete(self, request, pk=None, **kwargs):
+        hardware_request = get_object_or_404(HardwareRequest, pk=pk)
+        check_user(request, hardware_request.requester.id,
+                   special_roles={KeycloakRoles.MENTOR, KeycloakRoles.JUDGE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER})
+        return super().delete(request, pk=pk, **kwargs)
 
 
 class HardwareDeviceHistoryViewSet(LoggingMixin, viewsets.ModelViewSet):

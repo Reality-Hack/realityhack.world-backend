@@ -63,6 +63,19 @@ class AttendeeSerializer(serializers.ModelSerializer):
                   'created_at', 'updated_at']
 
 
+class AttendeeListSerializer(serializers.ModelSerializer):
+    intended_tracks = fields.MultipleChoiceField(choices=Track.choices)
+    prefers_destiny_hardware = fields.MultipleChoiceField(choices=DestinyHardware.choices)
+
+    class Meta:
+        model = Attendee
+        fields = ['id', 'first_name', 'last_name', 'participation_role', 'checked_in_at',
+                  'profile_image', 'initial_setup', 'guardian_of', 'sponsor_handler', 'prefers_destiny_hardware',
+                  'communications_platform_username', 'intended_tracks', 'intended_hardware_hack',
+                  'sponsor_company',  'participation_class', 'initial_setup', 'profile_image',
+                  'created_at', 'updated_at']
+
+
 class DiscordUsernameRoleSerializer(serializers.ModelSerializer):
 
     class Meta:

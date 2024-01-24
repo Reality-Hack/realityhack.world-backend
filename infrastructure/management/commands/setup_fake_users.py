@@ -8,10 +8,11 @@ import requests
 from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.core.files.base import ContentFile
 from PIL import Image
 
 from infrastructure.factories import ApplicationFactory, UploadedFileFactory
-from infrastructure.models import Application, Attendee
+from infrastructure.models import Application, Attendee, UploadedFile
 from infrastructure.serializers import AttendeeRSVPCreateSerializer
 from infrastructure.views import AttendeeRSVPViewSet
 
@@ -69,8 +70,7 @@ class Command(BaseCommand):  # pragma: no cover
     }
 
     def add_arguments(self, parser):
-        pass
-        # parser.add_argument("--output", type=Path, required=False, default=os.path.join(settings.MEDIA_ROOT, "qr_codes"))
+        parser.add_argument("--fake-initial-setup", action="store_true", help="Fake attendee's initial setup")
 
     def rsvp_create(self, request):
         application = None
@@ -183,4 +183,9 @@ class Command(BaseCommand):  # pragma: no cover
             "participation_class": "P"
         }))
         self.create_authentication_account(attendee, "attendee", "123456")
+        if False:  # kwargs.get("fake_initial_setup", False):
+            attendee.initial_setup = True
+            attendee.profile_image = UploadedFile.objects.create(
+                file=ContentFile(Image.new("RGB", (100, 100)).tobytes()))
+        attendee.save()
         print("Fake data created.")
