@@ -892,7 +892,7 @@ class HardwareRequest(models.Model):
 
 class Workshop(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=50, null=False)
+    name = models.CharField(max_length=300, null=False)
     datetime = models.DateTimeField(null=True)
     duration = models.IntegerField(null=True)
     description = models.TextField(blank=True, null=True)
@@ -909,7 +909,7 @@ class Workshop(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Name"
+        return f"Name: {self.name}, Date: {self.datetime}, Duration: {self.duration}"
 
 
 class WorkshopAttendee(models.Model):
@@ -938,7 +938,7 @@ class WorkshopAttendee(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        pass
+        return f"Attendee: {self.attendee}, Participation: {self.participation}, Workshop: {self.workshop}"
 
 
 post_delete.connect(

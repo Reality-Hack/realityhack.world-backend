@@ -98,7 +98,6 @@ def me(request):
         attendee = attendee_from_userinfo(request)
         attendee.skill_proficiencies = SkillProficiency.objects.filter(
             attendee=attendee)
-        serializer = AttendeeDetailSerializer(attendee)
         attendee = prepare_attendee_for_detail(attendee)
         serializer = AttendeeDetailSerializer(attendee)
         return Response(serializer.data)
@@ -368,6 +367,7 @@ class LightHouseViewSet(LoggingMixin, viewsets.ViewSet):
 
     def create(self, request):
         lighthouse_message = request.data
+        lighthouse_message._mutable = True
         # {'table': 1, 'ip_address': '10.198.1.112'}
         lighthouse_query = LightHouse.objects.filter(
             table__number=lighthouse_message["table"])
@@ -376,8 +376,8 @@ class LightHouseViewSet(LoggingMixin, viewsets.ViewSet):
             lighthouse.ip_address = lighthouse_message["ip_address"]
             lighthouse.save()
         else:
-            LightHouse.objects.create(
-                table=lighthouse_message["table"],
+            lighthouse = LightHouse.objects.create(
+                table=Table.objects.get(number=lighthouse_message["table"]),
                 ip_address=lighthouse_message["ip_address"]
             )
         lighthouse_message["mentor_requested"] = lighthouse.mentor_requested

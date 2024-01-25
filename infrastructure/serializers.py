@@ -469,7 +469,7 @@ class WorkshopAttendeeWorkshopDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = WorkshopAttendee
-        fields = ['id, workshop', 'participation', 'created_at', 'updated_at']
+        fields = ['id', 'workshop', 'participation', 'created_at', 'updated_at']
 
 
 class AttendeeDetailSerializer(serializers.ModelSerializer):
