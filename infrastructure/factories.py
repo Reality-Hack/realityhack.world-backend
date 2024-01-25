@@ -114,6 +114,18 @@ class AttendeeFactory(DjangoModelFactory):
     dietary_allergies = factory.Faker(
         'random_element', elements=[str(x[0]) for x in models.DietaryAllergies.choices]
     )
+    participation_role = factory.Faker(
+        'random_element', elements=[x[0] for x in models.ParticipationRole.choices]
+    )
+    intended_tracks = factory.Faker(
+        'random_sample', elements=[x[0] for x in models.Track.choices], length=2
+    )
+    intended_hardware_hack = factory.Faker(
+        'random_element', elements=[True, False]
+    )
+    prefers_destiny_hardware = factory.Faker(
+        'random_sample', elements=[x[0] for x in models.DestinyHardware.choices], length=3
+    )
     dietary_allergies_other = None
     additional_accommodations = factory.fuzzy.FuzzyText(length=100)
     us_visa_support_is_required = False
@@ -322,3 +334,22 @@ class WorkshopAttendeeFactory(DjangoModelFactory):
     participation = factory.Faker('random_element', elements=[
         x[0] for x in models.WorkshopAttendee.Participation.choices]
     )
+
+
+class AttendeePreferenceFactory(DjangoModelFactory):
+    class Meta:
+        model = models.AttendeePreference
+
+    preferer = factory.Iterator(models.Attendee.objects.filter(participation_class="P"))
+    preferee = factory.Iterator(models.Attendee.objects.filter(participation_class="P"))
+    preference = factory.Faker('random_element', elements=[
+        x[0] for x in models.AttendeePreference.Preference.choices]
+    )
+
+class DestinyTeamAttendeeVibeFactory(DjangoModelFactory):
+    class Meta:
+        model = models.DestinyTeamAttendeeVibe
+
+    destiny_team = factory.Iterator(models.DestinyTeam.objects.all())
+    attendee = factory.Iterator(models.Attendee.objects.filter(participation_class="P"))
+    vibe = factory.fuzzy.FuzzyInteger(low=1, high=5)

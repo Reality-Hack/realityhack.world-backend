@@ -6,9 +6,10 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from infrastructure import factories
-from infrastructure.models import (Application, Attendee, Hardware,
-                                   HardwareDevice, LightHouse, Location,
-                                   MentorHelpRequest, Project, Skill,
+from infrastructure.models import (Application, Attendee, AttendeePreference,
+                                   DestinyTeam, DestinyTeamAttendeeVibe,
+                                   Hardware, HardwareDevice, LightHouse,
+                                   Location, MentorHelpRequest, Project, Skill,
                                    SkillProficiency, Table, Team, UploadedFile,
                                    Workshop, WorkshopAttendee)
 
@@ -48,6 +49,9 @@ def delete_all():  # noqa: C901
     WorkshopAttendee.objects.all().delete()
     MentorHelpRequest.objects.all().delete()
     MentorHelpRequest.history.all().delete()
+    AttendeePreference.objects.all().delete()
+    DestinyTeam.objects.all().delete()
+    DestinyTeamAttendeeVibe.objects.all().delete()
 
 
 def add_all():  # noqa: C901
@@ -161,6 +165,13 @@ def add_all():  # noqa: C901
             workshop_attendee = factories.WorkshopAttendeeFactory(workshop=workshop)
             workshop_attendees.append(workshop_attendee)
         workshops.append(workshop)
+    attendee_preferences = []
+    for preferer in random.sample(attendees, NUMBER_OF_ATTENDEES):
+        for preferee in random.sample(attendees, NUMBER_OF_TEAMS):
+            if preferer != preferee:
+                if preferer.participation_class == "P" and preferee.participation_class == "P":
+                    attendee_preference = factories.AttendeePreferenceFactory(preferer=preferer, preferee=preferee)
+                    attendee_preferences.append(attendee_preference)
 
 
 class Command(BaseCommand):  # pragma: no cover

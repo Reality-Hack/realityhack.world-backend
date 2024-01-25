@@ -6,9 +6,9 @@ from argparse import Namespace
 
 import requests
 from django.conf import settings
+from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
 from django.db import transaction
-from django.core.files.base import ContentFile
 from PIL import Image
 
 from infrastructure.factories import ApplicationFactory, UploadedFileFactory

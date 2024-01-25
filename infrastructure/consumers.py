@@ -21,6 +21,20 @@ class LightHouseByTableConsumer(AsyncWebsocketConsumer):
         )
         await self.accept()
 
+        # TODO: .get() instead ?
+        lighthouse = await LightHouse.objects.filter(table__number=self.table).afirst()
+        
+        table_hash = {
+            "table": self.table,
+            "ip_address": lighthouse.ip_address,
+            "mentor_requested": lighthouse.mentor_requested,
+            "announcement_pending": lighthouse.announcement_pending
+        }
+        
+        serializer = LightHouseSerializer(table_hash)
+        
+        await self.send(text_data=json.dumps(serializer.data))
+
     @database_sync_to_async
     def set_mentor_status(self, lighthouse, status):
         team = Team.objects.get(table=lighthouse.table)

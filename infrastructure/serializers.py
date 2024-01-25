@@ -5,12 +5,14 @@ from rest_framework import fields, serializers
 from infrastructure import models
 from infrastructure.models import (INDUSTRIES, MENTOR_HELP_REQUEST_TOPICS,
                                    SPOKEN_LANGUAGES, Application, Attendee,
-                                   DestinyHardware, Hardware, HardwareDevice,
-                                   HardwareRequest, HardwareTags, LightHouse,
-                                   Location, MentorHelpRequest,
-                                   ParticipationRole, Project, Skill,
-                                   SkillProficiency, Table, Team, Track,
-                                   UploadedFile, Workshop, WorkshopAttendee)
+                                   AttendeePreference, DestinyHardware,
+                                   DestinyTeam, DestinyTeamAttendeeVibe,
+                                   Hardware, HardwareDevice, HardwareRequest,
+                                   HardwareTags, LightHouse, Location,
+                                   MentorHelpRequest, ParticipationRole,
+                                   Project, Skill, SkillProficiency, Table,
+                                   Team, Track, UploadedFile, Workshop,
+                                   WorkshopAttendee)
 
 
 class GroupSerializer(serializers.ModelSerializer):
@@ -256,10 +258,27 @@ class MentorHelpRequestHistorySerializer(serializers.ModelSerializer):
                   'created_at', 'updated_at']
 
 
+class AttendeeNameSerializer(serializers.ModelSerializer):
+    
+    class Meta:
+        model = Attendee
+        fields = ['id', 'first_name', 'last_name']
+        
+class TableNumberSerializer(serializers.ModelSerializer):
+    
+    class Meta:
+        model = Table
+        fields = ['id', 'number']
+
+
 class TeamSerializer(serializers.ModelSerializer):
+    attendees = AttendeeNameSerializer(many=True)
+    destiny_hardware = fields.MultipleChoiceField(choices=DestinyHardware.choices)
+    table = TableNumberSerializer()
+
     class Meta:
         model = Team
-        fields = ['id', 'name', 'attendees', 'table', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'attendees', 'table', 'track', 'destiny_hardware', 'created_at', 'updated_at']
 
 
 class TeamProjectSerializer(serializers.ModelSerializer):
@@ -284,7 +303,7 @@ class TeamDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Team
-        fields = ['id', 'name', 'attendees', 'table', 'project', 'lighthouse',
+        fields = ['id', 'name', 'attendees', 'table', 'project', 'lighthouse', 'track', 'destiny_hardware',
                   'created_at', 'updated_at']
 
 
@@ -517,3 +536,26 @@ class AttendeeUpdateSerializer(serializers.ModelSerializer):
                   'sponsor_company',  'participation_class', 'initial_setup',
                   'guardian_of', 'sponsor_handler', 'intended_tracks', 'intended_hardware_hack',
                   'created_at', 'updated_at', 'authentication_id']
+
+
+class AttendeePreferenceSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = AttendeePreference
+        fields = "__all__"
+
+
+class DestinyTeamSerializer(serializers.ModelSerializer):
+    attendees = AttendeeNameSerializer(many=True)
+    table = TableNumberSerializer()
+
+    class Meta:
+        model = DestinyTeam
+        fields = "__all__"
+
+
+class DestinyTeamAttendeeVibeSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = DestinyTeamAttendeeVibe
+        fields = "__all__"

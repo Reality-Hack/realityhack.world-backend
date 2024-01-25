@@ -26,11 +26,13 @@ from rest_framework_simplejwt.views import (TokenObtainPairView,
                                             TokenRefreshView, TokenVerifyView)
 
 from infrastructure import views
-from infrastructure.models import (Application, Attendee, Hardware,
-                                   HardwareDevice, HardwareRequest, LightHouse,
-                                   Location, MentorHelpRequest, Project, Skill,
-                                   SkillProficiency, Table, Team, UploadedFile,
-                                   Workshop, WorkshopAttendee)
+from infrastructure.models import (Application, Attendee, AttendeePreference,
+                                   DestinyTeam, DestinyTeamAttendeeVibe,
+                                   Hardware, HardwareDevice, HardwareRequest,
+                                   LightHouse, Location, MentorHelpRequest,
+                                   Project, Skill, SkillProficiency, Table,
+                                   Team, UploadedFile, Workshop,
+                                   WorkshopAttendee)
 
 swagger_schema_view = get_schema_view(
    openapi.Info(
@@ -67,6 +69,9 @@ router.register(r'applications', views.ApplicationViewSet)
 router.register(r'uploaded_files', views.UploadedFileViewSet)
 router.register(r'workshops', views.WorkshopViewSet)
 router.register(r'workshopattendees', views.WorkshopAttendeeViewSet)
+router.register(r'attendeepreferences', views.AttendeePreferenceViewSet)
+router.register(r'destinyteams', views.DestinyTeamViewSet)
+router.register(r'destinyteamattendeevibes', views.DestinyTeamAttendeeVibeViewSet)
 
 admin.site.register(Skill)
 admin.site.register(Attendee)
@@ -83,6 +88,9 @@ admin.site.register(Application)
 admin.site.register(UploadedFile)
 admin.site.register(Workshop)
 admin.site.register(WorkshopAttendee)
+admin.site.register(AttendeePreference)
+admin.site.register(DestinyTeam)
+admin.site.register(DestinyTeamAttendeeVibe)
 
 urlpatterns = [
     path('admin/', admin.site.urls),

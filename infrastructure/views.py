@@ -1,7 +1,7 @@
 from django.contrib.auth.models import Group
+from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.http import Http404
-from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, render
 from django_keycloak_auth.decorators import keycloak_roles
 from rest_framework import permissions, status, viewsets
@@ -9,19 +9,23 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from infrastructure.mixins import LoggingMixin
-from infrastructure.models import (Application, Attendee, Hardware,
-                                   HardwareDevice, HardwareRequest,
-                                   HardwareRequestStatus, LightHouse, Location,
-                                   MentorHelpRequest, Project, Skill,
-                                   SkillProficiency, Table, Team, UploadedFile,
-                                   Workshop, WorkshopAttendee)
+from infrastructure.models import (Application, Attendee, AttendeePreference,
+                                   DestinyTeam, DestinyTeamAttendeeVibe,
+                                   Hardware, HardwareDevice, HardwareRequest,
+                                   LightHouse, Location, MentorHelpRequest,
+                                   Project, Skill, SkillProficiency, Table,
+                                   Team, UploadedFile, Workshop,
+                                   WorkshopAttendee)
 from infrastructure.serializers import (ApplicationSerializer,
                                         AttendeeDetailSerializer,
+                                        AttendeeListSerializer,
                                         AttendeePatchSerializer,
+                                        AttendeePreferenceSerializer,
                                         AttendeeRSVPCreateSerializer,
                                         AttendeeRSVPSerializer,
                                         AttendeeSerializer,
-                                        AttendeeListSerializer,
+                                        DestinyTeamAttendeeVibeSerializer,
+                                        DestinyTeamSerializer,
                                         DiscordUsernameRoleSerializer,
                                         FileUploadSerializer,
                                         GroupDetailSerializer,
@@ -79,10 +83,7 @@ def check_user(request, pk, special_roles={KeycloakRoles.ADMIN, KeycloakRoles.OR
 
 def prepare_attendee_for_detail(attendee):
     attendee.skill_proficiencies = SkillProficiency.objects.filter(attendee=attendee)
-    try:
-        attendee.team = Team.objects.get(attendees__id=attendee.id)
-    except Team.DoesNotExist:
-        attendee.team = None
+    attendee.team = Team.objects.filter(attendees__id=attendee.id).first()
     attendee.hardware_devices = HardwareDevice.objects.filter(checked_out_to=attendee.id)
     attendee.workshops = WorkshopAttendee.objects.filter(attendee=attendee.id)
     return attendee
@@ -649,7 +650,6 @@ class HardwareRequestsViewSet(LoggingMixin, viewsets.ModelViewSet):
                    special_roles={KeycloakRoles.MENTOR, KeycloakRoles.JUDGE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER})
         return super().delete(request, pk=pk, **kwargs)
 
-
 class HardwareDeviceHistoryViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint that allows hardware device historical records to be viewed.
@@ -705,12 +705,42 @@ class WorkshopViewSet(LoggingMixin, viewsets.ModelViewSet):
 
 class WorkshopAttendeeViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
-    API endpoint that allows workshops to be viewed or edited.
+    API endpoint that allows workshop attendees to be viewed or edited.
     """
     queryset = WorkshopAttendee.objects.all()
     permission_classes = [permissions.AllowAny]
     serializer_class = WorkshopAttendeeSerializer
     filterset_fields = ['workshop', 'attendee', 'participation']
+
+
+class AttendeePreferenceViewSet(LoggingMixin, viewsets.ModelViewSet):
+    """
+    API endpoint that allows attendee preferences to be viewed or edited.
+    """
+    queryset = AttendeePreference.objects.all()
+    permission_classes = [permissions.AllowAny]
+    serializer_class = AttendeePreferenceSerializer
+    filterset_fields = ['preferer', 'preferee', 'preference']
+
+
+class DestinyTeamViewSet(LoggingMixin, viewsets.ModelViewSet):
+    """
+    API endpoint that allows Destiny teams to be viewed or edited.
+    """
+    queryset = DestinyTeam.objects.all()
+    permission_classes = [permissions.AllowAny]
+    serializer_class = DestinyTeamSerializer
+    filterset_fields = ["attendees", "table__number", "track", "round"]
+
+
+class DestinyTeamAttendeeVibeViewSet(LoggingMixin, viewsets.ModelViewSet):
+    """
+    API endpoint that allows Detiny team attendee vibes to be viewed or edited.
+    """
+    queryset = DestinyTeamAttendeeVibe.objects.all()
+    permission_classes = [permissions.AllowAny]
+    serializer_class = DestinyTeamAttendeeVibeSerializer
+    filterset_fields = ["destiny_team", "destiny_team__table__number", "destiny_team__round", "attendee", "vibe"]
 
 
 def lighthouse(request):  # pragma: nocover

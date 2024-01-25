@@ -15,6 +15,7 @@ from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.contrib.auth.models import AbstractUser
 from django.core.mail import send_mail
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models.signals import post_delete, post_save
 from django.utils.translation import gettext_lazy as _
@@ -461,7 +462,6 @@ class Attendee(AbstractUser):
         max_length=40, null=True, help_text="I.e., a Discord username")
     intended_tracks = MultiSelectField(max_choices=2, max_length=7, null=True, choices=Track.choices)
     intended_hardware_hack = models.BooleanField(default=False, null=False)
-    hardware_hack = models.BooleanField(default=False, null=False)
     prefers_destiny_hardware = MultiSelectField(max_choices=len(DestinyHardware.choices), max_length=len(DestinyHardware.choices) * 2 + 1, null=True)
     dietary_restrictions = MultiSelectField(
         max_length=15, max_choices=7, null=True, choices=DietaryRestrictions.choices
@@ -682,6 +682,8 @@ class Team(models.Model):
     attendees = models.ManyToManyField(Attendee, related_name="team_attendees", blank=True)
     table = models.OneToOneField(Table, on_delete=models.SET_NULL, null=True)
     track = models.CharField(choices=Track.choices, max_length=1, null=True)
+    hardware_hack = models.BooleanField(default=False, null=False)
+    destiny_hardware = MultiSelectField(choices=DestinyHardware.choices, max_length=30, max_choices=len(DestinyHardware), blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -939,6 +941,45 @@ class WorkshopAttendee(models.Model):
 
     def __str__(self):
         return f"Attendee: {self.attendee}, Participation: {self.participation}, Workshop: {self.workshop}"
+
+
+class AttendeePreference(models.Model):
+    class Preference(models.TextChoices):
+        YAY = "Y"
+        NAY = "N"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    preferer = models.ForeignKey(Attendee, null=False, on_delete=models.CASCADE, related_name="attendee_preference_preferer")
+    preferee = models.ForeignKey(Attendee, null=False, on_delete=models.CASCADE, related_name="attendee_preference_preferee")
+    preference = models.CharField(choices=Preference.choices, null=False, max_length=1, blank=False)
+
+    def __str__(self):
+        return f"Preferrer: {self.preferer}, Preferee: {self.preferee}, Preference: {self.preference}"
+
+
+class DestinyTeam(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    attendees = models.ManyToManyField(Attendee, related_name="destiny_team_attendees", blank=True)
+    table = models.OneToOneField(Table, on_delete=models.SET_NULL, null=True)
+    track = models.CharField(choices=Track.choices, max_length=1, null=True)
+    round = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+    hardware_hack = models.BooleanField(default=False, null=False)
+    destiny_hardware = MultiSelectField(choices=DestinyHardware.choices, max_length=30, max_choices=len(DestinyHardware), blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):  # pragma: no cover
+        return f"Table: {self.table}, Round: {self.round}"
+
+
+class DestinyTeamAttendeeVibe(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    destiny_team = models.ForeignKey(DestinyTeam, null=False, on_delete=models.CASCADE)
+    attendee = models.ForeignKey(Attendee, null=False, on_delete=models.CASCADE)
+    vibe = models.PositiveIntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
+
+    def __str__(self):
+        return f"Destiny Team: {self.destiny_team}, Attendee: {self.attendee}, Vibe: {self.vibe}"
 
 
 post_delete.connect(
