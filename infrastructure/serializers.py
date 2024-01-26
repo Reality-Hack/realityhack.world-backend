@@ -272,9 +272,6 @@ class TableNumberSerializer(serializers.ModelSerializer):
 
 
 class TeamSerializer(serializers.ModelSerializer):
-    attendees = AttendeeNameSerializer(many=True)
-    destiny_hardware = fields.MultipleChoiceField(choices=DestinyHardware.choices)
-    table = TableNumberSerializer()
 
     class Meta:
         model = Team
@@ -299,6 +296,7 @@ class TeamDetailSerializer(serializers.ModelSerializer):
     table = TableDetailSerializer()
     project = TeamProjectSerializer()
     lighthouse = TeamLightHouseSerializer()
+    attendees = AttendeeNameSerializer(many=True)
 
     class Meta:
         model = Team

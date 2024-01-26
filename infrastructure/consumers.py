@@ -5,6 +5,7 @@ from datetime import datetime
 import django.db.utils
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
+from django.db.models import Q
 
 from infrastructure.models import (LightHouse, MentorHelpRequest,
                                    MentorRequestStatus, Table, Team)
@@ -36,34 +37,11 @@ class LightHouseByTableConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=json.dumps(serializer.data))
 
     @database_sync_to_async
-    def set_mentor_status(self, lighthouse, status):
-        team = Team.objects.get(table=lighthouse.table)
-        try:
-            mentor_help_request = MentorHelpRequest.objects.filter(team=team).order_by("-created_at")[0]
-            if mentor_help_request == MentorRequestStatus.RESOLVED and status == MentorRequestStatus.REQUESTED:
-                MentorHelpRequest(team=team)  # create an empty MentorHelpRequest
-            else:
-                mentor_help_request.status = status
-                mentor_help_request.save()
-        except IndexError:
-            if status == MentorRequestStatus.REQUESTED:
-                MentorHelpRequest(team=team)  # create an empty MentorHelpRequest
-
-    @database_sync_to_async
     def set_lighthouse_status(self, text_data_dict):
         try:
             lighthouse = LightHouse.objects.get(table__number=self.scope["url_route"]["kwargs"]["table"])
-            if text_data_dict.get("mentor_requested"):
-                if text_data_dict.get("status") == MentorRequestStatus.REQUESTED.value:
-                    self.set_mentor_status(lighthouse, MentorRequestStatus.REQUESTED.value)
-                elif text_data_dict.get("status") == MentorRequestStatus.ACKNOWLEDGED.value:
-                    self.set_mentor_status(lighthouse, MentorRequestStatus.ACKNOWLEDGED)
-                elif text_data_dict.get("status") == MentorRequestStatus.EN_ROUTE.value:
-                    self.set_mentor_status(lighthouse, MentorRequestStatus.EN_ROUTE)
-                elif text_data_dict.get("status") == MentorRequestStatus.RESOLVED.value:
-                    self.set_mentor_status(lighthouse, MentorRequestStatus.RESOLVED)
-            if text_data_dict.get("announcement_pending"):
-                lighthouse.announcement_pending = text_data_dict.get("announcement_pending")
+            if text_data_dict.get("mentor_requested") == MentorRequestStatus.RESOLVED.value:
+                lighthouse.mentor_requested = MentorRequestStatus.RESOLVED.value
             if text_data_dict.get("ip_address"):
                 lighthouse.ip_address = text_data_dict.get("ip_address")
             lighthouse.save()
@@ -98,7 +76,6 @@ class LightHouseByTableConsumer(AsyncWebsocketConsumer):
     # Receive message from room group
     async def chat_message(self, event):
         message = event["message"]
-
         # Send message to WebSocket
         await self.send(text_data=json.dumps({"message": message}))
 
@@ -153,8 +130,9 @@ class LightHousesConsumer(AsyncWebsocketConsumer):
                 mentor_help_request.status = status
                 mentor_help_request.save()
         except IndexError as error:
-            pass
             if status == MentorRequestStatus.REQUESTED:
+                if MentorHelpRequest.objects.filter(~Q(status=MentorRequestStatus.RESOLVED.value)).count() == 0:
+                    return  # Do not accidentally create extra requests if there are other unfinished ones
                 MentorHelpRequest(team=team).save()  # create an empty MentorHelpRequest
 
     @database_sync_to_async
@@ -164,8 +142,10 @@ class LightHousesConsumer(AsyncWebsocketConsumer):
             if text_data_dict.get("type") == LightHouse.MessageType.ANNOUNCEMENT.value:
                 if text_data_dict.get("status") == LightHouse.AnnouncementStatus.RESOLVE.value:
                     self.set_announcement_status(lighthouse, LightHouse.AnnouncementStatus.RESOLVE.value)
-                elif text_data_dict.get("status") == LightHouse.AnnouncementStatus.ALERT.value:
-                    self.set_announcement_status(lighthouse, LightHouse.AnnouncementStatus.ALERT.value)
+                # elif text_data_dict.get("status") == LightHouse.AnnouncementStatus.ALERT.value:
+                    # self.set_announcement_status(lighthouse, LightHouse.AnnouncementStatus.ALERT.value)
+                elif text_data_dict.get("status") == LightHouse.AnnouncementStatus.SEND.value:
+                    self.set_announcement_status(lighthouse, LightHouse.AnnouncementStatus.SEND.value)
             elif text_data_dict.get("type") == LightHouse.MessageType.MENTOR_REQUEST.value:
                 if text_data_dict.get("status") == MentorRequestStatus.REQUESTED.value:
                     self.set_mentor_status(lighthouse, MentorRequestStatus.REQUESTED.value)

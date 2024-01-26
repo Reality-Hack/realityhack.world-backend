@@ -93,7 +93,7 @@ def prepare_attendee_for_detail(attendee):
     return attendee
 
 
-@cache_page(60 * 15)
+@cache_page(60 * 3)
 @vary_on_headers("Authorization")
 @keycloak_roles([KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.ATTENDEE])
 @api_view(['GET', 'PATCH'])
@@ -101,7 +101,7 @@ def me(request):
     """
     API endpoint for getting detailed information about an authenticated user.
     """
-    if request.method == "GET":
+    if request.mecthod == "GET":
         attendee = attendee_from_userinfo(request)
         attendee.skill_proficiencies = SkillProficiency.objects.filter(
             attendee=attendee)
@@ -319,6 +319,10 @@ class TeamViewSet(LoggingMixin, viewsets.ModelViewSet):
             return TeamSerializer
         if self.action == 'create':
             return TeamCreateSerializer
+        if self.action == 'partial_update':
+            return TeamSerializer
+        if self.action == 'retrieve':
+            return TeamDetailSerializer
         return TeamSerializer
 
     def retrieve(self, request, pk=None):
@@ -368,12 +372,6 @@ class LightHouseViewSet(LoggingMixin, viewsets.ViewSet):
                 }
             )
         serializer = LightHouseSerializer(lighthouses, many=True)
-        return Response(serializer.data)
-
-    def retrieve(self, request, table__number=None):
-        table = get_object_or_404(Table, number=table__number)
-        lighthouse = get_object_or_404(LightHouse, table=table.id)
-        serializer = serialize_lighthouse(lighthouse)
         return Response(serializer.data)
 
     def create(self, request):
