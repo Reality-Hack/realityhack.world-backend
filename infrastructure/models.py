@@ -961,7 +961,7 @@ class AttendeePreference(models.Model):
 class DestinyTeam(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     attendees = models.ManyToManyField(Attendee, related_name="destiny_team_attendees", blank=True)
-    table = models.OneToOneField(Table, on_delete=models.SET_NULL, null=True)
+    table = models.ForeignKey(Table, on_delete=models.SET_NULL, null=True)
     track = models.CharField(choices=Track.choices, max_length=1, null=True)
     round = models.PositiveIntegerField(validators=[MinValueValidator(1)])
     hardware_hack = models.BooleanField(default=False, null=False)
