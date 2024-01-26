@@ -633,7 +633,8 @@ class Attendee(AbstractUser):
             models.Index(fields=['last_name']),
             models.Index(fields=['username']),
             models.Index(fields=['email']),
-            models.Index(fields=['is_staff'])
+            models.Index(fields=['is_staff']),
+            models.Index(fields=['authentication_id'])
         ]
 
     def __str__(self) -> str:  # pragma: no cover

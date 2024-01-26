@@ -3,6 +3,8 @@ from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404, render
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 from django_keycloak_auth.decorators import keycloak_roles
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import api_view
@@ -166,6 +168,10 @@ class AttendeeViewSet(LoggingMixin, viewsets.ModelViewSet):
     def partial_update(self, request, pk=None, **kwargs):
         check_user(request, pk)
         return super().partial_update(request, pk, **kwargs)
+
+    @method_decorator(cache_page(60 * 60 * 2))
+    def list(self, request):
+        return super().list(request)
 
 
 class AttendeeRSVPViewSet(LoggingMixin, viewsets.ModelViewSet):

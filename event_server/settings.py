@@ -290,3 +290,11 @@ if "test" not in sys.argv:
 ACCOUNT_USERNAME_REQUIRED = False
 PHONENUMBER_DB_FORMAT = "RFC3966"
 PHONENUMBER_DEFAULT_FORMAT = "RFC3966"
+
+if strtobool(os.environ["DEPLOYED"]):
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": "redis://127.0.0.1:6379",
+        }
+    }
