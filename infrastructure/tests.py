@@ -287,15 +287,16 @@ class TeamTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()), 0)
         response = self.client.get(self.get_teams_with_filter(
-            "attendees", self.mock_team["attendees"][0]))
+            "attendees", self.mock_team["attendees"][0]["id"]))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()), 1)
+        fake_attendee = str(uuid.uuid4())
         response = self.client.get(self.get_teams_with_filter(
-            "attendees", str(uuid.uuid4())))
+            "attendees", fake_attendee))
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data["attendees"][0].code, "invalid_choice")
         response = self.client.get(self.get_teams_with_filter(
-            "table", self.mock_team["table"]))
+            "table", self.mock_team["table"]["id"]))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()), 1)
         response = self.client.get(self.get_teams_with_filter(

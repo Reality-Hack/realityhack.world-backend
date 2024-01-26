@@ -28,6 +28,7 @@ from infrastructure.serializers import (ApplicationSerializer,
                                         AttendeeSerializer,
                                         DestinyTeamAttendeeVibeSerializer,
                                         DestinyTeamSerializer,
+                                        DestinyTeamUpdateSerializer,
                                         DiscordUsernameRoleSerializer,
                                         FileUploadSerializer,
                                         GroupDetailSerializer,
@@ -719,6 +720,14 @@ class WorkshopAttendeeViewSet(LoggingMixin, viewsets.ModelViewSet):
     filterset_fields = ['workshop', 'attendee', 'participation']
 
 
+def preference_auth(fn):
+    def wrapper(self, request, pk=None, **kwargs):
+        attendee_preference = get_object_or_404(AttendeePreference, pk=pk)
+        check_user(request, attendee_preference.preferer.id)
+        return fn(self, request, pk=pk, **kwargs)
+    return wrapper
+
+
 class AttendeePreferenceViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint that allows attendee preferences to be viewed or edited.
@@ -727,6 +736,44 @@ class AttendeePreferenceViewSet(LoggingMixin, viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
     serializer_class = AttendeePreferenceSerializer
     filterset_fields = ['preferer', 'preferee', 'preference']
+
+    keycloak_roles = {
+        'GET': [KeycloakRoles.ATTENDEE],
+        'POST': [KeycloakRoles.ATTENDEE],
+        'DELETE': [KeycloakRoles.ATTENDEE],
+        'PATCH': [KeycloakRoles.ATTENDEE]
+    }
+
+    def list(self, request):
+        queryset = self.queryset
+        filters = {}
+        for filterset_field in self.filterset_fields:
+            if request.query_params.get(filterset_field):
+                filterset_value = request.query_params.get(filterset_field)
+                filters[filterset_field] = filterset_value
+        if not any(role in request.roles for role in {KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER}):
+            user_id = str(attendee_from_userinfo(request).id)
+            if filters.get("preferer") != user_id:
+                raise PermissionDenied("Cannot browse other people's preferences")
+        if filters:
+            queryset = queryset.filter(**filters)
+        return Response(status=200, data=AttendeePreferenceSerializer(queryset, many=True).data)
+    
+    @preference_auth
+    def retrieve(self, request, pk=None, **kwargs):
+        return super().retrieve(request, pk=pk, **kwargs)
+    
+    @preference_auth
+    def update(self, request, pk=None, **kwargs):
+        return super().update(request, pk=pk, **kwargs)
+    
+    @preference_auth
+    def delete(self, request, pk=None, **kwargs):
+        return super().delete(request, pk=pk, **kwargs)
+    
+    def create(self, request, pk=None, **kwargs):
+        check_user(request, request.data["preferer"])
+        return super().create(request, pk=pk, **kwargs)
 
 
 class DestinyTeamViewSet(LoggingMixin, viewsets.ModelViewSet):
@@ -737,6 +784,25 @@ class DestinyTeamViewSet(LoggingMixin, viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
     serializer_class = DestinyTeamSerializer
     filterset_fields = ["attendees", "table__number", "track", "round"]
+    keycloak_roles = {
+        "POST": [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        "PATCH": [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        "OPTIONS": [KeycloakRoles.ATTENDEE],
+        "GET": [KeycloakRoles.ATTENDEE]
+    }
+    
+    def get_serializer_class(self):
+        if self.action in ("create", "update", "partial_update"):
+            return DestinyTeamUpdateSerializer
+        return DestinyTeamSerializer
+
+
+def vibe_auth(fn):
+    def wrapper(self, request, pk=None, **kwargs):
+        attendee_preference = get_object_or_404(DestinyTeamAttendeeVibe, pk=pk)
+        check_user(request, attendee_preference.preferer.id)
+        return fn(self, request, pk=pk, **kwargs)
+    return wrapper
 
 
 class DestinyTeamAttendeeVibeViewSet(LoggingMixin, viewsets.ModelViewSet):
@@ -746,7 +812,44 @@ class DestinyTeamAttendeeVibeViewSet(LoggingMixin, viewsets.ModelViewSet):
     queryset = DestinyTeamAttendeeVibe.objects.all()
     permission_classes = [permissions.AllowAny]
     serializer_class = DestinyTeamAttendeeVibeSerializer
-    filterset_fields = ["destiny_team", "destiny_team__table__number", "destiny_team__round", "attendee", "vibe"]
+    filterset_fields = ["destiny_team__round", "attendee", "vibe"]
+    keycloak_roles = {
+        "GET": [KeycloakRoles.ATTENDEE],
+        "POST": [KeycloakRoles.ATTENDEE],
+        "PATCH": [KeycloakRoles.ATTENDEE],
+        "DELETE": [KeycloakRoles.ATTENDEE],
+    }
+
+    def list(self, request):
+        queryset = self.queryset
+        filters = {}
+        for filterset_field in self.filterset_fields:
+            if request.query_params.get(filterset_field):
+                filterset_value = request.query_params.get(filterset_field)
+                filters[filterset_field] = filterset_value
+        if not any(role in request.roles for role in {KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER}):
+            user_id = str(attendee_from_userinfo(request).id)
+            if filters.get("attendee") != user_id:
+                raise PermissionDenied("Cannot browse other people's vibes")
+        if filters:
+            queryset = queryset.filter(**filters)
+        return Response(status=200, data=DestinyTeamAttendeeVibeSerializer(queryset, many=True).data)
+    
+    @vibe_auth
+    def retrieve(self, request, pk=None, **kwargs):
+        return super().retrieve(request, pk=pk, **kwargs)
+    
+    @vibe_auth
+    def update(self, request, pk=None, **kwargs):
+        return super().update(request, pk=pk, **kwargs)
+    
+    @vibe_auth
+    def delete(self, request, pk=None, **kwargs):
+        return super().delete(request, pk=pk, **kwargs)
+    
+    def create(self, request, pk=None, **kwargs):
+        check_user(request, request.data["attendee"])
+        return super().create(request, pk=pk, **kwargs)
 
 
 def lighthouse(request):  # pragma: nocover

@@ -297,7 +297,6 @@ class TeamLightHouseSerializer(serializers.ModelSerializer):
 
 class TeamDetailSerializer(serializers.ModelSerializer):
     table = TableDetailSerializer()
-    attendees = AttendeeSerializer(many=True)
     project = TeamProjectSerializer()
     lighthouse = TeamLightHouseSerializer()
 
@@ -547,6 +546,14 @@ class AttendeePreferenceSerializer(serializers.ModelSerializer):
 
 class DestinyTeamSerializer(serializers.ModelSerializer):
     attendees = AttendeeNameSerializer(many=True)
+    table = TableNumberSerializer()
+
+    class Meta:
+        model = DestinyTeam
+        fields = "__all__"
+
+
+class DestinyTeamUpdateSerializer(serializers.ModelSerializer):
     table = TableNumberSerializer()
 
     class Meta:

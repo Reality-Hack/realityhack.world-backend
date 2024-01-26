@@ -1,3 +1,4 @@
+# For Docker-based testing. Ignore outside of docker-compose.yml
 import json
 import os
 import time
