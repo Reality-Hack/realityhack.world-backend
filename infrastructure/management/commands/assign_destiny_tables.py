@@ -1,7 +1,7 @@
 from itertools import zip_longest
 
-from django.db import transaction
 from django.core.management.base import BaseCommand
+from django.db import transaction
 
 from infrastructure.models import DestinyTeam, Table, Track
 
