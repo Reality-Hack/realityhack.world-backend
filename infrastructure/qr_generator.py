@@ -34,8 +34,11 @@ class QRGenerator(object):
         q = qr.make_image(fill_color="Black",
                         back_color="white").convert("RGB")
         for_text = 0.2
-        im = Image.new("RGB", (q.size[0], int(
-            q.size[1] * (1 + for_text))), (255, 255, 255))
+        # print(q.size[0], q.size[1] * (1 + for_text))
+        # im = Image.new("RGB", (q.size[0], int(
+            # q.size[1] * (1 + for_text))), (255, 255, 255))
+        im = Image.new("RGB", (410, 492), (255, 255, 255))
+        q.resize((im.width, int(q.height / q.width * im.width)))
         im.paste(q, (0, 0))
         id = ImageDraw.Draw(im)
         ts = im.height / (1 + for_text) * 0.9
