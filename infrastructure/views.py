@@ -5,6 +5,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, render
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
+from django.views.decorators.vary import vary_on_headers
 from django_keycloak_auth.decorators import keycloak_roles
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import api_view
@@ -92,6 +93,8 @@ def prepare_attendee_for_detail(attendee):
     return attendee
 
 
+@cache_page(60 * 15)
+@vary_on_headers("Authorization")
 @keycloak_roles([KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.ATTENDEE])
 @api_view(['GET', 'PATCH'])
 def me(request):
