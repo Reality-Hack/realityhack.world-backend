@@ -1,0 +1,18 @@
+[package]
+name = "reality-hack-world-backend"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+axum = { version = "0.7.4", features = ["ws"] }
+bb8 = "0.8"
+diesel = "2.1.4"
+diesel-async = { version = "0.4.1", features = ["postgres", "bb8"] }
+futures = "0.3.30"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1.0", features = ["full"] }
+tokio-tungstenite = "0.21.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
