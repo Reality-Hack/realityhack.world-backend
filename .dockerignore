@@ -1,0 +1,14 @@
+fly.toml
+.git/
+*.sqlite3
+logs/
+!logs/.gitkeep
+.coverage
+media/
+!media/.gitkeep
+htmlcov/
+static/
+build-image.sh
+run-image.sh
+keycloak_data/
+!keycloak_data/.gitkeep

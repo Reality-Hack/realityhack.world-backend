@@ -1,0 +1,22 @@
+steps:
+  test:
+    image: python:3.12.0-alpine3.18
+    secrets: [django_secret_key]
+    commands:
+      - apk add --update alpine-sdk libffi-dev
+      - pip install -r requirements.txt
+      - export "DJANGO_SECRET_KEY=$DJANGO_SECRET_KEY"
+      - export "DEBUG=true"
+      - export "DEPLOYED=false"
+      - export "FRONTEND_DOMAIN=http://localhost:3000"
+      - export "KEYCLOAK_SERVER_URL=https://dev-api.realityhack.world:8443/"
+      - export "KEYCLOAK_REALM=master"
+      - export "KEYCLOAK_CLIENT_ID=123456"
+      - export "KEYCLOAK_CLIENT_SECRET_KEY=123456"
+      - export "BACKEND_DOMAIN=http://localhost:8000"
+      - export "EMAIL_HOST=smtp.gmail.com"
+      - export "EMAIL_PORT=465"
+      - export "EMAIL_HOST_USER="
+      - export "EMAIL_HOST_PASSWORD="
+      - export "EMAIL_USE_SSL=True"
+      - ./test

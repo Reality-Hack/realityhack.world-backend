@@ -1,0 +1,54 @@
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: django
+      POSTGRES_USER: django
+      POSTGRES_PASSWORD: 123456
+    ports:
+      - "5436:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U django -d django"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0.0
+    environment:
+      DB_ADDR: postgres
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: 123456
+    volumes:
+      - ./keycloak_data:/opt/keycloak/data/import/
+    ports:
+      - 8080:8080
+      - 9000:9000
+    entrypoint: >
+      sh -c "\
+           KC_BOOTSTRAP_ADMIN_USERNAME=admin KC_BOOTSTRAP_ADMIN_PASSWORD=123456 /opt/keycloak/bin/kc.sh import --file /opt/keycloak/data/import/realm-export.json && \
+          /opt/keycloak/bin/kc.sh start-dev --health-enabled=true
+      "
+  # import is part of first run only, otherwise it overruns setup_fake_users 
+  # import --file /opt/keycloak/data/import/realm-export.json && \
+    # healthcheck:
+    #   test: ["CMD", "curl", "--head", "-fsS", "http://keycloak:8080/health/ready"]
+    #   interval: 5s
+    #   timeout: 2s
+    #   retries: 15
+  redis:
+    image: redis:6.2-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:

@@ -1,0 +1,25 @@
+[report]
+exclude_also =
+    def __repr__
+[run]
+omit =
+    # omit anything in a .local directory anywhere
+    event_server/asgi.py
+    event_server/wsgi.py
+    event_server/settings.py
+    event_server/urls.py
+    event_server/__init__.py
+    infrastructure/admin.py
+    infrastructure/email.py
+    infrastructure/apps.py
+    infrastructure/consumers.py
+    infrastructure/routing.py
+    infrastructure/factories.py
+    infrastructure/mixins.py
+    infrastructure/management/commands/*
+    infrastructure/serializers.py
+    infrastructure/qr_generator.py
+    infrastructure/__init__.py
+    infrastructure/tests.py
+    infrastructure/migrations/*
+    manage.py
