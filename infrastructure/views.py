@@ -47,6 +47,7 @@ from infrastructure.serializers import (ApplicationSerializer,
                                         LightHouseSerializer,
                                         LocationSerializer,
                                         MentorHelpRequestHistorySerializer,
+                                        MentorHelpRequestReadSerializer,
                                         MentorHelpRequestSerializer,
                                         ProjectSerializer,
                                         SkillProficiencyCreateSerializer,
@@ -404,12 +405,18 @@ class MentorHelpRequestViewSet(LoggingMixin, viewsets.ModelViewSet):
         'reporter', 'mentor', 'team', 'status', 'team__table__number'
     ]
     serializer_class = MentorHelpRequestSerializer
+    read_serializer_class = MentorHelpRequestReadSerializer
     keycloak_roles = {
         'GET': [KeycloakRoles.ATTENDEE],
         'POST': [KeycloakRoles.ATTENDEE],
         'DELETE': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
         'PATCH': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN]
     }
+	    
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return self.read_serializer_class
+        return self.serializer_class
 
 
 class MentorHelpRequestViewSetHistoryViewSet(LoggingMixin, viewsets.ModelViewSet):

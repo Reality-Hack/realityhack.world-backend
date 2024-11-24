@@ -896,6 +896,7 @@ class MentorHelpRequest(models.Model):
     reporter = models.ForeignKey(Attendee, on_delete=models.SET_NULL, null=True, related_name="mentor_help_request_reporter")
     mentor = models.ForeignKey(Attendee, on_delete=models.SET_NULL, null=True, related_name="mentor_help_request_mentor")
     team = models.ForeignKey(Team, on_delete=models.CASCADE)
+    reporter_location = models.CharField(max_length=100, null=True)
     status = models.CharField(choices=MentorRequestStatus.choices, max_length=1, default=MentorRequestStatus.REQUESTED.value)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -257,7 +257,38 @@ class MentorHelpRequestSerializer(serializers.ModelSerializer):
         model = MentorHelpRequest
         fields = ['id', 'title', 'description', 'team', 'category', 'topic',
                   'reporter', 'mentor', 'status', 'category_specialty', 'topic_other',
-                  'created_at', 'updated_at']
+                  'created_at', 'updated_at', 'reporter_location']
+
+
+class HelpRequestReporterSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Attendee
+        fields = ['id', 'first_name', 'last_name']
+        
+
+class HelpRequestTeamLocationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Location
+        fields = ['id', 'building', 'room']
+
+class HelpRequestTableSerializer(serializers.ModelSerializer):
+    location = HelpRequestTeamLocationSerializer()
+
+    class Meta:
+        model = Table
+        fields = ['id', 'number', 'location']
+
+class HelpRequestTeamSerializer(serializers.ModelSerializer):
+    table = HelpRequestTableSerializer()
+
+    class Meta:
+        model = Team
+        fields = ['id', 'name', 'table']
+
+class MentorHelpRequestReadSerializer(MentorHelpRequestSerializer):
+    team = HelpRequestTeamSerializer()
+    reporter = HelpRequestReporterSerializer()
+
 
 
 class MentorHelpRequestHistorySerializer(serializers.ModelSerializer):
