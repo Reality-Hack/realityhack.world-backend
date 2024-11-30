@@ -762,6 +762,7 @@ class Table(models.Model):
 
 class Team(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    number = models.IntegerField(null=True)
     name = models.CharField(max_length=50)
     attendees = models.ManyToManyField(Attendee, related_name="team_attendees", blank=True)
     table = models.OneToOneField(Table, on_delete=models.SET_NULL, null=True)
@@ -778,7 +779,13 @@ class Team(models.Model):
         ]
 
     def __str__(self) -> str:  # pragma: no cover
-        return f"Name: {self.name}, Table: {self.table}"
+        return f"Name: {self.name}, Table: {self.table}, Number: {self.number}"
+    
+    @classmethod
+    def post_save(cls, sender, instance, created, **kwargs):
+        if created:
+            instance.number = Team.objects.count() + 1
+            instance.save()
 
 
 class Project(models.Model):
@@ -1087,4 +1094,8 @@ post_save.connect(
 )
 post_save.connect(
     MentorHelpRequest.post_save, sender=MentorHelpRequest, dispatch_uid="mentor_help_request_entry_saved"
+)
+
+post_save.connect(
+    Team.post_save, sender=Team, dispatch_uid='new_team_registered'   
 )

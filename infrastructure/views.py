@@ -88,7 +88,7 @@ def check_user(request, pk, special_roles={KeycloakRoles.ADMIN, KeycloakRoles.OR
 
 def prepare_attendee_for_detail(attendee):
     attendee.skill_proficiencies = SkillProficiency.objects.filter(attendee=attendee)
-    attendee.team = Team.objects.filter(attendees__id=attendee.id).first()
+    attendee.team = attendee.team_attendees.first() or None
     attendee.hardware_devices = HardwareDevice.objects.filter(checked_out_to=attendee.id)
     attendee.workshops = WorkshopAttendee.objects.filter(attendee=attendee.id)
     return attendee

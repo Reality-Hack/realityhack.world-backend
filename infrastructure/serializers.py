@@ -318,7 +318,7 @@ class TeamSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Team
-        fields = ['id', 'name', 'attendees', 'table', 'track', 'destiny_hardware', 'created_at', 'updated_at']
+        fields = ['id', 'number', 'name', 'attendees', 'table', 'track', 'destiny_hardware', 'created_at', 'updated_at']
 
 
 class TeamProjectSerializer(serializers.ModelSerializer):
@@ -343,7 +343,7 @@ class TeamDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Team
-        fields = ['id', 'name', 'attendees', 'table', 'project', 'lighthouse', 'track', 'destiny_hardware',
+        fields = ['id', 'number', 'name', 'attendees', 'table', 'project', 'lighthouse', 'track', 'destiny_hardware',
                   'created_at', 'updated_at']
 
 
