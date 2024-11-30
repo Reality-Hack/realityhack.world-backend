@@ -13,7 +13,7 @@ from django.db import transaction
 from PIL import Image
 
 from infrastructure.factories import ApplicationFactory, UploadedFileFactory
-from infrastructure.models import Application, Attendee, UploadedFile
+from infrastructure.models import Application, Attendee, UploadedFile, Team
 from infrastructure.serializers import AttendeeRSVPCreateSerializer
 from infrastructure.views import AttendeeRSVPViewSet
 
@@ -180,16 +180,26 @@ class Command(BaseCommand):  # pragma: no cover
         else:
             raise Exception("Keycloak failed to start.")
         print("Creating fake application...")
-        application = ApplicationFactory(resume=UploadedFileFactory(),
-                                         email="attendee@test.com")
-        application.save()
-        print("Creating fake attendee...")
-        attendee = self.rsvp_create(Namespace(data={
+        try:
+            application = Application.objects.get(email="attendee@test.com")
+        except Application.DoesNotExist:
+            application = ApplicationFactory(resume=UploadedFileFactory(),
+                                             email="attendee@test.com")
+            application.save()
+        try:
+            attendee = Attendee.objects.get(email="attendee@test.com")
+        except Attendee.DoesNotExist:
+            attendee = self.rsvp_create(Namespace(data={
             **self.base_rsvp_request,
-            "email": application.email,
-            "participation_class": "P"
-        }))
+                "email": application.email,
+                "participation_class": "P"
+            }))
         self.create_authentication_account(attendee, "attendee", "123456")
+        if attendee.team_attendees.exists():
+            team = attendee.team_attendees.first()
+        else:
+            team = Team.objects.first()
+            team.attendees.add(attendee)
         if False:  # kwargs.get("fake_initial_setup", False):
             attendee.initial_setup = True
             attendee.profile_image = UploadedFile.objects.create(
