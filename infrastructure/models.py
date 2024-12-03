@@ -1039,6 +1039,7 @@ class AttendeePreference(models.Model):
     class Preference(models.TextChoices):
         YAY = "Y"
         NAY = "N"
+        TBD = "T"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     preferer = models.ForeignKey(Attendee, null=False, on_delete=models.CASCADE, related_name="attendee_preference_preferer")
