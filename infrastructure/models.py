@@ -646,12 +646,12 @@ class Attendee(AbstractUser):
         elif self.participation_class == self.ParticipationClass.ORGANIZER:
             realm_role = "organizer"
         role_by_name = requests.get(
-        url=f"{os.environ['KEYCLOAK_SERVER_URL']}/realms/{os.getenv('KEYCLOAK_REALM', 'reality-hack-2024')}/roles/{realm_role}",
+            url=f"{os.environ['KEYCLOAK_SERVER_URL']}/admin/realms/{os.getenv('KEYCLOAK_REALM', 'reality-hack-2024')}/roles/{realm_role}",
             headers={"Authorization": f"Bearer { access_token.json()['access_token']}", "Content-Type": "application/json"},
         )
         realm_roles = [role_by_name.json()]
         created_realm_roles = requests.post(
-            url=f"{os.environ['KEYCLOAK_SERVER_URL']}/realms/{os.getenv('KEYCLOAK_REALM', 'reality-hack-2024')}/users/{self.authentication_id}/role-mappings/realm",
+            url=f"{os.environ['KEYCLOAK_SERVER_URL']}/admin/realms/{os.getenv('KEYCLOAK_REALM', 'reality-hack-2024')}/users/{self.authentication_id}/role-mappings/realm",
             headers={"Authorization": f"Bearer {access_token.json()['access_token']}", "Content-Type": "application/json"},
             data=json.dumps(realm_roles)
         )
@@ -685,7 +685,7 @@ class Attendee(AbstractUser):
             }
         }
         authentication_account = requests.post(
-            url=f"{os.environ['KEYCLOAK_SERVER_URL']}/realms/{os.getenv('KEYCLOAK_REALM', 'reality-hack-2024')}/users",
+            url=f"{os.environ['KEYCLOAK_SERVER_URL']}/admin/realms/{os.getenv('KEYCLOAK_REALM', 'reality-hack-2024')}/users",
             headers={"Authorization": f"Bearer {access_token.json()['access_token']}", "Content-Type": "application/json"},
             data=json.dumps(auth_user_dict)
         )

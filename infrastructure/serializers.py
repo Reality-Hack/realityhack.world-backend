@@ -216,7 +216,7 @@ class TableTruncatedSerializer(serializers.ModelSerializer):
         fields = ['id']
 
 
-class TableDetailSerializer(serializers.ModelSerializer):
+class TeamTableSerializer(serializers.ModelSerializer):
     location = LocationSerializer()
 
     class Meta:
@@ -336,7 +336,7 @@ class TeamLightHouseSerializer(serializers.ModelSerializer):
 
 
 class TeamDetailSerializer(serializers.ModelSerializer):
-    table = TableDetailSerializer()
+    table = TeamTableSerializer()
     project = TeamProjectSerializer()
     lighthouse = TeamLightHouseSerializer()
     attendees = AttendeeNameSerializer(many=True)
