@@ -483,6 +483,14 @@ class DestinyHardware(models.TextChoices):
     SNAP = 'S', _('Snap Spectacles')
 
 
+class LoanerHeadsetPreference(models.TextChoices):
+    META = 'META', _('Meta Quest 3')
+    SNAP = 'SNAP', _('Snap Spectacles')
+    BYOD = 'BYOD', _('I am bringing my own XR device to work with.')
+    HWHACK = 'HWHACK', _('I’ve chosen the Hardware Hack, so I will probably not need a headset.')
+    TBD = 'TBD', _('I’m not sure yet')
+
+
 class Attendee(AbstractUser):
 
     class ParticipationClass(models.TextChoices):
@@ -556,6 +564,10 @@ class Attendee(AbstractUser):
     dietary_allergies_other = models.CharField(max_length=40, null=True)
     additional_accommodations = models.TextField(max_length=200, blank=False, null=True)
     us_visa_support_is_required = models.BooleanField(null=False)
+    visa_support_form_confirmation = models.BooleanField(null=False, default=False)
+    
+    ###
+    # getting rid of this, but keeping here for back compat
     us_visa_letter_of_invitation_required = models.BooleanField(null=True, default=False)
     us_visa_support_full_name = models.CharField(max_length=200, blank=False, null=True)
     us_visa_support_document_number = models.CharField(max_length=50, blank=False, null=True)
@@ -580,14 +592,20 @@ class Attendee(AbstractUser):
     emergency_contact_phone_number = PhoneNumberField(blank=False, null=False)
     emergency_contact_email = models.EmailField(blank=False, null=False)
     emergency_contact_relationship = models.CharField(max_length=100, null=False, blank=False)
-    special_track_snapdragon_spaces_interest = models.CharField(
+    special_interest_track_one = models.CharField(
         max_length=1,
         choices=[('Y', 'Yes'),('N', 'No')],
         null=True
     )
-    special_track_future_constructors_interest = models.CharField(
+    special_interest_track_two = models.CharField(
         max_length=1,
         choices=[('Y', 'Yes'),('N', 'No')],
+        null=True
+    )
+    breakthrough_hacks_interest = models.TextField(max_length=2000, null=True, blank=False)
+    loaner_headset_preference = models.CharField(
+        max_length=6,
+        choices=LoanerHeadsetPreference.choices,
         null=True
     )
     app_in_store = models.CharField(
@@ -825,21 +843,22 @@ class LightHouse(models.Model):
 
     @classmethod
     def post_save(cls, sender, instance, created, **kwargs):
-        channel_layer = get_channel_layer()
-        room_group_name = f"lighthouse_{instance.table.number}"
-        lighthouse = {
-            # "id": instance.id,
-            "table": instance.table.number,
-            "ip_address": instance.ip_address,
-            "mentor_requested": instance.mentor_requested,
-            "announcement_pending": instance.announcement_pending
-        }
-        async_to_sync(channel_layer.group_send)(
-            room_group_name, {"type": "chat.message", "message": lighthouse}
-        )
-        async_to_sync(channel_layer.group_send)(
-            "lighthouses", {"type": "chat.message", "message": lighthouse}
-        )
+        pass
+        # channel_layer = get_channel_layer()
+        # room_group_name = f"lighthouse_{instance.table.number}"
+        # lighthouse = {
+        #     # "id": instance.id,
+        #     "table": instance.table.number,
+        #     "ip_address": instance.ip_address,
+        #     "mentor_requested": instance.mentor_requested,
+        #     "announcement_pending": instance.announcement_pending
+        # }
+        # async_to_sync(channel_layer.group_send)(
+        #     room_group_name, {"type": "chat.message", "message": lighthouse}
+        # )
+        # async_to_sync(channel_layer.group_send)(
+        #     "lighthouses", {"type": "chat.message", "message": lighthouse}
+        # )
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     table = models.ForeignKey(Table, on_delete=models.CASCADE)
@@ -888,10 +907,11 @@ class MentorHelpRequest(models.Model):
 
     @classmethod
     def post_save(cls, sender, instance, created, **kwargs):
-        table = instance.team.table
-        lighthouse = LightHouse.objects.get(table=table.id)
-        lighthouse.mentor_requested = instance.status
-        lighthouse.save()
+        pass
+        # table = instance.team.table
+        # lighthouse = LightHouse.objects.get(table=table.id)
+        # lighthouse.mentor_requested = instance.status
+        # lighthouse.save()
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=250, null=True)
@@ -1090,9 +1110,9 @@ post_save.connect(
 post_delete.connect(
     Attendee.post_delete, sender=Attendee, dispatch_uid="attendee_entry_deleted"
 )
-post_save.connect(
-    LightHouse.post_save, sender=LightHouse, dispatch_uid="lighthouse_entry_saved"
-)
+# post_save.connect(
+    # LightHouse.post_save, sender=LightHouse, dispatch_uid="lighthouse_entry_saved"
+# )
 post_save.connect(
     MentorHelpRequest.post_save, sender=MentorHelpRequest, dispatch_uid="mentor_help_request_entry_saved"
 )

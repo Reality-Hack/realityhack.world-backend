@@ -410,7 +410,7 @@ class MentorHelpRequestViewSet(LoggingMixin, viewsets.ModelViewSet):
         'GET': [KeycloakRoles.ATTENDEE],
         'POST': [KeycloakRoles.ATTENDEE],
         'DELETE': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
-        'PATCH': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN]
+        'PATCH': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.MENTOR]
     }
 	    
     def get_serializer_class(self):

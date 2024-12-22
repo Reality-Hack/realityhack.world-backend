@@ -119,12 +119,14 @@ class AttendeeRSVPCreateSerializer(serializers.ModelSerializer):
             "emergency_contact_name", "personal_phone_number",
             "emergency_contact_phone_number", "emergency_contact_email",
             "emergency_contact_relationship",
-            "special_track_snapdragon_spaces_interest",
-            "special_track_future_constructors_interest",
+            "special_interest_track_one",
+            "special_interest_track_two",
             "app_in_store", "currently_build_for_xr", "currently_use_xr",
             "non_xr_talents", "ar_vr_ap_in_store",
             "reality_hack_project_to_product",
-            "participation_class", "sponsor_company"
+            "participation_class", "sponsor_company",
+            "breakthrough_hacks_interest",
+            "loaner_headset_preference"
         ]
 
 
@@ -150,8 +152,10 @@ class AttendeeRSVPSerializer(serializers.ModelSerializer):
             "emergency_contact_name", "personal_phone_number",
             "emergency_contact_phone_number", "emergency_contact_email",
             "emergency_contact_relationship",
-            "special_track_snapdragon_spaces_interest",
-            "special_track_future_constructors_interest",
+            "special_interest_track_one",
+            "special_interest_track_two",
+            "breakthrough_hacks_interest",
+            "loaner_headset_preference",
             "app_in_store", "currently_build_for_xr", "currently_use_xr",
             "non_xr_talents", "ar_vr_ap_in_store", 
             "reality_hack_project_to_product",

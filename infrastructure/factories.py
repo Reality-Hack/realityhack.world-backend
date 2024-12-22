@@ -149,8 +149,8 @@ class AttendeeFactory(DjangoModelFactory):
     emergency_contact_phone_number = factory.Faker("phone_number")
     emergency_contact_email = email = factory.Faker("email")
     emergency_contact_relationship = factory.fuzzy.FuzzyText(length=10)
-    special_track_snapdragon_spaces_interest = None
-    special_track_future_constructors_interest = None
+    special_interest_track_one = None
+    special_interest_track_two = None
     app_in_store = False
     currently_build_for_xr = True
     currently_use_xr = True
