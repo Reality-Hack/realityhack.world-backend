@@ -319,10 +319,11 @@ class TableNumberSerializer(serializers.ModelSerializer):
 
 
 class TeamSerializer(serializers.ModelSerializer):
-
     class Meta:
         model = Team
-        fields = ['id', 'number', 'name', 'attendees', 'table', 'track', 'destiny_hardware', 'created_at', 'updated_at']
+        fields = ['id', 'number', 'name', 'attendees', 'table', 
+                  'track', 'destiny_hardware', 'team_description', 
+                  'created_at', 'updated_at']
 
 
 class TeamProjectSerializer(serializers.ModelSerializer):
@@ -347,14 +348,15 @@ class TeamDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Team
-        fields = ['id', 'number', 'name', 'attendees', 'table', 'project', 'lighthouse', 'track', 'destiny_hardware',
-                  'created_at', 'updated_at']
+        fields = ['id', 'number', 'name', 'attendees', 'table',
+                  'project', 'lighthouse', 'track', 'destiny_hardware',
+                  'team_description','created_at', 'updated_at']
 
 
 class TeamCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Team
-        fields = ['id', 'name', 'attendees', 'table']
+        fields = ['id', 'name', 'attendees', 'table', 'team_description']
 
 
 class TableDetailSerializer(serializers.ModelSerializer):
@@ -475,6 +477,7 @@ class HardwareRequestRequesterSerializer(serializers.ModelSerializer):
 
 class HardwareRequestListSerializer(serializers.ModelSerializer):
     requester = HardwareRequestRequesterSerializer()
+    team = TeamSerializer()
 
     class Meta:
         model = HardwareRequest

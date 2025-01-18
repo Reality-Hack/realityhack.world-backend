@@ -343,11 +343,3 @@ if strtobool(os.getenv("FLY_DEPLOYED", "False")):
     print("FLY_DEPLOYED is True")
     USE_X_FORWARDED_HOST = True
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-
-if strtobool(os.getenv("DEPLOYED", "False")):
-    CACHES = {
-        "default": {
-            "BACKEND": "django.core.cache.backends.redis.RedisCache",
-            "LOCATION": os.getenv("REDIS_URL", "redis://127.0.0.1:6379"),
-        }
-    }

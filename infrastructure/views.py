@@ -96,7 +96,7 @@ def prepare_attendee_for_detail(attendee):
 
 @cache_page(60 * 3)
 @vary_on_headers("Authorization")
-@keycloak_roles([KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.ATTENDEE])
+@keycloak_roles([KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.ATTENDEE, KeycloakRoles.MENTOR])
 @api_view(['GET', 'PATCH'])
 def me(request):
     """
@@ -399,7 +399,7 @@ class MentorHelpRequestViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint that allows mentor help requests to be viewed or edited.
     """
-    queryset = MentorHelpRequest.objects.all()
+    queryset = MentorHelpRequest.objects.all().order_by('created_at')
     permission_classes = [permissions.AllowAny]
     filterset_fields = [
         'reporter', 'mentor', 'team', 'status', 'team__table__number'
@@ -409,8 +409,8 @@ class MentorHelpRequestViewSet(LoggingMixin, viewsets.ModelViewSet):
     keycloak_roles = {
         'GET': [KeycloakRoles.ATTENDEE],
         'POST': [KeycloakRoles.ATTENDEE],
-        'DELETE': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
-        'PATCH': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.MENTOR]
+        'DELETE': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.ATTENDEE],
+        'PATCH': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.MENTOR, KeycloakRoles.ATTENDEE]
     }
 	    
     def get_serializer_class(self):

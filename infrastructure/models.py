@@ -748,12 +748,14 @@ class Location(models.Model):
         ATLANTIS = 'AT', _('Atlantis')
 
     class Building(models.TextChoices):
-        pass
+        STATA = 'ST', _('Stata')
+        WALKER = 'WK', _('Walker')
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     building = models.CharField(
         max_length=2,
-        choices=Building.choices
+        choices=Building.choices,
+        default=Building.WALKER
     )
     room = models.CharField(
         max_length=2,
@@ -789,6 +791,9 @@ class Team(models.Model):
     destiny_hardware = MultiSelectField(choices=DestinyHardware.choices, max_length=30, max_choices=len(DestinyHardware), blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    devpost_url = models.URLField(null=True)
+    github_url = models.URLField(null=True)
+    team_description = models.TextField(max_length=2000, null=True)
 
     class Meta:
         indexes = [
