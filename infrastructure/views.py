@@ -55,7 +55,7 @@ from infrastructure.serializers import (ApplicationSerializer,
                                         SkillProficiencySerializer,
                                         SkillSerializer, TableCreateSerializer,
                                         TableDetailSerializer, TableSerializer,
-                                        TeamCreateSerializer,
+                                        TeamCreateSerializer, TeamUpdateSerializer,
                                         TeamDetailSerializer, TeamSerializer,
                                         WorkshopAttendeeSerializer,
                                         WorkshopSerializer)
@@ -321,7 +321,7 @@ class TeamViewSet(LoggingMixin, viewsets.ModelViewSet):
         if self.action == 'create':
             return TeamCreateSerializer
         if self.action == 'partial_update':
-            return TeamSerializer
+            return TeamUpdateSerializer
         if self.action == 'retrieve':
             return TeamDetailSerializer
         return TeamSerializer
@@ -338,6 +338,23 @@ class TeamViewSet(LoggingMixin, viewsets.ModelViewSet):
             team.lighthouse = None
         serializer = TeamDetailSerializer(team)
         return Response(serializer.data)
+    
+    def partial_update(self, request, *args, **kwargs):
+        team = self.get_object()
+        project_fields = request.data.get('project')
+        if project_fields:
+            request.data.pop('project', None)
+            try:
+                team.project = Project.objects.get(team=team)
+            except Project.DoesNotExist:
+                team.project = Project(**project_fields)
+            serialized_project = ProjectSerializer(team.project, project_fields, partial=True)
+            if serialized_project.is_valid():
+                serialized_project.update(team.project, serialized_project.validated_data)
+            else:
+                return Response(serialized_project.errors, status=status.HTTP_400_BAD_REQUEST)
+            team.project.save()
+        return super().partial_update(request, *args, **kwargs)
 
 
 class LightHouseViewSet(LoggingMixin, viewsets.ViewSet):

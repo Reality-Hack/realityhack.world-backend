@@ -15,9 +15,11 @@ import sys
 from datetime import timedelta
 from distutils.util import strtobool
 from pathlib import Path
+import dotenv
 
 import django
 from environ import Env
+dotenv.load_dotenv()
 env = Env()
 env.read_env()
 
@@ -216,7 +218,7 @@ REST_FRAMEWORK = {
 if not DEBUG:
     REST_FRAMEWORK['DEFAULT_RENDERER_CLASSES'] = ['rest_framework.renderers.JSONRenderer']
 
-ASGI_APPLICATION = "infrastructure.routing.application"
+# ASGI_APPLICATION = "infrastructure.routing.application"
 
 if strtobool(os.getenv("DEPLOYED", "False")):
     CHANNEL_LAYERS = {

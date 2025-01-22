@@ -231,7 +231,7 @@ class TeamTableSerializer(serializers.ModelSerializer):
 class ProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
-        fields = ['id', 'name', 'repository_location', "description", 'submission_location',
+        fields = ['id', 'name', 'repository_location', 'description', 'submission_location',
                   'team', 'created_at', 'updated_at']
 
 
@@ -306,10 +306,10 @@ class MentorHelpRequestHistorySerializer(serializers.ModelSerializer):
 
 
 class AttendeeNameSerializer(serializers.ModelSerializer):
-    
+    profile_image = FileUploadSerializer(read_only=True)
     class Meta:
         model = Attendee
-        fields = ['id', 'first_name', 'last_name']
+        fields = ['id', 'first_name', 'last_name', 'participation_role', 'profile_image']
         
 class TableNumberSerializer(serializers.ModelSerializer):
     
@@ -322,7 +322,7 @@ class TeamSerializer(serializers.ModelSerializer):
     class Meta:
         model = Team
         fields = ['id', 'number', 'name', 'attendees', 'table', 
-                  'track', 'destiny_hardware', 'team_description', 
+                  'tracks', 'destiny_hardware', 'team_description', 
                   'created_at', 'updated_at']
 
 
@@ -330,7 +330,7 @@ class TeamProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
         fields = ['id', 'name', 'repository_location', 'submission_location',
-                  'created_at', 'updated_at']
+                  'description', 'created_at', 'updated_at']
 
 
 class TeamLightHouseSerializer(serializers.ModelSerializer):
@@ -349,7 +349,7 @@ class TeamDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Team
         fields = ['id', 'number', 'name', 'attendees', 'table',
-                  'project', 'lighthouse', 'track', 'destiny_hardware',
+                  'project', 'lighthouse', 'tracks', 'destiny_hardware',
                   'team_description','created_at', 'updated_at']
 
 
@@ -357,7 +357,14 @@ class TeamCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Team
         fields = ['id', 'name', 'attendees', 'table', 'team_description']
+        
+class TeamUpdateSerializer(serializers.ModelSerializer):
+    table = TableSerializer()
+    project = ProjectSerializer()
 
+    class Meta:
+        model = Team
+        fields = ['id', 'name', 'attendees', 'table', 'team_description', 'tracks', 'project']
 
 class TableDetailSerializer(serializers.ModelSerializer):
     team = TeamSerializer()

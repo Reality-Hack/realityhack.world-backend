@@ -467,20 +467,30 @@ class Application(models.Model):
 
 
 class Track(models.TextChoices):
-    FUTURE_CONSTRUCTORS = 'F', _('Future Constructors')
-    LEARNING = 'L', _('Learning')
-    WORK = 'W', _('Work')
-    HEALTH = 'H', _('Health and Well-Being')
-    SMART_CITIES = 'S', _('Smart Cities and Sustainability')
-    COMMUNITY_HACKS = 'C', ('Community Hacks')
+    FUTURE_CONSTRUCTORS = 'F', _('Founders Lab')
+    # LEARNING = 'L', _('Learning')
+    # WORK = 'W', _('Work')
+    # HEALTH = 'H', _('Health and Well-Being')
+    # SMART_CITIES = 'S', _('Smart Cities and Sustainability')
+    COMMUNITY_HACKS = 'C', ('Open Lab (AKA Community Hack)')
+    SOCIAL_XR = 'S', ('Connecting for Change with Social XR')
+    AUGMENTED_ENGINEERING = 'E', ('Augmented Engineering')
+    SUSTAINABILITY = 'D', ('Digitizing Sustainability')
+    AEROSPATIAL_EXPLORATION = 'A', ('AeroSpatial Exploration')
+    AUGMENTED_INTELLIGENCE = 'L', ('Augmented Intelligence')
+    HARDWARE_HACK = 'W', ('Hardware hack')
+    HEALTHCARE = 'H', ('Healthcare')
 
 
 class DestinyHardware(models.TextChoices):
-    HARDWARE_HACK = 'H', _('Hardware Hack')
-    META = 'M', _('Meta')
-    SNAPDRAGON_SPACES = 'Q', _('Snapdragon Spaces')
-    XREAL = 'X', _('XREAL')
-    SNAP = 'S', _('Snap Spectacles')
+    META = 'M', _('Best Lifestyle Experience with Meta Quest')
+    HORIZON = 'Q', _('Best in World Building with Horizon Worlds')
+    HAPTICS = 'T', _('Best use of Haptics')
+    SNAP = 'S', _('Snap Spectacles Challenge')
+    NEUROADAPTIVE = 'N', _('Pioneering a Neuroadaptive Future')
+    SHAPESXR = 'X', _('Best Use of ShapesXR')
+    STYLY = 'Y', _('Best use of STYLY')
+    LAMBDA = 'L', _('Best use of Lambda AI Cloud Services')
 
 
 class LoanerHeadsetPreference(models.TextChoices):
@@ -786,7 +796,7 @@ class Team(models.Model):
     name = models.CharField(max_length=50)
     attendees = models.ManyToManyField(Attendee, related_name="team_attendees", blank=True)
     table = models.OneToOneField(Table, on_delete=models.SET_NULL, null=True)
-    track = models.CharField(choices=Track.choices, max_length=1, null=True)
+    tracks = MultiSelectField(choices=Track.choices, max_length=len(Track.choices) * 2 + 1, max_choices=len(Track.choices), blank=True)
     hardware_hack = models.BooleanField(default=False, null=False)
     destiny_hardware = MultiSelectField(choices=DestinyHardware.choices, max_length=30, max_choices=len(DestinyHardware), blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
