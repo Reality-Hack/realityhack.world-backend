@@ -209,9 +209,14 @@ class LocationSerializer(serializers.ModelSerializer):
 
 
 class TableSerializer(serializers.ModelSerializer):
+    is_claimed = serializers.SerializerMethodField()
+
+    def get_is_claimed(self, obj):
+        return hasattr(obj, 'team') and obj.team is not None
+
     class Meta:
         model = Table
-        fields = ['id', 'number', 'location', 'created_at', 'updated_at']
+        fields = ['id', 'number', 'location', 'created_at', 'updated_at', 'is_claimed']
 
 
 class TableTruncatedSerializer(serializers.ModelSerializer):
@@ -359,7 +364,7 @@ class TeamCreateSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'attendees', 'table', 'team_description']
         
 class TeamUpdateSerializer(serializers.ModelSerializer):
-    table = TableSerializer()
+    table = TableSerializer(allow_null=True)
     project = ProjectSerializer()
     tracks = fields.MultipleChoiceField(choices=Track.choices)
     destiny_hardware = fields.MultipleChoiceField(choices=DestinyHardware.choices)

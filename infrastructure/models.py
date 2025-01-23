@@ -748,8 +748,13 @@ class Attendee(AbstractUser):
 
 class Location(models.Model):
     class Room(models.TextChoices):
-        MAIN_HALL = 'MH', _('Main Hall')
+        MAIN_HALL = 'MH', _('Morss Hall')
         ATLANTIS = 'AT', _('Atlantis')
+        NEPTUNE = 'NE', _('Neptune')
+        ROOM_124 = '24', _('32-124')
+        ROOM_144 = '44', _('32-144')
+        ROOM_141 = '41', _('32-141')
+        
 
     class Building(models.TextChoices):
         STATA = 'ST', _('Stata')
@@ -789,7 +794,7 @@ class Team(models.Model):
     number = models.IntegerField(null=True)
     name = models.CharField(max_length=50)
     attendees = models.ManyToManyField(Attendee, related_name="team_attendees", blank=True)
-    table = models.OneToOneField(Table, on_delete=models.SET_NULL, null=True)
+    table = models.OneToOneField(Table, on_delete=models.SET_NULL, null=True, blank=True)
     tracks = MultiSelectField(choices=Track.choices, max_length=len(Track.choices) * 2 + 1, max_choices=len(Track.choices), blank=True)
     hardware_hack = models.BooleanField(default=False, null=False)
     startup_hack = models.BooleanField(default=False, null=False)

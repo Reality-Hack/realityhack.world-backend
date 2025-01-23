@@ -305,7 +305,11 @@ class TableViewSet(LoggingMixin, viewsets.ModelViewSet):
             table.lighthouse = None
         serializer = TableDetailSerializer(table)
         return Response(serializer.data)
-
+    
+    def list(self, request):
+        queryset = Table.objects.all()
+        serializer = TableSerializer(queryset, many=True)
+        return Response(serializer.data)
 
 class TeamViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
@@ -341,6 +345,8 @@ class TeamViewSet(LoggingMixin, viewsets.ModelViewSet):
     
     def partial_update(self, request, *args, **kwargs):
         team = self.get_object()
+        
+        # Handle project fields
         project_fields = request.data.get('project')
         if project_fields:
             request.data.pop('project', None)
@@ -354,6 +360,25 @@ class TeamViewSet(LoggingMixin, viewsets.ModelViewSet):
             else:
                 return Response(serialized_project.errors, status=status.HTTP_400_BAD_REQUEST)
             team.project.save()
+
+        # Handle table fields
+        table_fields = request.data.get('table')
+        if table_fields:
+            request.data.pop('table', None)
+            try:
+                table = Table.objects.get(id=table_fields.get('id'))
+                team.table = table
+                team.save()
+            except Table.DoesNotExist:
+                return Response(
+                    {"table": f"Table with id {table_fields.get('id')} does not exist"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            except AttributeError:
+                return Response(
+                    {"table": "Invalid table data format. Expected {'id': <table_id>}"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
         return super().partial_update(request, *args, **kwargs)
 
 
