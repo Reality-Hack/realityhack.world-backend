@@ -467,18 +467,12 @@ class Application(models.Model):
 
 
 class Track(models.TextChoices):
-    FUTURE_CONSTRUCTORS = 'F', _('Founders Lab')
-    # LEARNING = 'L', _('Learning')
-    # WORK = 'W', _('Work')
-    # HEALTH = 'H', _('Health and Well-Being')
-    # SMART_CITIES = 'S', _('Smart Cities and Sustainability')
     COMMUNITY_HACKS = 'C', ('Open Lab (AKA Community Hack)')
     SOCIAL_XR = 'S', ('Connecting for Change with Social XR')
     AUGMENTED_ENGINEERING = 'E', ('Augmented Engineering')
     SUSTAINABILITY = 'D', ('Digitizing Sustainability')
     AEROSPATIAL_EXPLORATION = 'A', ('AeroSpatial Exploration')
     AUGMENTED_INTELLIGENCE = 'L', ('Augmented Intelligence')
-    HARDWARE_HACK = 'W', ('Hardware hack')
     HEALTHCARE = 'H', ('Healthcare')
 
 
@@ -798,6 +792,7 @@ class Team(models.Model):
     table = models.OneToOneField(Table, on_delete=models.SET_NULL, null=True)
     tracks = MultiSelectField(choices=Track.choices, max_length=len(Track.choices) * 2 + 1, max_choices=len(Track.choices), blank=True)
     hardware_hack = models.BooleanField(default=False, null=False)
+    startup_hack = models.BooleanField(default=False, null=False)
     destiny_hardware = MultiSelectField(choices=DestinyHardware.choices, max_length=30, max_choices=len(DestinyHardware), blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -1019,7 +1014,7 @@ class MentorHelpRequest(models.Model):
     reporter = models.ForeignKey(Attendee, on_delete=models.SET_NULL, null=True, related_name="mentor_help_request_reporter")
     mentor = models.ForeignKey(Attendee, on_delete=models.SET_NULL, null=True, related_name="mentor_help_request_mentor")
     team = models.ForeignKey(Team, on_delete=models.CASCADE)
-    reporter_location = models.CharField(max_length=100, null=True)
+    reporter_location = models.CharField(max_length=100, null=True, blank=True)
     status = models.CharField(choices=MentorRequestStatus.choices, max_length=1, default=MentorRequestStatus.REQUESTED.value)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

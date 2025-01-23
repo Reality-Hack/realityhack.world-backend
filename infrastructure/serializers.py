@@ -361,10 +361,12 @@ class TeamCreateSerializer(serializers.ModelSerializer):
 class TeamUpdateSerializer(serializers.ModelSerializer):
     table = TableSerializer()
     project = ProjectSerializer()
+    tracks = fields.MultipleChoiceField(choices=Track.choices)
+    destiny_hardware = fields.MultipleChoiceField(choices=DestinyHardware.choices)
 
     class Meta:
         model = Team
-        fields = ['id', 'name', 'attendees', 'table', 'team_description', 'tracks', 'project']
+        fields = ['id', 'name', 'attendees', 'table', 'team_description', 'tracks', 'destiny_hardware', 'project']
 
 class TableDetailSerializer(serializers.ModelSerializer):
     team = TeamSerializer()

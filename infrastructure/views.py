@@ -424,7 +424,7 @@ class MentorHelpRequestViewSet(LoggingMixin, viewsets.ModelViewSet):
     serializer_class = MentorHelpRequestSerializer
     read_serializer_class = MentorHelpRequestReadSerializer
     keycloak_roles = {
-        'GET': [KeycloakRoles.ATTENDEE],
+        'GET': [KeycloakRoles.ATTENDEE, KeycloakRoles.MENTOR, KeycloakRoles.ADMIN,],
         'POST': [KeycloakRoles.ATTENDEE],
         'DELETE': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.ATTENDEE],
         'PATCH': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.MENTOR, KeycloakRoles.ATTENDEE]

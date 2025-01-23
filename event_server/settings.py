@@ -321,6 +321,10 @@ if "test" not in sys.argv:
                 'encoding': 'utf-8',
                 'formatter': 'verbose'
             },
+            'console': {
+                'class': 'logging.StreamHandler',
+                'formatter': 'verbose',
+            },
         },
         'formatters': {
             'verbose': {
@@ -329,10 +333,10 @@ if "test" not in sys.argv:
         },
         'loggers': {
             'django.request': {
-                'handlers': ['file'],
+                'handlers': ['file', 'console'],
                 'level': 'DEBUG',
                 'propagate': True,
-            },
+            }
         },
     }
 
