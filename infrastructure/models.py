@@ -466,25 +466,27 @@ class Application(models.Model):
         return f"Participation Class: {self.participation_class}, Name: {self.first_name} {self.last_name}"
 
 
-class Track(models.TextChoices):
+class Track(models.TextChoices): # limit to 1
     COMMUNITY_HACKS = 'C', ('Open Lab (AKA Community Hack)')
     SOCIAL_XR = 'S', ('Connecting for Change with Social XR')
-    AUGMENTED_ENGINEERING = 'E', ('Augmented Engineering')
-    SUSTAINABILITY = 'D', ('Digitizing Sustainability')
+    AUGMENTED_ENGINEERING = 'E', ('Augmented Design & Engineering')
+    SUSTAINABILITY = 'D', ('Standing on the Shoulders of Sustainability')
     AEROSPATIAL_EXPLORATION = 'A', ('AeroSpatial Exploration')
     AUGMENTED_INTELLIGENCE = 'L', ('Augmented Intelligence')
     HEALTHCARE = 'H', ('Healthcare')
 
 
 class DestinyHardware(models.TextChoices):
-    META = 'M', _('Best Lifestyle Experience with Meta Quest')
-    HORIZON = 'Q', _('Best in World Building with Horizon Worlds')
+    META = 'M', _('Best MR Lifestyle App for Meta Quest')
+    HORIZON = 'Q', _('Best Lifestyle World with Meta Horizons Worlds')
     HAPTICS = 'T', _('Best use of Haptics')
     SNAP = 'S', _('Snap Spectacles Challenge')
     NEUROADAPTIVE = 'N', _('Pioneering a Neuroadaptive Future')
     SHAPESXR = 'X', _('Best Use of ShapesXR')
     STYLY = 'Y', _('Best use of STYLY')
     LAMBDA = 'L', _('Best use of Lambda AI Cloud Services')
+    QUALCOMM = 'U', _('Qualcomm IoT')
+    APPLE_VISION = 'V', _('Best use of Apple Vision Pro')
 
 
 class LoanerHeadsetPreference(models.TextChoices):
@@ -804,6 +806,7 @@ class Team(models.Model):
     devpost_url = models.URLField(null=True)
     github_url = models.URLField(null=True)
     team_description = models.TextField(max_length=2000, null=True)
+    # add census field
 
     class Meta:
         indexes = [
@@ -828,6 +831,9 @@ class Project(models.Model):
     repository_location = models.URLField()
     submission_location = models.URLField()
     team = models.OneToOneField(Team, on_delete=models.SET_NULL, null=True)
+    census_location_override = models.CharField(max_length=75, null=True, blank=True)
+    census_taker_name = models.CharField(max_length=75, null=True, blank=True)
+    team_primary_contact = models.CharField(max_length=75, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

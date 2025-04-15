@@ -237,7 +237,7 @@ class ProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
         fields = ['id', 'name', 'repository_location', 'description', 'submission_location',
-                  'team', 'created_at', 'updated_at']
+                  'team', 'created_at', 'updated_at', 'census_taker_name', 'census_location_override', 'team_primary_contact']
 
 
 class LightHouseSerializer(serializers.ModelSerializer):
@@ -335,6 +335,7 @@ class TeamProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
         fields = ['id', 'name', 'repository_location', 'submission_location',
+                  'census_location_override', 'census_taker_name', 'team_primary_contact',
                   'description', 'created_at', 'updated_at']
 
 
@@ -353,8 +354,8 @@ class TeamDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Team
-        fields = ['id', 'number', 'name', 'attendees', 'table',
-                  'project', 'lighthouse', 'tracks', 'destiny_hardware',
+        fields = ['id', 'number', 'name', 'attendees', 'table', 'hardware_hack',
+                  'startup_hack', 'project', 'lighthouse', 'tracks', 'destiny_hardware',
                   'team_description','created_at', 'updated_at']
 
 
@@ -371,7 +372,7 @@ class TeamUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Team
-        fields = ['id', 'name', 'attendees', 'table', 'team_description', 'tracks', 'destiny_hardware', 'project']
+        fields = ['id', 'name', 'attendees', 'table', 'team_description', 'tracks', 'destiny_hardware', 'project', 'hardware_hack', 'startup_hack']
 
 class TableDetailSerializer(serializers.ModelSerializer):
     team = TeamSerializer()

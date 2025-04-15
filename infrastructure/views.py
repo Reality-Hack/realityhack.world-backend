@@ -645,7 +645,7 @@ class HardwareDeviceViewSet(LoggingMixin, viewsets.ModelViewSet):
     filterset_fields = ['hardware', 'checked_out_to', 'serial',
                         'hardware__relates_to_destiny_hardware']
     keycloak_roles = {
-        'GET': [KeycloakRoles.ATTENDEE],
+        'GET': [KeycloakRoles.ATTENDEE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER],
         'POST': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER],
         'DELETE': [KeycloakRoles.ADMIN],
         'PATCH': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER]
@@ -855,7 +855,7 @@ class DestinyTeamViewSet(LoggingMixin, viewsets.ModelViewSet):
     keycloak_roles = {
         "POST": [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
         "PATCH": [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
-        "OPTIONS": [KeycloakRoles.ATTENDEE],
+        "OPTIONS": [KeycloakRoles.ATTENDEE, KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.VOLUNTEER, KeycloakRoles.MENTOR, KeycloakRoles.JUDGE],
         "GET": [KeycloakRoles.ATTENDEE]
     }
     
