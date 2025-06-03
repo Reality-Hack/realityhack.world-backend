@@ -19,10 +19,11 @@ RUN mkdir -p /code
 WORKDIR /code
 RUN mkdir -p /code/logs && touch /code/logs/request.log
 RUN pip install --upgrade pip setuptools wheel
-RUN pip install poetry
-RUN poetry config virtualenvs.create false
-COPY pyproject.toml poetry.lock /code/
-RUN poetry install --only main --no-root --no-interaction
+
+# Copy requirements file and install dependencies
+COPY requirements.txt /code/
+RUN pip install -r requirements.txt
+
 COPY . /code
 
 RUN python manage.py collectstatic --noinput
