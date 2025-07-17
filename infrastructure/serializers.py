@@ -1,11 +1,10 @@
 import pycountry
 from django.contrib.auth.models import Group
 from rest_framework import fields, serializers
-from .models import UploadedFile
 
 from infrastructure import models
 from infrastructure.models import (INDUSTRIES, MENTOR_HELP_REQUEST_TOPICS,
-                                   SPOKEN_LANGUAGES, Application, Attendee,
+                                   Application, Attendee,
                                    AttendeePreference, DestinyHardware,
                                    DestinyTeam, DestinyTeamAttendeeVibe,
                                    Hardware, HardwareDevice, HardwareRequest,
@@ -211,7 +210,7 @@ class LocationSerializer(serializers.ModelSerializer):
 class TableSerializer(serializers.ModelSerializer):
     is_claimed = serializers.SerializerMethodField()
 
-    def get_is_claimed(self, obj):
+    def get_is_claimed(self, obj) -> bool:
         return hasattr(obj, 'team') and obj.team is not None
 
     class Meta:
