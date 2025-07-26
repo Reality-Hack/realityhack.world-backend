@@ -163,12 +163,6 @@ class AttendeeViewSet(LoggingMixin, viewsets.ModelViewSet):
     def update(self, request, pk=None, **kwargs):
         check_user(request, pk)
         return super().update(request, pk=pk, **kwargs)
-    
-    
-    def partial_update(self, request, pk=None, **kwargs):
-        check_user(request, pk)
-        return super().partial_update(request, pk, **kwargs)
-
 
     def partial_update(self, request, pk=None, **kwargs):
         check_user(request, pk)
