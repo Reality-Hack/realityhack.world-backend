@@ -1,10 +1,11 @@
 from django.contrib.auth.models import Group
+from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404, render
 from django.utils.decorators import method_decorator
-from django.views.decorators.cache import cache_page
+from django.views.decorators.cache import cache_page, never_cache
 from django.views.decorators.vary import vary_on_headers
 from django_keycloak_auth.decorators import keycloak_roles
 from rest_framework import permissions, status, viewsets
@@ -162,15 +163,24 @@ class AttendeeViewSet(LoggingMixin, viewsets.ModelViewSet):
 
     def update(self, request, pk=None, **kwargs):
         check_user(request, pk)
-        return super().update(request, pk=pk, **kwargs)
+        response = super().update(request, pk=pk, **kwargs)
+        self._invalidate_list_cache(request)
+        return response
 
     def partial_update(self, request, pk=None, **kwargs):
         check_user(request, pk)
-        return super().partial_update(request, pk, **kwargs)
+        response = super().partial_update(request, pk, **kwargs)
+        self._invalidate_list_cache(request)
+        return response
 
+    @method_decorator(never_cache)
     @method_decorator(cache_page(60 * 60 * 2))
     def list(self, request):
         return super().list(request)
+
+    def _invalidate_list_cache(self, request):
+        """Invalidate the cache for the attendees list endpoint."""
+        cache.clear()
 
 
 class AttendeeRSVPViewSet(LoggingMixin, viewsets.ModelViewSet):
