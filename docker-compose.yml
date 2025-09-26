@@ -1,26 +1,19 @@
 services:
-  redis:
-    image: redis:6.2-alpine
-    restart: always
-    ports:
-      - '6379:6379'
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 1s
-      timeout: 3s
-      retries: 30
-    command: redis-server
-  postgres-django:
-    image: postgres
+  postgres:
+    image: postgres:15
     environment:
       POSTGRES_DB: django
       POSTGRES_USER: django
-      POSTGRES_PASSWORD: 123456789
+      POSTGRES_PASSWORD: 123456
+    ports:
+      - "5436:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
-      interval: 3s
-      timeout: 3s
-      retries: 10
+      test: ["CMD-SHELL", "pg_isready -U django -d django"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
   keycloak:
     image: quay.io/keycloak/keycloak:25.0.0
     environment:
@@ -34,59 +27,29 @@ services:
       - 9000:9000
     entrypoint: >
       sh -c "\
-           KC_BOOTSTRAP_ADMIN_USERNAME=admin KC_BOOTSTRAP_ADMIN_PASSWORD=123456 /opt/keycloak/bin/kc.sh import --file /opt/keycloak/data/import/realm-export.json && \
-          /opt/keycloak/bin/kc.sh start-dev --health-enabled=true
+           KC_BOOTSTRAP_ADMIN_USERNAME=admin KC_BOOTSTRAP_ADMIN_PASSWORD=123456 && \
+           /opt/keycloak/bin/kc.sh import --file /opt/keycloak/data/import/realm-export.json && \
+           /opt/keycloak/bin/kc.sh start-dev --health-enabled=true
       "
+  # import is part of first run only, otherwise it overruns setup_fake_users 
+  # import --file /opt/keycloak/data/import/realm-export.json && \
     # healthcheck:
     #   test: ["CMD", "curl", "--head", "-fsS", "http://keycloak:8080/health/ready"]
     #   interval: 5s
     #   timeout: 2s
     #   retries: 15
-  django:
-    image: realityhack.world-backend
-    stdin_open: true # docker run -i
-    tty: true        # docker run -t
-    environment:
-      DJANGO_USER: django
-      DJANGO_USER_PASSWORD: 123456
-      DJANGO_POSTGRESS_PASS: 123456789
-      DJANGO_SECRET_KEY: 123456
-      POSTGRES_HOST: postgres-django
-      REDIS_HOST: redis
-      REDIS_URL: redis://redis:6379
-      SECRET_KEY: 123456
-      DEBUG: true
-      KEYCLOAK_SERVER_URL: http://keycloak:8080
-      KEYCLOAK_ADMIN_URL: http://keycloak:9000
-      KEYCLOAK_REALM: master
-      KEYCLOAK_CLIENT_ID: test
-      KEYCLOAK_CLIENT_SECRET_KEY: 123456
-      DEPLOYED: true
-      FRONTEND_DOMAIN: http://localhost:3000
-      BACKEND_DOMAIN: http://localhost:8000
-      EMAIL_HOST:
-      EMAIL_PORT:
-      EMAIL_HOST_USER:
-      EMAIL_HOST_PASSWORD:
-      EMAIL_USE_SSL: True
+  redis:
+    image: redis:6.2-alpine
     ports:
-      - 8000:8000
+      - "6379:6379"
     volumes:
-      - ./infrastructure:/home/infrastructure
-      - ./event_server:/home/event_server
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres-django:
-        condition: service_healthy
-      # keycloak:
-      #   condition: service_healthy
-    command: >
-      sh -c "\
-          ./manage.py wait_for_db && \
-          ./manage.py fix_tests_db && \
-          ./manage.py migrate && \
-          ./manage.py setup_test_data && \
-          ./manage.py setup_fake_users && \
-          ./manage.py runserver 0.0.0.0:8000
-      "
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:

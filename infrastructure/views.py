@@ -1,10 +1,11 @@
 from django.contrib.auth.models import Group
+from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404, render
 from django.utils.decorators import method_decorator
-from django.views.decorators.cache import cache_page
+from django.views.decorators.cache import cache_page, never_cache
 from django.views.decorators.vary import vary_on_headers
 from django_keycloak_auth.decorators import keycloak_roles
 from rest_framework import permissions, status, viewsets
@@ -162,21 +163,24 @@ class AttendeeViewSet(LoggingMixin, viewsets.ModelViewSet):
 
     def update(self, request, pk=None, **kwargs):
         check_user(request, pk)
-        return super().update(request, pk=pk, **kwargs)
-    
-    
-    def partial_update(self, request, pk=None, **kwargs):
-        check_user(request, pk)
-        return super().partial_update(request, pk, **kwargs)
-
+        response = super().update(request, pk=pk, **kwargs)
+        self._invalidate_list_cache(request)
+        return response
 
     def partial_update(self, request, pk=None, **kwargs):
         check_user(request, pk)
-        return super().partial_update(request, pk, **kwargs)
+        response = super().partial_update(request, pk, **kwargs)
+        self._invalidate_list_cache(request)
+        return response
 
+    @method_decorator(never_cache)
     @method_decorator(cache_page(60 * 60 * 2))
     def list(self, request):
         return super().list(request)
+
+    def _invalidate_list_cache(self, request):
+        """Invalidate the cache for the attendees list endpoint."""
+        cache.clear()
 
 
 class AttendeeRSVPViewSet(LoggingMixin, viewsets.ModelViewSet):
@@ -200,7 +204,7 @@ class AttendeeRSVPViewSet(LoggingMixin, viewsets.ModelViewSet):
         if self.action == 'create':  # pragma: nocover
             return AttendeeRSVPCreateSerializer
         return AttendeeRSVPSerializer
-    
+
     def create(self, request):
         application = None
         sponsor_handler = None
@@ -292,7 +296,7 @@ class TableViewSet(LoggingMixin, viewsets.ModelViewSet):
         if self.action == 'create':
             return TableCreateSerializer
         return TableSerializer
-    
+
     def retrieve(self, request, pk=None):
         table = get_object_or_404(Table, pk=pk)
         try:
@@ -305,11 +309,12 @@ class TableViewSet(LoggingMixin, viewsets.ModelViewSet):
             table.lighthouse = None
         serializer = TableDetailSerializer(table)
         return Response(serializer.data)
-    
+
     def list(self, request):
         queryset = Table.objects.all()
         serializer = TableSerializer(queryset, many=True)
         return Response(serializer.data)
+
 
 class TeamViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
@@ -342,10 +347,10 @@ class TeamViewSet(LoggingMixin, viewsets.ModelViewSet):
             team.lighthouse = None
         serializer = TeamDetailSerializer(team)
         return Response(serializer.data)
-    
+
     def partial_update(self, request, *args, **kwargs):
         team = self.get_object()
-        
+
         # Handle project fields
         project_fields = request.data.get('project')
         if project_fields:
@@ -454,7 +459,7 @@ class MentorHelpRequestViewSet(LoggingMixin, viewsets.ModelViewSet):
         'DELETE': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.ATTENDEE],
         'PATCH': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.MENTOR, KeycloakRoles.ATTENDEE]
     }
-	    
+
     def get_serializer_class(self):
         if self.action == 'list':
             return self.read_serializer_class
@@ -568,7 +573,7 @@ def hardware_count(hardware_type):
 
 class HardwareViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
-    API endpoint that allows hardware to be viewed or edited.
+    API endpoint that allows hardware types to be viewed or edited.
     """
     queryset = Hardware.objects.all()
     serializer_class = HardwareSerializer
@@ -611,7 +616,6 @@ class HardwareViewSet(LoggingMixin, viewsets.ModelViewSet):
         hardware_type.checked_out = hardware_devices_checked_out
         hardware_type.total = hardware_devices_total
 
-
     def retrieve(self, request, pk=None):
         hardware_type = get_object_or_404(Hardware, pk=pk)
         self._iterate_hardware_count(hardware_type)
@@ -620,32 +624,35 @@ class HardwareViewSet(LoggingMixin, viewsets.ModelViewSet):
         serializer = HardwareCountDetailSerializer(hardware_type)
         return Response(serializer.data)
 
-
     def list(self, request):
         hardware_types = self.get_queryset()
         for hardware_type in hardware_types:
             self._iterate_hardware_count(hardware_type)
         serializer = HardwareCountSerializer(hardware_types, many=True)
         return Response(status=200, data=serializer.data)
-    
+
     def get_serializer_class(self):
         if self.action == 'create':
             return HardwareCreateSerializer
         elif self.action in ("update", "partial_update"):
             return HardwareCreateSerializer
+        elif self.action == 'list':
+            return HardwareCountSerializer
+        elif self.action == 'retrieve':
+            return HardwareCountDetailSerializer
         return HardwareSerializer
 
 
 class HardwareDeviceViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
-    API endpoint that allows hardware devices to be viewed or edited.
+    API endpoint that allows individual hardware devices to be viewed or edited.
     """
     queryset = HardwareDevice.objects.all()
     permission_classes = [permissions.AllowAny]
     filterset_fields = ['hardware', 'checked_out_to', 'serial',
                         'hardware__relates_to_destiny_hardware']
     keycloak_roles = {
-        'GET': [KeycloakRoles.ATTENDEE],
+        'GET': [KeycloakRoles.ATTENDEE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER],
         'POST': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER],
         'DELETE': [KeycloakRoles.ADMIN],
         'PATCH': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER]
@@ -659,7 +666,7 @@ class HardwareDeviceViewSet(LoggingMixin, viewsets.ModelViewSet):
 
 class HardwareRequestsViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
-    API endpoint that allows hardware devices to be viewed or edited.
+    API endpoint that allows hardware device requests from participants to be viewed or edited.
     """
     queryset = HardwareRequest.objects.all()
     permission_classes = [permissions.AllowAny]
@@ -670,7 +677,7 @@ class HardwareRequestsViewSet(LoggingMixin, viewsets.ModelViewSet):
         "PATCH": [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.ATTENDEE],
         "DELETE": [KeycloakRoles.ATTENDEE, KeycloakRoles.MENTOR, KeycloakRoles.JUDGE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER]
     }
-    
+
     def get_serializer_class(self):
         if self.action == 'create':
             return HardwareRequestCreateSerializer
@@ -700,12 +707,13 @@ class HardwareRequestsViewSet(LoggingMixin, viewsets.ModelViewSet):
             if set(request.data.keys()) != set(["reason"]):
                 raise PermissionDenied("Attendee cannot modify anything other than the reason of a request")
         return super().update(request, pk=pk, **kwargs)
-    
+
     def delete(self, request, pk=None, **kwargs):
         hardware_request = get_object_or_404(HardwareRequest, pk=pk)
         check_user(request, hardware_request.requester.id,
                    special_roles={KeycloakRoles.MENTOR, KeycloakRoles.JUDGE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER})
         return super().delete(request, pk=pk, **kwargs)
+
 
 class HardwareDeviceHistoryViewSet(LoggingMixin, viewsets.ModelViewSet):
     """
@@ -730,7 +738,7 @@ class ApplicationViewSet(LoggingMixin, viewsets.ModelViewSet):
         'DELETE': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
         'PATCH': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
     }
-    
+
     def create(self, request, *args, **kwargs):
         return super().create(request, *args, **kwargs)
 
@@ -826,19 +834,19 @@ class AttendeePreferenceViewSet(LoggingMixin, viewsets.ModelViewSet):
         if filters:
             queryset = queryset.filter(**filters)
         return Response(status=200, data=AttendeePreferenceSerializer(queryset, many=True).data)
-    
+
     @preference_auth
     def retrieve(self, request, pk=None, **kwargs):
         return super().retrieve(request, pk=pk, **kwargs)
-    
+
     @preference_auth
     def update(self, request, pk=None, **kwargs):
         return super().update(request, pk=pk, **kwargs)
-    
+
     @preference_auth
     def delete(self, request, pk=None, **kwargs):
         return super().delete(request, pk=pk, **kwargs)
-    
+
     def create(self, request, pk=None, **kwargs):
         check_user(request, request.data["preferer"])
         return super().create(request, pk=pk, **kwargs)
@@ -855,10 +863,10 @@ class DestinyTeamViewSet(LoggingMixin, viewsets.ModelViewSet):
     keycloak_roles = {
         "POST": [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
         "PATCH": [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
-        "OPTIONS": [KeycloakRoles.ATTENDEE],
+        "OPTIONS": [KeycloakRoles.ATTENDEE, KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.VOLUNTEER, KeycloakRoles.MENTOR, KeycloakRoles.JUDGE],
         "GET": [KeycloakRoles.ATTENDEE]
     }
-    
+
     def get_serializer_class(self):
         if self.action in ("create", "update", "partial_update"):
             return DestinyTeamUpdateSerializer
@@ -902,19 +910,19 @@ class DestinyTeamAttendeeVibeViewSet(LoggingMixin, viewsets.ModelViewSet):
         if filters:
             queryset = queryset.filter(**filters)
         return Response(status=200, data=DestinyTeamAttendeeVibeSerializer(queryset, many=True).data)
-    
+
     @vibe_auth
     def retrieve(self, request, pk=None, **kwargs):
         return super().retrieve(request, pk=pk, **kwargs)
-    
+
     @vibe_auth
     def update(self, request, pk=None, **kwargs):
         return super().update(request, pk=pk, **kwargs)
-    
+
     @vibe_auth
     def delete(self, request, pk=None, **kwargs):
         return super().delete(request, pk=pk, **kwargs)
-    
+
     def create(self, request, pk=None, **kwargs):
         check_user(request, request.data["attendee"])
         return super().create(request, pk=pk, **kwargs)

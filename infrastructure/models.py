@@ -23,7 +23,7 @@ from django.utils.translation import gettext_lazy as _
 from multiselectfield import MultiSelectField
 from phonenumber_field.modelfields import PhoneNumberField
 from simple_history.models import HistoricalRecords
-from django.conf import settings
+from infrastructure.constants import MENTOR_HELP_REQUEST_TOPICS
 
 from infrastructure import email
 
@@ -466,25 +466,27 @@ class Application(models.Model):
         return f"Participation Class: {self.participation_class}, Name: {self.first_name} {self.last_name}"
 
 
-class Track(models.TextChoices):
+class Track(models.TextChoices): # limit to 1
     COMMUNITY_HACKS = 'C', ('Open Lab (AKA Community Hack)')
     SOCIAL_XR = 'S', ('Connecting for Change with Social XR')
-    AUGMENTED_ENGINEERING = 'E', ('Augmented Engineering')
-    SUSTAINABILITY = 'D', ('Digitizing Sustainability')
+    AUGMENTED_ENGINEERING = 'E', ('Augmented Design & Engineering')
+    SUSTAINABILITY = 'D', ('Standing on the Shoulders of Sustainability')
     AEROSPATIAL_EXPLORATION = 'A', ('AeroSpatial Exploration')
     AUGMENTED_INTELLIGENCE = 'L', ('Augmented Intelligence')
     HEALTHCARE = 'H', ('Healthcare')
 
 
 class DestinyHardware(models.TextChoices):
-    META = 'M', _('Best Lifestyle Experience with Meta Quest')
-    HORIZON = 'Q', _('Best in World Building with Horizon Worlds')
+    META = 'M', _('Best MR Lifestyle App for Meta Quest')
+    HORIZON = 'Q', _('Best Lifestyle World with Meta Horizons Worlds')
     HAPTICS = 'T', _('Best use of Haptics')
     SNAP = 'S', _('Snap Spectacles Challenge')
     NEUROADAPTIVE = 'N', _('Pioneering a Neuroadaptive Future')
     SHAPESXR = 'X', _('Best Use of ShapesXR')
     STYLY = 'Y', _('Best use of STYLY')
     LAMBDA = 'L', _('Best use of Lambda AI Cloud Services')
+    QUALCOMM = 'U', _('Qualcomm IoT')
+    APPLE_VISION = 'V', _('Best use of Apple Vision Pro')
 
 
 class LoanerHeadsetPreference(models.TextChoices):
@@ -804,6 +806,7 @@ class Team(models.Model):
     devpost_url = models.URLField(null=True)
     github_url = models.URLField(null=True)
     team_description = models.TextField(max_length=2000, null=True)
+    # add census field
 
     class Meta:
         indexes = [
@@ -828,6 +831,9 @@ class Project(models.Model):
     repository_location = models.URLField()
     submission_location = models.URLField()
     team = models.OneToOneField(Team, on_delete=models.SET_NULL, null=True)
+    census_location_override = models.CharField(max_length=75, null=True, blank=True)
+    census_taker_name = models.CharField(max_length=75, null=True, blank=True)
+    team_primary_contact = models.CharField(max_length=75, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -893,110 +899,6 @@ class MentorHelpRequestCategory(models.TextChoices):
     PROTOTYPING = 'P', ('Prototyping')
     PROJECT_MANAGEMENT = 'M', ('Project Management and Leadership')
     SPECIALTY = 'S', ('Specialty')
-
-
-MENTOR_HELP_REQUEST_TOPICS = [
-    ('1','AI - Chat'),
-    ('2','AI - GenAI'),
-    ('3','AI - Other'),
-    ('4','AI - Vision and Sensing'),
-    ('5','Audio - Music'),
-    ('6','Audio - Other'),
-    ('7','Audio - Spatial Audio'),
-    ('8','AVP - ARKit'),
-    ('9','AVP - Other'),
-    ('10','AVP - Reality Composer'),
-    ('11','AVP - SharePlay'),
-    ('12','AVP - SwiftUI'),
-    ('13','AVP - UIKit'),
-    ('14','AVP - Unity PolySpatial'),
-    ('15','Backend - API Design'),
-    ('16','Backend - Database'),
-    ('17','Blockchain'),
-    ('18','Cognitive3D'),
-    ('19','Design - 3DS Max'),
-    ('20','Design - Blender'),
-    ('21','Design - Figma'),
-    ('22','Design - GIMP'),
-    ('23','Design - Illustrator'),
-    ('24','Design - Maya'),
-    ('25','Design - Other'),
-    ('26','Design - Photoshop'),
-    ('27','Design - ShapesXR'),
-    ('28','Founders Lab'),
-    ('29','Godot - C# Script'),
-    ('30','Godot - GDScript'),
-    ('31','Godot - Other'),
-    ('32','Godot - Shaders'),
-    ('33','Hardware - Arduino'),
-    ('34','Hardware - Esp32'),
-    ('35','Hardware - GPIO'),
-    ('36','Hardware - Raspberry Pi'),
-    ('37','Hardware - Sensors'),
-    ('38','Langage - JavaScript'),
-    ('39','Language - C and C++'),
-    ('40','Language - C#'),
-    ('41','Language - Java'),
-    ('42','Language - Other'),
-    ('43','Language - Python'),
-    ('44','Meta - Anchors'),
-    ('45','Meta - Avatars'),
-    ('46','Meta - Devices'),
-    ('47','Meta - Interactions'),
-    ('48','Meta - MRUK'),
-    ('49','Meta - Other'),
-    ('50','Meta - Scene'),
-    ('51','Mixed Reality Toolkit (MRTK)'),
-    ('52','Networking'),
-    ('53','OS - Android'),
-    ('54','OS - iOS'),
-    ('55','OS - Linux Unix'),
-    ('56','OS - Mac'),
-    ('57','OS - Other'),
-    ('58','OS - Windows'),
-    ('O','Other'),
-    ('60','PICO - Devices'),
-    ('61','PICO - SDKs'),
-    ('62','Presentation - Other'),
-    ('63','Presentation - Pitch'),
-    ('64','Presentation - Research'),
-    ('65','Presentation - Storytelling'),
-    ('66','Project - Advice'),
-    ('67','Project - Management'),
-    ('68','Project - Other'),
-    ('69','Project - Scope'),
-    ('70','Qualcomm - Devices'),
-    ('71','Qualcomm - Robotics'),
-    ('72','Qualcomm - SDKs'),
-    ('73','Snap - AI'),
-    ('74','Snap - Lens Studio'),
-    ('75','Snap - Other'),
-    ('76','Snap - Spectacles'),
-    ('77','Source Control - Codeberg'),
-    ('78','Source Control - Git'),
-    ('79','Source Control - Other'),
-    ('80','STYLY'),
-    ('81','Unity - Animations'),
-    ('82','Unity - AR Foundation'),
-    ('83','Unity - C# Scripting'),
-    ('84','Unity - Other'),
-    ('85','Unity - Shaders'),
-    ('86','Unity - Visual Scripting'),
-    ('87','Unity - XRI'),
-    ('88','Unreal - Animations'),
-    ('89','Unreal - Blueprints'),
-    ('90','Unreal - C++'),
-    ('91','Unreal - Other'),
-    ('92','Unreal - Shaders'),
-    ('93','Video Editing - After Effects'),
-    ('94','Video Editing - DaVinci'),
-    ('95','Video Editing - Other'),
-    ('96','Video Editing - Premiere'),
-    ('97','Web - HTML'),
-    ('98','Web - Libraries'),
-    ('99','Web - Other'),
-    ('100','WebXR')
-]
 
 
 class MentorHelpRequest(models.Model):

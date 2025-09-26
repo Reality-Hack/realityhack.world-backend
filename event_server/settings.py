@@ -12,13 +12,11 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 import os
 import sys
-from datetime import timedelta
 from distutils.util import strtobool
 from pathlib import Path
 import dotenv
-
-import django
 from environ import Env
+import pycountry
 dotenv.load_dotenv()
 env = Env()
 env.read_env()
@@ -267,6 +265,28 @@ SPECTACULAR_SETTINGS = {
     'REDOC_DIST': 'SIDECAR',
     'SWAGGER_UI_DIST': 'SIDECAR',
     'SWAGGER_UI_FAVICON_HREF': 'SIDECAR',
+    
+    # Key settings for client generation
+    'COMPONENT_SPLIT_REQUEST': True,  # Most important for Orval compatibility
+    'COMPONENT_NO_READ_ONLY_REQUIRED': True,  # Helps with required field issues
+    'ENUM_ADD_EXPLICIT_BLANK_NULL_CHOICE': False,  # Prevents enum issues in client generation
+    
+    # Fix enum naming conflicts - map from desired name to actual enum class
+    'ENUM_NAME_OVERRIDES': {
+        # Use clean names as keys, enum classes as values
+        'ParticipationClassEnum': 'infrastructure.models.Attendee.ParticipationClass',
+        'ApplicationStatusEnum': 'infrastructure.models.Application.Status', 
+        'MentorHelpRequestStatusEnum': 'infrastructure.models.MentorRequestStatus',
+        'HardwareRequestStatusEnum': 'infrastructure.models.HardwareRequestStatus',
+        'DestinyHardwareEnum': 'infrastructure.models.DestinyHardware',
+        'TrackEnum': 'infrastructure.models.Track',
+        'SpecialInterestTrackEnum': [('Y', 'Yes'), ('N', 'No')],  # inline choices
+        'ThemeInterestTrackEnum': 'infrastructure.models.Application.ThemeInterestTrackChoice',
+        'ThemeDetailEnum': 'infrastructure.models.Application.ThemeInterestTrackChoice',
+        'RecommendedForEnum': 'infrastructure.models.ParticipationRole',
+        'AgeGroupEnum': 'infrastructure.models.Application.AgeGroup',
+        'CountryEnum': [(x.alpha_2, x.name) for x in pycountry.countries],  # dynamic choices
+    },
 }
 CSP_DEFAULT_SRC = ("'self'", "'unsafe-inline'")
 CSP_IMG_SRC = ("'self'", "data:")
@@ -334,7 +354,7 @@ if "test" not in sys.argv:
         'loggers': {
             'django.request': {
                 'handlers': ['file', 'console'],
-                'level': 'DEBUG',
+                'level': 'INFO',
                 'propagate': True,
             }
         },

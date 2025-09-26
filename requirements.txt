@@ -1,82 +1,292 @@
-asgiref==3.7.2 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-async-timeout==4.0.3 ; python_full_version >= "3.10.13" and python_full_version <= "3.11.2"
-attrs==23.1.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-autobahn==23.6.2 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-automat==22.10.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-boto3==1.35.48 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-botocore==1.35.48 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-certifi==2023.7.22 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-cffi==1.15.1 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-channels-redis==4.1.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-channels==4.0.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-charset-normalizer==3.3.1 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-colorama==0.4.6 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0" and platform_system == "Windows"
-constantly==15.1.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-coverage==7.2.7 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-cryptography==41.0.1 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-cython==0.29.36 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-daphne==4.0.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-django-cors-headers==4.3.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-django-environ==0.11.2 ; python_full_version >= "3.10.13" and python_version < "4"
-django-filter==23.2 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-django-keycloak-auth==0.9.8 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-django-multiselectfield==0.1.12 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-django-phonenumber-field==7.2.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-django-simple-history==3.3.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-django-storages[s3]==1.14.4 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-django==4.2.2 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-djangorestframework-simplejwt==5.3.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-djangorestframework==3.14.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-drf-spectacular==0.26.3 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-drf-yasg==1.21.7 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-factory-boy==3.2.1 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-faker==18.11.2 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-flake8==6.0.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-hyperlink==21.0.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-idna==3.4 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-incremental==22.10.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-inflection==0.5.1 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-isort==5.12.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-jmespath==1.0.1 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-jsonschema==4.17.3 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-language-tags==1.2.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-mccabe==0.7.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-more-itertools==10.2.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-msgpack==1.0.7 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-oauthlib==3.2.2 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-packaging==23.2 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-phonenumbers==8.13.23 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-pillow==10.1.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-psycopg2-binary==2.9.9 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-pyasn1-modules==0.3.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-pyasn1==0.5.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-pycodestyle==2.10.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-pycountry==22.3.5 ; python_full_version >= "3.10.13" and python_version < "4"
-pycparser==2.21 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-pyflakes==3.0.1 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-pyjwt==2.8.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-pyopenssl==23.2.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-pypng==0.20220715.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-pyrsistent==0.19.3 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-python-dateutil==2.8.2 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-python-dotenv==1.0.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-pytz==2023.3 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-pyyaml==6.0.1 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-qrcode[pil]==7.4.2 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-redis==5.0.1 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-requests-oauthlib==1.3.1 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-requests==2.31.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-s3transfer==0.10.3 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-service-identity==23.1.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-setuptools==68.2.2 ; python_full_version >= "3.10.13" and python_version < "4"
-six==1.16.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-sqlparse==0.4.4 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-twisted-iocpsupport==1.0.4 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0" and platform_system == "Windows"
-twisted==22.10.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-twisted[tls]==22.10.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-txaio==23.1.1 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-typing-extensions==4.12.2 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-tzdata==2024.2 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0" and sys_platform == "win32"
-uritemplate==4.1.1 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-urllib3==2.0.7 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
-zope-interface==6.0 ; python_full_version >= "3.10.13" and python_full_version < "4.0.0"
+#
+# This file is autogenerated by pip-compile with Python 3.10
+# by the following command:
+#
+#    pip-compile
+#
+asgiref==3.7.2
+    # via
+    #   channels
+    #   channels-redis
+    #   daphne
+    #   django
+    #   realityhack-world-backend (pyproject.toml)
+async-timeout==5.0.1
+    # via redis
+attrs==23.1.0
+    # via
+    #   automat
+    #   jsonschema
+    #   realityhack-world-backend (pyproject.toml)
+    #   service-identity
+    #   twisted
+autobahn==23.6.2
+    # via
+    #   daphne
+    #   realityhack-world-backend (pyproject.toml)
+automat==22.10.0
+    # via
+    #   realityhack-world-backend (pyproject.toml)
+    #   twisted
+boto3==1.37.34
+    # via django-storages
+botocore==1.37.34
+    # via
+    #   boto3
+    #   s3transfer
+certifi==2023.7.22
+    # via
+    #   realityhack-world-backend (pyproject.toml)
+    #   requests
+cffi==1.15.1
+    # via
+    #   cryptography
+    #   realityhack-world-backend (pyproject.toml)
+channels==4.0.0
+    # via
+    #   channels-redis
+    #   realityhack-world-backend (pyproject.toml)
+channels-redis==4.1.0
+    # via realityhack-world-backend (pyproject.toml)
+charset-normalizer==3.3.1
+    # via
+    #   realityhack-world-backend (pyproject.toml)
+    #   requests
+constantly==15.1.0
+    # via
+    #   realityhack-world-backend (pyproject.toml)
+    #   twisted
+coverage==7.2.7
+    # via realityhack-world-backend (pyproject.toml)
+cryptography==41.0.1
+    # via
+    #   autobahn
+    #   pyopenssl
+    #   realityhack-world-backend (pyproject.toml)
+    #   service-identity
+cython==0.29.36
+    # via realityhack-world-backend (pyproject.toml)
+daphne==4.0.0
+    # via realityhack-world-backend (pyproject.toml)
+django==4.2.20
+    # via
+    #   channels
+    #   django-cors-headers
+    #   django-filter
+    #   django-keycloak-auth
+    #   django-multiselectfield
+    #   django-phonenumber-field
+    #   django-storages
+    #   djangorestframework
+    #   djangorestframework-simplejwt
+    #   drf-spectacular
+    #   drf-yasg
+    #   realityhack-world-backend (pyproject.toml)
+django-cors-headers==4.3.0
+    # via realityhack-world-backend (pyproject.toml)
+django-environ==0.11.2
+    # via realityhack-world-backend (pyproject.toml)
+django-filter==23.2
+    # via realityhack-world-backend (pyproject.toml)
+django-keycloak-auth==0.9.8
+    # via realityhack-world-backend (pyproject.toml)
+django-multiselectfield==0.1.12
+    # via realityhack-world-backend (pyproject.toml)
+django-phonenumber-field==7.2.0
+    # via realityhack-world-backend (pyproject.toml)
+django-simple-history==3.3.0
+    # via realityhack-world-backend (pyproject.toml)
+django-storages[s3]==1.14.6
+    # via realityhack-world-backend (pyproject.toml)
+djangorestframework==3.14.0
+    # via
+    #   django-keycloak-auth
+    #   djangorestframework-simplejwt
+    #   drf-spectacular
+    #   drf-yasg
+    #   realityhack-world-backend (pyproject.toml)
+djangorestframework-simplejwt==5.3.0
+    # via realityhack-world-backend (pyproject.toml)
+drf-spectacular==0.26.3
+    # via realityhack-world-backend (pyproject.toml)
+drf-yasg==1.21.7
+    # via realityhack-world-backend (pyproject.toml)
+factory-boy==3.2.1
+    # via realityhack-world-backend (pyproject.toml)
+faker==18.11.2
+    # via
+    #   factory-boy
+    #   realityhack-world-backend (pyproject.toml)
+flake8==6.0.0
+    # via realityhack-world-backend (pyproject.toml)
+hyperlink==21.0.0
+    # via
+    #   autobahn
+    #   realityhack-world-backend (pyproject.toml)
+    #   twisted
+idna==3.4
+    # via
+    #   hyperlink
+    #   realityhack-world-backend (pyproject.toml)
+    #   requests
+    #   twisted
+incremental==22.10.0
+    # via
+    #   realityhack-world-backend (pyproject.toml)
+    #   twisted
+inflection==0.5.1
+    # via
+    #   drf-spectacular
+    #   drf-yasg
+    #   realityhack-world-backend (pyproject.toml)
+isort==5.12.0
+    # via realityhack-world-backend (pyproject.toml)
+jmespath==1.0.1
+    # via
+    #   boto3
+    #   botocore
+jsonschema==4.17.3
+    # via
+    #   drf-spectacular
+    #   realityhack-world-backend (pyproject.toml)
+language-tags==1.2.0
+    # via realityhack-world-backend (pyproject.toml)
+mccabe==0.7.0
+    # via
+    #   flake8
+    #   realityhack-world-backend (pyproject.toml)
+more-itertools==10.2.0
+    # via realityhack-world-backend (pyproject.toml)
+msgpack==1.0.7
+    # via
+    #   channels-redis
+    #   realityhack-world-backend (pyproject.toml)
+oauthlib==3.2.2
+    # via
+    #   realityhack-world-backend (pyproject.toml)
+    #   requests-oauthlib
+packaging==23.2
+    # via
+    #   drf-yasg
+    #   realityhack-world-backend (pyproject.toml)
+phonenumbers==8.13.23
+    # via realityhack-world-backend (pyproject.toml)
+pillow==10.1.0
+    # via
+    #   qrcode
+    #   realityhack-world-backend (pyproject.toml)
+psycopg2-binary==2.9.9
+    # via realityhack-world-backend (pyproject.toml)
+pyasn1==0.5.0
+    # via
+    #   pyasn1-modules
+    #   realityhack-world-backend (pyproject.toml)
+    #   service-identity
+pyasn1-modules==0.3.0
+    # via
+    #   realityhack-world-backend (pyproject.toml)
+    #   service-identity
+pycodestyle==2.10.0
+    # via
+    #   flake8
+    #   realityhack-world-backend (pyproject.toml)
+pycountry==22.3.5
+    # via realityhack-world-backend (pyproject.toml)
+pycparser==2.21
+    # via
+    #   cffi
+    #   realityhack-world-backend (pyproject.toml)
+pyflakes==3.0.1
+    # via
+    #   flake8
+    #   realityhack-world-backend (pyproject.toml)
+pyjwt==2.8.0
+    # via
+    #   djangorestframework-simplejwt
+    #   realityhack-world-backend (pyproject.toml)
+pyopenssl==23.2.0
+    # via
+    #   realityhack-world-backend (pyproject.toml)
+    #   twisted
+pypng==0.20220715.0
+    # via qrcode
+pyrsistent==0.19.3
+    # via
+    #   jsonschema
+    #   realityhack-world-backend (pyproject.toml)
+python-dateutil==2.8.2
+    # via
+    #   botocore
+    #   faker
+    #   realityhack-world-backend (pyproject.toml)
+python-dotenv==1.0.0
+    # via realityhack-world-backend (pyproject.toml)
+pytz==2023.3
+    # via
+    #   djangorestframework
+    #   drf-yasg
+    #   realityhack-world-backend (pyproject.toml)
+pyyaml==6.0.1
+    # via
+    #   drf-spectacular
+    #   drf-yasg
+    #   realityhack-world-backend (pyproject.toml)
+qrcode[pil]==7.4.2
+    # via realityhack-world-backend (pyproject.toml)
+redis==5.0.1
+    # via
+    #   channels-redis
+    #   realityhack-world-backend (pyproject.toml)
+requests==2.31.0
+    # via
+    #   django-keycloak-auth
+    #   realityhack-world-backend (pyproject.toml)
+    #   requests-oauthlib
+requests-oauthlib==1.3.1
+    # via realityhack-world-backend (pyproject.toml)
+s3transfer==0.11.4
+    # via boto3
+service-identity==23.1.0
+    # via
+    #   realityhack-world-backend (pyproject.toml)
+    #   twisted
+six==1.16.0
+    # via
+    #   automat
+    #   python-dateutil
+    #   realityhack-world-backend (pyproject.toml)
+sqlparse==0.4.4
+    # via
+    #   django
+    #   realityhack-world-backend (pyproject.toml)
+twisted[tls]==22.10.0
+    # via
+    #   daphne
+    #   realityhack-world-backend (pyproject.toml)
+txaio==23.1.1
+    # via
+    #   autobahn
+    #   realityhack-world-backend (pyproject.toml)
+typing-extensions==4.13.2
+    # via
+    #   asgiref
+    #   qrcode
+    #   realityhack-world-backend (pyproject.toml)
+    #   twisted
+uritemplate==4.1.1
+    # via
+    #   drf-spectacular
+    #   drf-yasg
+    #   realityhack-world-backend (pyproject.toml)
+urllib3==2.0.7
+    # via
+    #   botocore
+    #   realityhack-world-backend (pyproject.toml)
+    #   requests
+zope-interface==6.0
+    # via
+    #   realityhack-world-backend (pyproject.toml)
+    #   twisted
+
+# The following packages are considered to be unsafe in a requirements file:
+# setuptools

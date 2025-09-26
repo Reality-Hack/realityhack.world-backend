@@ -13,7 +13,7 @@ class Command(BaseCommand):  # pragma: no cover
     help = "resend keycloak account creation emails"
     
     def clean_name_params(self, name: str) -> str:
-        return name.replace(" ", "").replace("'", "").replace("(", "").replace(")", "").replace(":", "").replace("`", "").replace(",", "").replace(".", "")
+        return name.replace(" ", "").replace("'", "").replace("(", "").replace(")", "").replace(":", "").replace("`", "").replace(",", "").replace(".", "").replace("!", "").replace("/", "")
 
     def handle(self, *args, **kwargs):  # noqa: C901
         hackers = Attendee.objects.filter(authentication_id__isnull=True)
