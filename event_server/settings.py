@@ -35,7 +35,7 @@ CORS_ALLOWED_ORIGINS = [
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
-   env("BACKEND_DOMAIN", default="http://127.0.0.1:8000")# For /admin pages
+    env("BACKEND_DOMAIN", default="http://127.0.0.1:8000")
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -43,7 +43,7 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = False
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
-    
+
 CORS_ALLOW_METHODS = [
     'DELETE',
     'GET',
@@ -240,23 +240,28 @@ ASGI_APPLICATION = "event_server.asgi.application"
 
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
+STORAGES = {
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
+
 if env("CLOUDFLARE_API_TOKEN", default="") != "":
-    STORAGES = {
-        "default": {
-            "BACKEND": "storages.backends.s3.S3Storage",
-            "OPTIONS": {
-                "access_key": env("CLOUDFLARE_ACCESS_KEY", default=""),
-                "secret_key": env("CLOUDFLARE_SECRET_KEY", default=""),
-                "endpoint_url": env("CLOUDFLARE_S3_ENDPOINT", default=""),
-                "bucket_name": env("CLOUDFLARE_BUCKET_NAME", default=""),
-                "region_name": "auto",
-                "use_ssl": True,
-                "signature_version": "s3v4",
-            }
-        },
-        "staticfiles": {
-            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
-        },
+    STORAGES["default"] = {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {
+            "access_key": env("CLOUDFLARE_ACCESS_KEY", default=""),
+            "secret_key": env("CLOUDFLARE_SECRET_KEY", default=""),
+            "endpoint_url": env("CLOUDFLARE_S3_ENDPOINT", default=""),
+            "bucket_name": env("CLOUDFLARE_BUCKET_NAME", default=""),
+            "region_name": "auto",
+            "use_ssl": True,
+            "signature_version": "s3v4",
+        }
+    }
+else:
+    STORAGES["default"] = {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
     }
 
 PHONENUMBER_DEFAULT_REGION = 'US'
@@ -265,12 +270,10 @@ SPECTACULAR_SETTINGS = {
     'REDOC_DIST': 'SIDECAR',
     'SWAGGER_UI_DIST': 'SIDECAR',
     'SWAGGER_UI_FAVICON_HREF': 'SIDECAR',
-    
     # Key settings for client generation
     'COMPONENT_SPLIT_REQUEST': True,  # Most important for Orval compatibility
     'COMPONENT_NO_READ_ONLY_REQUIRED': True,  # Helps with required field issues
     'ENUM_ADD_EXPLICIT_BLANK_NULL_CHOICE': False,  # Prevents enum issues in client generation
-    
     # Fix enum naming conflicts - map from desired name to actual enum class
     'ENUM_NAME_OVERRIDES': {
         # Use clean names as keys, enum classes as values
@@ -285,6 +288,12 @@ SPECTACULAR_SETTINGS = {
         'ThemeDetailEnum': 'infrastructure.models.Application.ThemeInterestTrackChoice',
         'RecommendedForEnum': 'infrastructure.models.ParticipationRole',
         'AgeGroupEnum': 'infrastructure.models.Application.AgeGroup',
+        'GenderIdentityEnum': 'infrastructure.models.Application.GenderIdentities',
+        'RaceEthnicGroupEnum': 'infrastructure.models.Application.RaceEthnicGroups',
+        'PreviousParticipationEnum': 'infrastructure.models.Application.PreviousParticipation',
+        'HeardAboutUsEnum': 'infrastructure.models.Application.HeardAboutUs',
+        'DigitalDesignerSkillsEnum': 'infrastructure.models.Application.DigitalDesignerProficientSkills',
+        'HardwareHackDetailEnum': 'infrastructure.models.Application.HardwareHackDetail',
         'CountryEnum': [(x.alpha_2, x.name) for x in pycountry.countries],  # dynamic choices
     },
 }
@@ -316,7 +325,7 @@ if "test" not in sys.argv and "setup_test_data" not in sys.argv:
     EMAIL_USE_SSL = os.getenv("EMAIL_USE_SSL", "")
 
 KEYCLOAK_EXEMPT_URIS = [
-    'schema/swagger', 'schema/redoc', 'schema/spectacular',
+    'schema/swagger', 'schema/redoc', 'schema/spectacular', 'applicationquestions/',
     'applications/', 'uploaded_files/', 'attendees/', 'rsvps/', 'discord/'
 ]
 KEYCLOAK_CONFIG = {
@@ -364,8 +373,5 @@ ACCOUNT_USERNAME_REQUIRED = False
 PHONENUMBER_DB_FORMAT = "RFC3966"
 PHONENUMBER_DEFAULT_FORMAT = "RFC3966"
 
-# might not be needed - this was when debugging keycloak on Fly
-if strtobool(os.getenv("FLY_DEPLOYED", "False")):
-    print("FLY_DEPLOYED is True")
-    USE_X_FORWARDED_HOST = True
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')

@@ -1,12 +1,9 @@
 # For Docker-based testing. Ignore outside of docker-compose.yml
-import json
 import os
 import time
-import uuid
 from argparse import Namespace
 
 import requests
-from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
 from django.db import transaction
@@ -15,7 +12,8 @@ from PIL import Image
 from infrastructure.factories import ApplicationFactory, UploadedFileFactory
 from infrastructure.models import Application, Attendee, UploadedFile, Team
 from infrastructure.serializers import AttendeeRSVPCreateSerializer
-from infrastructure.views import AttendeeRSVPViewSet
+from infrastructure.keycloak import KeycloakClient
+from infrastructure.event_context import get_active_event
 
 
 class Command(BaseCommand):  # pragma: no cover
@@ -29,13 +27,10 @@ class Command(BaseCommand):  # pragma: no cover
         # "authentication_id": "d9b4cfbf-0b5a-40b4-a03c-3b97a3678d26",
         "participation_class": "P",
         "dietary_restrictions": [
-            
         ],
         "dietary_allergies": [
-            
         ],
         "guardian_of": [
-            
         ],
         "bio": " ",
         "shirt_size": None,
@@ -69,9 +64,15 @@ class Command(BaseCommand):  # pragma: no cover
         "sponsor_company": None,
         "us_visa_support_citizenship_option": None
     }
+    keycloak_client = KeycloakClient()
 
     def add_arguments(self, parser):
-        parser.add_argument("--fake-initial-setup", action="store_true", help="Fake attendee's initial setup")
+        parser.add_argument(
+            "--fake-initial-setup",
+            action="store_true",
+            help="Fake attendee's initial setup"
+        )
+
 
     def rsvp_create(self, request):
         application = None
@@ -80,13 +81,17 @@ class Command(BaseCommand):  # pragma: no cover
 
         try:
             if "sponsor_handler" in request.data:
-                sponsor_handler = Attendee.objects.get(pk=request.data["sponsor_handler"])
+                sponsor_handler = Attendee.objects.get(
+                    pk=request.data["sponsor_handler"]
+                )
                 del request.data["sponsor_handler"]
         except Attendee.DoesNotExist:  # pragma: nocover
             pass
         try:
             if "guardian_of" in request.data:
-                guardian_of_attendees = list(Attendee.objects.filter(id__in=request.data["guardian_of"]))
+                guardian_of_attendees = list(Attendee.objects.filter(
+                    id__in=request.data["guardian_of"]
+                ))
                 guardian_of = guardian_of_attendees
                 del request.data["guardian_of"]
         except Attendee.DoesNotExist:  # pragma: nocover
@@ -119,43 +124,14 @@ class Command(BaseCommand):  # pragma: no cover
         attendee.sponsor_handler = sponsor_handler
         attendee.save()
         if guardian_of:
-            attendee.guardian_of.set([guardian_of_attendee.id for guardian_of_attendee in guardian_of])
+            attendee.guardian_of.set(
+                [guardian_of_attendee.id for guardian_of_attendee in guardian_of]
+            )
         return attendee
 
-    def create_authentication_account(self, attendee, username, password):
-        access_token = attendee.get_authentication_token()
-        auth_user_dict = {
-            "id": str(uuid.uuid4()),
-            "username": username,
-            "enabled": True,
-            "email": attendee.email,
-            "firstName": attendee.first_name,
-            "lastName": attendee.last_name,
-            "credentials": [
-                {
-                    "type": "password",
-                    "value": password,
-                    "temporary": False
-                }
-            ],
-            "clientRoles": {
-                "account": [
-                    "manage-account",
-                    "view-profile"
-                ]
-            }
-        }
-        authentication_account = requests.post(
-            url=f"{os.environ['KEYCLOAK_SERVER_URL']}/admin/realms/{os.environ['KEYCLOAK_REALM']}/users",
-            headers={"Authorization": f"Bearer {access_token.json()['access_token']}", "Content-Type": "application/json"},
-            data=json.dumps(auth_user_dict)
-        )
-        print("Keycloak response:", authentication_account.status_code, authentication_account.text)
-        if authentication_account.ok:
-            authentication_account_id = authentication_account.headers["Location"].split("/")[-1]
-            attendee.authentication_id = authentication_account_id
-            attendee.save()
-            attendee.assign_authentication_roles()
+    def create_authentication_account(self, attendee, password):
+        self.keycloak_client.create_authentication_account(attendee, password)
+        self.keycloak_client.assign_authentication_roles(attendee)
 
     @transaction.atomic
     def handle(self, *args, **kwargs):  # noqa: C901
@@ -163,7 +139,6 @@ class Command(BaseCommand):  # pragma: no cover
         keycloak_results = None
         for _ in range(10):
             try:
-                # new Keycloak admin has a different port for health check which is relevant for local docker-compose setup
                 if os.environ.get("KEYCLOAK_ADMIN_URL", None):
                     admin_url = os.environ.get("KEYCLOAK_ADMIN_URL")
                 else:
@@ -181,25 +156,37 @@ class Command(BaseCommand):  # pragma: no cover
             raise Exception("Keycloak failed to start.")
         print("Creating fake application...")
         try:
-            application = Application.objects.get(email="attendee@test.com")
+            application = Application.objects.for_event(
+                get_active_event()
+            ).get(email="attendee@test.com")
         except Application.DoesNotExist:
-            application = ApplicationFactory(resume=UploadedFileFactory(),
-                                             email="attendee@test.com")
+            application = ApplicationFactory(
+                resume=UploadedFileFactory(),
+                email="attendee@test.com",
+                event=get_active_event(),
+                participation_class="P")
             application.save()
         try:
             attendee = Attendee.objects.get(email="attendee@test.com")
         except Attendee.DoesNotExist:
             attendee = self.rsvp_create(Namespace(data={
-            **self.base_rsvp_request,
+                **self.base_rsvp_request,
                 "email": application.email,
                 "participation_class": "P"
             }))
-        self.create_authentication_account(attendee, "attendee", "123456")
-        if attendee.team_attendees.exists():
-            team = attendee.team_attendees.first()
+        self.create_authentication_account(attendee, "123456")
+        event = get_active_event()
+        if event:
+            team = Team.objects.for_event(event).filter(attendees=attendee).first()
+            if not team:
+                team = Team.objects.for_event(event).first()
+                if team:
+                    team.attendees.add(attendee)
         else:
-            team = Team.objects.first()
-            team.attendees.add(attendee)
+            self.stdout.write(self.style.WARNING(
+                'No active event found. Skipping team assignment for fake user.'
+            ))
+
         if False:  # kwargs.get("fake_initial_setup", False):
             attendee.initial_setup = True
             attendee.profile_image = UploadedFile.objects.create(

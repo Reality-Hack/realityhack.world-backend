@@ -1,7 +1,6 @@
 from django.contrib.auth.models import Group
 from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
-from django.db import transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404, render
 from django.utils.decorators import method_decorator
@@ -11,16 +10,24 @@ from django_keycloak_auth.decorators import keycloak_roles
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-
-from infrastructure.mixins import LoggingMixin
-from infrastructure.models import (Application, Attendee, AttendeePreference,
+from drf_spectacular.utils import extend_schema
+from infrastructure.keycloak import KeycloakClient, KeycloakRoles
+from infrastructure import email
+from django.core.mail import send_mail
+from infrastructure.mixins import LoggingMixin, EventScopedLoggingViewSet
+from infrastructure.event_context import get_active_event
+from infrastructure.models import (Application,
+                                   Attendee, AttendeePreference,
                                    DestinyTeam, DestinyTeamAttendeeVibe,
                                    Hardware, HardwareDevice, HardwareRequest,
                                    LightHouse, Location, MentorHelpRequest,
                                    Project, Skill, SkillProficiency, Table,
                                    Team, UploadedFile, Workshop,
-                                   WorkshopAttendee)
+                                   WorkshopAttendee,
+                                   ApplicationQuestion, ApplicationResponse, Event)
 from infrastructure.serializers import (ApplicationSerializer,
+                                        ApplicationDetailSerializer,
+                                        ApplicationQuestionSerializer,
                                         AttendeeDetailSerializer,
                                         AttendeeListSerializer,
                                         AttendeePatchSerializer,
@@ -59,17 +66,16 @@ from infrastructure.serializers import (ApplicationSerializer,
                                         TeamCreateSerializer, TeamUpdateSerializer,
                                         TeamDetailSerializer, TeamSerializer,
                                         WorkshopAttendeeSerializer,
-                                        WorkshopSerializer)
-
-
-class KeycloakRoles(object):
-    ATTENDEE = "attendee"
-    ORGANIZER = "organizer"
-    ADMIN = "admin"
-    MENTOR = "mentor"
-    JUDGE = "judge"
-    VOLUNTEER = "volunteer"
-    SPONSOR = "sponsor"
+                                        WorkshopSerializer, EventSerializer)
+from infrastructure.filters import (
+    TeamFilter,
+    MentorHelpRequestFilter,
+    ProjectFilter,
+    HardwareDeviceFilter,
+    HardwareRequestFilter,
+    WorkshopFilter,
+    WorkshopAttendeeFilter,
+)
 
 
 def attendee_from_userinfo(request):  # pragma: nocover
@@ -87,11 +93,13 @@ def check_user(request, pk, special_roles={KeycloakRoles.ADMIN, KeycloakRoles.OR
     return "user"
 
 
-def prepare_attendee_for_detail(attendee):
-    attendee.skill_proficiencies = SkillProficiency.objects.filter(attendee=attendee)
-    attendee.team = attendee.team_attendees.first() or None
-    attendee.hardware_devices = HardwareDevice.objects.filter(checked_out_to=attendee.id)
-    attendee.workshops = WorkshopAttendee.objects.filter(attendee=attendee.id)
+def prepare_attendee_for_detail(attendee, event=None):
+    if event is None:
+        event = get_active_event()
+    attendee.skill_proficiencies = SkillProficiency.objects.for_event(event).filter(attendee=attendee)
+    attendee.team = Team.objects.for_event(event).filter(attendees=attendee).first()
+    attendee.hardware_devices = HardwareDevice.objects.for_event(event).filter(checked_out_to=attendee.id)
+    attendee.workshops = WorkshopAttendee.objects.for_event(event).filter(attendee=attendee.id)
     return attendee
 
 
@@ -99,15 +107,22 @@ def prepare_attendee_for_detail(attendee):
 @vary_on_headers("Authorization")
 @keycloak_roles([KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.ATTENDEE, KeycloakRoles.MENTOR])
 @api_view(['GET', 'PATCH'])
+@extend_schema(
+    methods=['GET', 'PATCH'],
+    request=None,
+    responses={200: AttendeeDetailSerializer},
+    description="Get detailed information about an authenticated user."
+)
 def me(request):
     """
     API endpoint for getting detailed information about an authenticated user.
     """
     if request.method == "GET":
+        event = get_active_event()
         attendee = attendee_from_userinfo(request)
-        attendee.skill_proficiencies = SkillProficiency.objects.filter(
+        attendee.skill_proficiencies = SkillProficiency.objects.for_event(event).filter(
             attendee=attendee)
-        attendee = prepare_attendee_for_detail(attendee)
+        attendee = prepare_attendee_for_detail(attendee, event)
         serializer = AttendeeDetailSerializer(attendee)
         return Response(serializer.data)
     else:  # PATCH
@@ -174,7 +189,7 @@ class AttendeeViewSet(LoggingMixin, viewsets.ModelViewSet):
         return response
 
     @method_decorator(never_cache)
-    @method_decorator(cache_page(60 * 60 * 2))
+    # @method_decorator(cache_page(60 * 60 * 2))
     def list(self, request):
         return super().list(request)
 
@@ -225,7 +240,9 @@ class AttendeeRSVPViewSet(LoggingMixin, viewsets.ModelViewSet):
             pass
         if "application" in request.data:
             try:
-                application = Application.objects.get(pk=request.data.get("application"))
+                application = Application.objects.for_event(
+                    get_active_event()
+                ).get(pk=request.data.get("application"))
             except Application.DoesNotExist:
                 return Response(
                     f"No application matches the query: \"{request.data.get('application')}\"",
@@ -238,9 +255,10 @@ class AttendeeRSVPViewSet(LoggingMixin, viewsets.ModelViewSet):
             request.data["email"] = application.email.lower()
             del request.data["application"]
             request.data["application"] = str(application.id)
-        else:  # Volunteer or Organizer, or null
+        else:
             if request.data.get("email") is not None:
                 request.data["email"] = request.data.get("email").lower()
+
         serializer = AttendeeRSVPCreateSerializer(data=request.data, partial=True)
         if serializer.is_valid():
             serializer_data = serializer.data
@@ -256,6 +274,17 @@ class AttendeeRSVPViewSet(LoggingMixin, viewsets.ModelViewSet):
                 attendee.authentication_id = request.data["authentication_id"]
             attendee.sponsor_handler = sponsor_handler
             attendee.save()
+            keycloak_client = KeycloakClient()
+            try:
+                keycloak_client.handle_user_rsvp(attendee)
+            except Exception as e:
+                print(f"Error handling user RSVP: {e}")
+                send_mail(
+                    email.get_keycloak_account_error_template(attendee.email, e),
+                    "no-reply@realityhackinc.org",
+                    [attendee.email, "apply@realityhackinc.org"],
+                    fail_silently=False,
+                )
             if guardian_of:
                 attendee.guardian_of.set([guardian_of_attendee.id for guardian_of_attendee in guardian_of])
             serializer = AttendeeRSVPSerializer(attendee)
@@ -265,7 +294,7 @@ class AttendeeRSVPViewSet(LoggingMixin, viewsets.ModelViewSet):
                             status=status.HTTP_400_BAD_REQUEST)
 
 
-class SkillViewSet(LoggingMixin, viewsets.ModelViewSet):
+class SkillViewSet(EventScopedLoggingViewSet):
     """
     API endpoint that allows skills to be viewed or edited.
     """
@@ -274,7 +303,7 @@ class SkillViewSet(LoggingMixin, viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
 
 
-class LocationViewSet(LoggingMixin, viewsets.ModelViewSet):
+class LocationViewSet(EventScopedLoggingViewSet):
     """
     API endpoint that allows locations to be viewed or edited.
     """
@@ -283,7 +312,7 @@ class LocationViewSet(LoggingMixin, viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
 
 
-class TableViewSet(LoggingMixin, viewsets.ModelViewSet):
+class TableViewSet(EventScopedLoggingViewSet):
     """
     API endpoint that allows tables to be viewed or edited.
     """
@@ -298,31 +327,32 @@ class TableViewSet(LoggingMixin, viewsets.ModelViewSet):
         return TableSerializer
 
     def retrieve(self, request, pk=None):
-        table = get_object_or_404(Table, pk=pk)
+        event = self.get_event()
+        table = get_object_or_404(Table.objects.for_event(event), pk=pk)
         try:
-            table.team = Team.objects.get(table=table)
+            table.team = Team.objects.for_event(event).get(table=table)
         except Team.DoesNotExist:  # pragma: nocover
             table.team = None
         try:
-            table.lighthouse = LightHouse.objects.get(table=table)
+            table.lighthouse = LightHouse.objects.for_event(event).get(table=table)
         except LightHouse.DoesNotExist:
             table.lighthouse = None
         serializer = TableDetailSerializer(table)
         return Response(serializer.data)
 
     def list(self, request):
-        queryset = Table.objects.all()
+        queryset = self.get_queryset()
         serializer = TableSerializer(queryset, many=True)
         return Response(serializer.data)
 
 
-class TeamViewSet(LoggingMixin, viewsets.ModelViewSet):
+class TeamViewSet(EventScopedLoggingViewSet):
     """
     API endpoint that allows teams to be viewed or edited.
     """
     queryset = Team.objects.all()
     permission_classes = [permissions.AllowAny]
-    filterset_fields = ['name', 'attendees', 'table', 'table__number']
+    filterset_class = TeamFilter
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -336,13 +366,14 @@ class TeamViewSet(LoggingMixin, viewsets.ModelViewSet):
         return TeamSerializer
 
     def retrieve(self, request, pk=None):
-        team = get_object_or_404(Team, pk=pk)
+        event = self.get_event()
+        team = get_object_or_404(Team.objects.for_event(event), pk=pk)
         try:
-            team.project = Project.objects.get(team=team)
+            team.project = Project.objects.for_event(event).get(team=team)
         except Project.DoesNotExist:
             team.project = None
         try:
-            team.lighthouse = LightHouse.objects.get(table=team.table)
+            team.lighthouse = LightHouse.objects.for_event(event).get(table=team.table)
         except (Table.DoesNotExist, LightHouse.DoesNotExist):
             team.lighthouse = None
         serializer = TeamDetailSerializer(team)
@@ -350,15 +381,15 @@ class TeamViewSet(LoggingMixin, viewsets.ModelViewSet):
 
     def partial_update(self, request, *args, **kwargs):
         team = self.get_object()
+        event = self.get_event()
 
-        # Handle project fields
         project_fields = request.data.get('project')
         if project_fields:
             request.data.pop('project', None)
             try:
-                team.project = Project.objects.get(team=team)
+                team.project = Project.objects.for_event(event).get(team=team)
             except Project.DoesNotExist:
-                team.project = Project(**project_fields)
+                team.project = Project(**project_fields, event=event)
             serialized_project = ProjectSerializer(team.project, project_fields, partial=True)
             if serialized_project.is_valid():
                 serialized_project.update(team.project, serialized_project.validated_data)
@@ -366,12 +397,11 @@ class TeamViewSet(LoggingMixin, viewsets.ModelViewSet):
                 return Response(serialized_project.errors, status=status.HTTP_400_BAD_REQUEST)
             team.project.save()
 
-        # Handle table fields
         table_fields = request.data.get('table')
         if table_fields:
             request.data.pop('table', None)
             try:
-                table = Table.objects.get(id=table_fields.get('id'))
+                table = Table.objects.for_event(event).get(id=table_fields.get('id'))
                 team.table = table
                 team.save()
             except Table.DoesNotExist:
@@ -407,7 +437,8 @@ class LightHouseViewSet(LoggingMixin, viewsets.ViewSet):
         return LightHouseSerializer
 
     def list(self, request):
-        queryset = LightHouse.objects.all()
+        event = get_active_event()
+        queryset = LightHouse.objects.for_event(event).all()
         lighthouses = []
         for lighthouse in queryset:
             lighthouses.append(
@@ -423,10 +454,10 @@ class LightHouseViewSet(LoggingMixin, viewsets.ViewSet):
         return Response(serializer.data)
 
     def create(self, request):
+        event = get_active_event()
         lighthouse_message = request.data
         lighthouse_message._mutable = True
-        # {'table': 1, 'ip_address': '10.198.1.112'}
-        lighthouse_query = LightHouse.objects.filter(
+        lighthouse_query = LightHouse.objects.for_event(event).filter(
             table__number=lighthouse_message["table"])
         if len(lighthouse_query) > 0:
             lighthouse = lighthouse_query[0]
@@ -434,7 +465,8 @@ class LightHouseViewSet(LoggingMixin, viewsets.ViewSet):
             lighthouse.save()
         else:
             lighthouse = LightHouse.objects.create(
-                table=Table.objects.get(number=lighthouse_message["table"]),
+                event=event,
+                table=Table.objects.for_event(event).get(number=lighthouse_message["table"]),
                 ip_address=lighthouse_message["ip_address"]
             )
         lighthouse_message["mentor_requested"] = lighthouse.mentor_requested
@@ -442,15 +474,13 @@ class LightHouseViewSet(LoggingMixin, viewsets.ViewSet):
         return Response(data=lighthouse_message, status=201)
 
 
-class MentorHelpRequestViewSet(LoggingMixin, viewsets.ModelViewSet):
+class MentorHelpRequestViewSet(EventScopedLoggingViewSet):
     """
     API endpoint that allows mentor help requests to be viewed or edited.
     """
     queryset = MentorHelpRequest.objects.all().order_by('created_at')
     permission_classes = [permissions.AllowAny]
-    filterset_fields = [
-        'reporter', 'mentor', 'team', 'status', 'team__table__number'
-    ]
+    filterset_class = MentorHelpRequestFilter
     serializer_class = MentorHelpRequestSerializer
     read_serializer_class = MentorHelpRequestReadSerializer
     keycloak_roles = {
@@ -477,11 +507,17 @@ class MentorHelpRequestViewSetHistoryViewSet(LoggingMixin, viewsets.ModelViewSet
         'id', 'reporter', 'mentor', 'team', 'status'
     ]
     keycloak_roles = {
-        'GET': [KeycloakRoles.ATTENDEE],
+        'GET': [KeycloakRoles.ATTENDEE, KeycloakRoles.MENTOR],
         'POST': [KeycloakRoles.ADMIN],
         'DELETE': [KeycloakRoles.ADMIN],
         'PATCH': [KeycloakRoles.ADMIN]
     }
+
+    def get_queryset(self):
+        event = get_active_event()
+        if not event:
+            return self.queryset.none()
+        return self.queryset.filter(event_id=event.id)
 
 
 class DiscordViewSet(LoggingMixin, viewsets.ViewSet):
@@ -502,10 +538,11 @@ class DiscordViewSet(LoggingMixin, viewsets.ViewSet):
         return Response(serializer.data)
 
     def destroy(self, request, attendee__communications_platform_username=None):
+        event = get_active_event()
         attendee = get_object_or_404(Attendee, communications_platform_username=attendee__communications_platform_username)
-        team = get_object_or_404(Team, attendees__id=attendee.id)
+        team = get_object_or_404(Team.objects.for_event(event), attendees__id=attendee.id)
         table = team.table
-        lighthouse = get_object_or_404(LightHouse, table=table.id)
+        lighthouse = get_object_or_404(LightHouse.objects.for_event(event), table=table.id)
         lighthouse.announcement_pending = LightHouse.AnnouncementStatus.RESOLVE
         lighthouse.save()
         serializer = LightHouseSerializer({
@@ -518,7 +555,7 @@ class DiscordViewSet(LoggingMixin, viewsets.ViewSet):
         return Response(serializer.data)
 
 
-class SkillProficiencyViewSet(LoggingMixin, viewsets.ModelViewSet):
+class SkillProficiencyViewSet(EventScopedLoggingViewSet):
     """
     API endpoint that allows skill proficiencies to be viewed or edited.
     """
@@ -535,14 +572,14 @@ class SkillProficiencyViewSet(LoggingMixin, viewsets.ModelViewSet):
         return SkillProficiencySerializer
 
 
-class ProjectViewSet(LoggingMixin, viewsets.ModelViewSet):
+class ProjectViewSet(EventScopedLoggingViewSet):
     """
     API endpoint that allows projects to be viewed or edited.
     """
     queryset = Project.objects.all()
     serializer_class = ProjectSerializer
     permission_classes = [permissions.AllowAny]
-    filterset_fields = ["team"]
+    filterset_class = ProjectFilter
 
 
 class GroupViewSet(LoggingMixin, viewsets.ModelViewSet):
@@ -554,10 +591,10 @@ class GroupViewSet(LoggingMixin, viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
 
 
-def hardware_count(hardware_type):
-    hardware_devices = HardwareDevice.objects.filter(
+def hardware_count(hardware_type, event):
+    hardware_devices = HardwareDevice.objects.for_event(event).filter(
         hardware=hardware_type)
-    hardware_requests = HardwareRequest.objects.filter(
+    hardware_requests = HardwareRequest.objects.for_event(event).filter(
         hardware=hardware_type)
     hardware_devices_total = hardware_devices.count()
     requests_checked_out = hardware_requests.filter(status="C").count()
@@ -571,7 +608,7 @@ def hardware_count(hardware_type):
     return hardware_devices_available, requests_checked_out, hardware_devices_total
 
 
-class HardwareViewSet(LoggingMixin, viewsets.ModelViewSet):
+class HardwareViewSet(EventScopedLoggingViewSet):
     """
     API endpoint that allows hardware types to be viewed or edited.
     """
@@ -589,7 +626,7 @@ class HardwareViewSet(LoggingMixin, viewsets.ModelViewSet):
     }
 
     def get_queryset(self):
-        queryset = Hardware.objects.all()
+        queryset = super().get_queryset()
         filters = {}
         for filterset_field in self.filterset_fields:
             if self.request.query_params.get(filterset_field):
@@ -600,7 +637,6 @@ class HardwareViewSet(LoggingMixin, viewsets.ModelViewSet):
                     filterset_field = "tags__contains"
                 filters[filterset_field] = filterset_value
         if filters:
-            queryset = Hardware.objects
             if "tags__contains" in filters:
                 for tag in list(filters["tags__contains"]):
                     filters["tags__contains"] = tag
@@ -609,25 +645,26 @@ class HardwareViewSet(LoggingMixin, viewsets.ModelViewSet):
                 queryset = queryset.filter(**filters)
         return queryset
 
-    @classmethod
-    def _iterate_hardware_count(cls, hardware_type):
-        hardware_devices_available, hardware_devices_checked_out, hardware_devices_total = hardware_count(hardware_type)
+    def _iterate_hardware_count(self, hardware_type, event):
+        hardware_devices_available, hardware_devices_checked_out, hardware_devices_total = hardware_count(hardware_type, event)
         hardware_type.available = hardware_devices_available
         hardware_type.checked_out = hardware_devices_checked_out
         hardware_type.total = hardware_devices_total
 
     def retrieve(self, request, pk=None):
-        hardware_type = get_object_or_404(Hardware, pk=pk)
-        self._iterate_hardware_count(hardware_type)
-        hardware_type.hardware_devices = HardwareDevice.objects.filter(
+        event = self.get_event()
+        hardware_type = get_object_or_404(Hardware.objects.for_event(event), pk=pk)
+        self._iterate_hardware_count(hardware_type, event)
+        hardware_type.hardware_devices = HardwareDevice.objects.for_event(event).filter(
             hardware=hardware_type)
         serializer = HardwareCountDetailSerializer(hardware_type)
         return Response(serializer.data)
 
     def list(self, request):
+        event = self.get_event()
         hardware_types = self.get_queryset()
         for hardware_type in hardware_types:
-            self._iterate_hardware_count(hardware_type)
+            self._iterate_hardware_count(hardware_type, event)
         serializer = HardwareCountSerializer(hardware_types, many=True)
         return Response(status=200, data=serializer.data)
 
@@ -643,14 +680,13 @@ class HardwareViewSet(LoggingMixin, viewsets.ModelViewSet):
         return HardwareSerializer
 
 
-class HardwareDeviceViewSet(LoggingMixin, viewsets.ModelViewSet):
+class HardwareDeviceViewSet(EventScopedLoggingViewSet):
     """
     API endpoint that allows individual hardware devices to be viewed or edited.
     """
     queryset = HardwareDevice.objects.all()
     permission_classes = [permissions.AllowAny]
-    filterset_fields = ['hardware', 'checked_out_to', 'serial',
-                        'hardware__relates_to_destiny_hardware']
+    filterset_class = HardwareDeviceFilter
     keycloak_roles = {
         'GET': [KeycloakRoles.ATTENDEE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER],
         'POST': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER],
@@ -664,13 +700,13 @@ class HardwareDeviceViewSet(LoggingMixin, viewsets.ModelViewSet):
         return HardwareDeviceSerializer
 
 
-class HardwareRequestsViewSet(LoggingMixin, viewsets.ModelViewSet):
+class HardwareRequestsViewSet(EventScopedLoggingViewSet):
     """
     API endpoint that allows hardware device requests from participants to be viewed or edited.
     """
     queryset = HardwareRequest.objects.all()
     permission_classes = [permissions.AllowAny]
-    filterset_fields = ["hardware", "requester__first_name", "requester__last_name", "requester__id", "team"]
+    filterset_class = HardwareRequestFilter
     keycloak_roles = {
         "GET": [KeycloakRoles.ATTENDEE, KeycloakRoles.MENTOR, KeycloakRoles.JUDGE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER],
         "POST": [KeycloakRoles.ATTENDEE, KeycloakRoles.MENTOR, KeycloakRoles.JUDGE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER],
@@ -687,21 +723,22 @@ class HardwareRequestsViewSet(LoggingMixin, viewsets.ModelViewSet):
             return HardwareRequestDetailSerializer
         return HardwareRequestListSerializer  # pragma: nocover
 
-    @classmethod
-    def _iterate_hardware_count(cls, hardware_type):
-        hardware_devices_available, hardware_devices_checked_out, hardware_devices_total = hardware_count(hardware_type)
+    def _iterate_hardware_count(self, hardware_type, event):
+        hardware_devices_available, hardware_devices_checked_out, hardware_devices_total = hardware_count(hardware_type, event)
         hardware_type.available = hardware_devices_available
         hardware_type.checked_out = hardware_devices_checked_out
         hardware_type.total = hardware_devices_total
 
     def retrieve(self, request, pk=None):
-        hardware_request = get_object_or_404(HardwareRequest, pk=pk)
-        self._iterate_hardware_count(hardware_request.hardware)
+        event = self.get_event()
+        hardware_request = get_object_or_404(HardwareRequest.objects.for_event(event), pk=pk)
+        self._iterate_hardware_count(hardware_request.hardware, event)
         serializer = HardwareRequestDetailSerializer(hardware_request)
         return Response(serializer.data)
 
     def update(self, request, pk=None, **kwargs):
-        hardware_request = get_object_or_404(HardwareRequest, pk=pk)
+        event = self.get_event()
+        hardware_request = get_object_or_404(HardwareRequest.objects.for_event(event), pk=pk)
         role = check_user(request, hardware_request.requester.id)
         if role != "admin":
             if set(request.data.keys()) != set(["reason"]):
@@ -709,7 +746,8 @@ class HardwareRequestsViewSet(LoggingMixin, viewsets.ModelViewSet):
         return super().update(request, pk=pk, **kwargs)
 
     def delete(self, request, pk=None, **kwargs):
-        hardware_request = get_object_or_404(HardwareRequest, pk=pk)
+        event = self.get_event()
+        hardware_request = get_object_or_404(HardwareRequest.objects.for_event(event), pk=pk)
         check_user(request, hardware_request.requester.id,
                    special_roles={KeycloakRoles.MENTOR, KeycloakRoles.JUDGE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER})
         return super().delete(request, pk=pk, **kwargs)
@@ -724,8 +762,39 @@ class HardwareDeviceHistoryViewSet(LoggingMixin, viewsets.ModelViewSet):
     serializer_class = HardwareDeviceHistorySerializer
     filterset_fields = ['hardware', 'checked_out_to', 'serial']
 
+    def get_queryset(self):
+        event = get_active_event()
+        if not event:
+            return self.queryset.none()
+        return self.queryset.filter(event_id=event.id)
 
-class ApplicationViewSet(LoggingMixin, viewsets.ModelViewSet):
+
+class ApplicationQuestionViewSet(EventScopedLoggingViewSet):
+    """
+    API endpoint that allows application questions to be viewed or edited.
+    Frontend uses this to load dynamic questions for the active event.
+    """
+    queryset = ApplicationQuestion.objects.all()
+    permission_classes = [permissions.AllowAny]
+    serializer_class = ApplicationQuestionSerializer
+    filterset_fields = ['question_key', 'parent_question']
+    keycloak_roles = {
+        'POST': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        'DELETE': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        'PATCH': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+    }
+
+    def list(self, request):
+        """Return all questions for the active event, ordered by order field"""
+        event = self.get_event()
+        questions = ApplicationQuestion.objects.for_event(event).prefetch_related(
+            'choices'
+        ).order_by('order')
+        serializer = ApplicationQuestionSerializer(questions, many=True)
+        return Response(serializer.data)
+
+
+class ApplicationViewSet(EventScopedLoggingViewSet):
     """
     API endpoint that allows applications to be viewed or edited.
     """
@@ -739,8 +808,121 @@ class ApplicationViewSet(LoggingMixin, viewsets.ModelViewSet):
         'PATCH': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
     }
 
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return ApplicationDetailSerializer
+        return ApplicationSerializer
+
+    def retrieve(self, request, pk=None):
+        event = self.get_event()
+        application = get_object_or_404(
+            Application.objects.for_event(event).prefetch_related(
+                'question_responses__selected_choices'
+            ),
+            pk=pk
+        )
+        serializer = ApplicationDetailSerializer(application)
+        return Response(serializer.data)
+
     def create(self, request, *args, **kwargs):
-        return super().create(request, *args, **kwargs)
+        """
+        Create application and handle dynamic question responses.
+        """
+
+        event = get_active_event()
+        if not event:
+            return Response(
+                {"error": "No active event found"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        dynamic_responses = {}
+        question_keys = ApplicationQuestion.objects.for_event(event).values_list(
+            'question_key', flat=True
+        )
+
+        for key in list(request.data.keys()):
+            if key in question_keys:
+                dynamic_responses[key] = request.data.pop(key)
+
+        request.data['event'] = event.id
+
+        response = super().create(request, *args, **kwargs)
+
+        if response.status_code == 201:
+            application = Application.objects.for_event(
+                event
+            ).get(id=response.data['id'])
+
+            questions = ApplicationQuestion.objects.for_event(event)
+            for question in questions:
+                if question.question_key in dynamic_responses:
+                    value = dynamic_responses[question.question_key]
+
+                    if value is None or value == '' or (isinstance(value, list) and len(value) == 0):
+                        continue
+
+                    app_response = ApplicationResponse.objects.create(
+                        application=application,
+                        question=question,
+                        question_text_snapshot=question.question_text
+                    )
+
+                    if question.question_type in ['S', 'M']:
+                        choices_dict = {
+                            c.choice_key: c.choice_text 
+                            for c in question.choices.all()
+                        }
+                        app_response.choices_snapshot = choices_dict
+
+                        selected_keys = value if isinstance(value, list) else [value]
+                        selected_choices = question.choices.filter(
+                            choice_key__in=selected_keys
+                        )
+                        app_response.save()
+                        app_response.selected_choices.set(selected_choices)
+                        app_response.selected_keys_snapshot = selected_keys
+                        app_response.save()
+
+                    elif question.question_type in ['T', 'L']:
+                        app_response.text_response = value
+                        app_response.text_response_snapshot = value
+                        app_response.save()
+
+        return response
+
+
+class EventViewSet(LoggingMixin, viewsets.ModelViewSet):
+    """
+    API endpoint for editing and viewing Events.
+    """
+    queryset = Event.objects.all()
+    permission_classes = [permissions.AllowAny]
+    serializer_class = EventSerializer
+    filterset_fields = ['is_active']
+    http_method_names = ['get', 'patch', 'head', 'options']
+    keycloak_roles = {
+        'GET': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        'PATCH': [KeycloakRoles.ADMIN],
+    }
+
+
+@extend_schema(
+    methods=['POST'],
+    request=None,
+    responses={200: EventSerializer},
+    description="Activate an event by its ID"
+)
+@api_view(['POST'])
+@keycloak_roles([KeycloakRoles.ADMIN])
+def activate_event(request, event_id):
+    if not request.method == 'POST':
+        return Response(status=404)
+
+    event = get_object_or_404(Event, pk=event_id)
+    event.activate()
+    serializer = EventSerializer(event)
+    return Response(serializer.data)
 
 
 class UploadedFileViewSet(LoggingMixin, viewsets.ModelViewSet):
@@ -754,7 +936,7 @@ class UploadedFileViewSet(LoggingMixin, viewsets.ModelViewSet):
     keycloak_roles = {
         'GET': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
         'DELETE': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
-        # TODO: implement a better way to handle 
+        # TODO: implement a better way to handle
         # 'POST': [KeycloakRoles.ATTENDEE, KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN]
     }
 
@@ -776,24 +958,24 @@ class UploadedFileViewSet(LoggingMixin, viewsets.ModelViewSet):
     #     return response
 
 
-class WorkshopViewSet(LoggingMixin, viewsets.ModelViewSet):
+class WorkshopViewSet(EventScopedLoggingViewSet):
     """
-    API endpoint that allows workshops to be viewed ot edited.
+    API endpoint that allows workshops to be viewed or edited.
     """
     queryset = Workshop.objects.all()
     permission_classes = [permissions.AllowAny]
     serializer_class = WorkshopSerializer
-    filterset_fields = ['datetime', 'location', 'recommended_for', 'hardware']
+    filterset_class = WorkshopFilter
 
 
-class WorkshopAttendeeViewSet(LoggingMixin, viewsets.ModelViewSet):
+class WorkshopAttendeeViewSet(EventScopedLoggingViewSet):
     """
     API endpoint that allows workshop attendees to be viewed or edited.
     """
     queryset = WorkshopAttendee.objects.all()
     permission_classes = [permissions.AllowAny]
     serializer_class = WorkshopAttendeeSerializer
-    filterset_fields = ['workshop', 'attendee', 'participation']
+    filterset_class = WorkshopAttendeeFilter
 
 
 def preference_auth(fn):
@@ -804,7 +986,7 @@ def preference_auth(fn):
     return wrapper
 
 
-class AttendeePreferenceViewSet(LoggingMixin, viewsets.ModelViewSet):
+class AttendeePreferenceViewSet(EventScopedLoggingViewSet):
     """
     API endpoint that allows attendee preferences to be viewed or edited.
     """
@@ -821,7 +1003,7 @@ class AttendeePreferenceViewSet(LoggingMixin, viewsets.ModelViewSet):
     }
 
     def list(self, request):
-        queryset = self.queryset
+        queryset = self.get_queryset()
         filters = {}
         for filterset_field in self.filterset_fields:
             if request.query_params.get(filterset_field):
@@ -852,7 +1034,7 @@ class AttendeePreferenceViewSet(LoggingMixin, viewsets.ModelViewSet):
         return super().create(request, pk=pk, **kwargs)
 
 
-class DestinyTeamViewSet(LoggingMixin, viewsets.ModelViewSet):
+class DestinyTeamViewSet(EventScopedLoggingViewSet):
     """
     API endpoint that allows Destiny teams to be viewed or edited.
     """
@@ -881,7 +1063,7 @@ def vibe_auth(fn):
     return wrapper
 
 
-class DestinyTeamAttendeeVibeViewSet(LoggingMixin, viewsets.ModelViewSet):
+class DestinyTeamAttendeeVibeViewSet(EventScopedLoggingViewSet):
     """
     API endpoint that allows Detiny team attendee vibes to be viewed or edited.
     """
@@ -897,7 +1079,7 @@ class DestinyTeamAttendeeVibeViewSet(LoggingMixin, viewsets.ModelViewSet):
     }
 
     def list(self, request):
-        queryset = self.queryset
+        queryset = self.get_queryset()
         filters = {}
         for filterset_field in self.filterset_fields:
             if request.query_params.get(filterset_field):

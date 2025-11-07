@@ -1,22 +1,13 @@
-import json
-import os
 import re
-import secrets
-import shutil
 import sys
-import urllib
 import uuid
-from datetime import datetime
-from django.utils import timezone
 
 import language_tags
 import pycountry
-import requests
-from asgiref.sync import async_to_sync
-from channels.layers import get_channel_layer
 from django.contrib.auth.models import AbstractUser
 from django.core.mail import send_mail
 from django.core.validators import MaxValueValidator, MinValueValidator
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models.signals import post_delete, post_save
 from django.utils.translation import gettext_lazy as _
@@ -24,14 +15,42 @@ from multiselectfield import MultiSelectField
 from phonenumber_field.modelfields import PhoneNumberField
 from simple_history.models import HistoricalRecords
 from infrastructure.constants import MENTOR_HELP_REQUEST_TOPICS
-
 from infrastructure import email
+from infrastructure.managers import EventScopedManager
 
 # settings.AUTH_USER_MODEL
 
 with open("infrastructure/industries.csv", "r") as f:
     industries = f.read().strip().split(",\n")
     INDUSTRIES = [(x, x) for x in industries]
+
+
+class Event(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100, null=False)
+    start_date = models.DateTimeField(null=False)
+    end_date = models.DateTimeField(null=False)
+    is_active = models.BooleanField(
+        default=False,
+        help_text="Only one event should be active at a time"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"{self.name}"
+
+    @classmethod
+    def get_active(cls):
+        """Get the currently active event."""
+        return cls.objects.filter(is_active=True).first()
+
+    def activate(self):
+        """Make this the active event (deactivates all others)."""
+        Event.objects.update(is_active=False)
+        self.is_active = True
+        self.save(update_fields=['is_active'])
+
 
 class ParticipationRole(models.TextChoices):
     DESIGNER = 'A', _('Digital/Creative Designer')
@@ -48,9 +67,12 @@ class ParticipationCapacity(models.TextChoices):
 
 class Skill(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='%(class)s_set')
     name = models.CharField(max_length=50, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects = EventScopedManager()
 
     def save(self, *args, **kwargs):
         re.sub(r'[^a-zA-Z0-7\_\-\ ]', '', self.name)
@@ -70,6 +92,7 @@ class SkillProficiency(models.Model):
         MASTER = 'M', _('Master')
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='%(class)s_set')
     skill = models.ForeignKey(Skill, on_delete=models.CASCADE)
     proficiency = models.CharField(
         max_length=1,
@@ -81,21 +104,23 @@ class SkillProficiency(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    objects = EventScopedManager()
+
     class Meta:
         verbose_name = "skill proficiencies"
         unique_together = [['attendee', 'skill']]
 
     def __str__(self) -> str:  # pragma: no cover
-        return f"Skill: {self.skill}, Proficiency: {self.proficiency}, RSVP: {self.rsvp}"
-    
+        return f"Skill: {self.skill}, Proficiency: {self.proficiency}"
+
 
 class ShirtSize(models.TextChoices):
-        XS = '1', _('XS')
-        S = '2', _('S')
-        M = '3', _('M')
-        L = '4', _('L')
-        XL = '5', _('XL')
-        XXL = '6', _('XXL')
+    XS = '1', _('XS')
+    S = '2', _('S')
+    M = '3', _('M')
+    L = '4', _('L')
+    XL = '5', _('XL')
+    XXL = '6', _('XXL')
 
 
 # RFC 5646-compliant mapping of languages
@@ -123,11 +148,12 @@ class DietaryRestrictions(models.TextChoices):
 
 
 class DietaryAllergies(models.TextChoices):
-    NUT= '1', _('Nut allergy')
+    NUT = '1', _('Nut allergy')
     SHELLFISH = '2', _('Shellfish allergy')
     DAIRY = '3', _('Dairy allergy')
     SOY = '4', _('Soy allergy')
     OTHER = '5', _('Other')
+
 
 DISABILITIES = (('A', 'Hearing difficulty - Deaf or having serious difficulty hearing (DEAR).'),
                 ('B', 'Vision difficulty - Blind or having serious difficulty seeing, even when wearing glasses (DEYE).'),
@@ -152,6 +178,7 @@ class HeardAboutUs(models.TextChoices):
 def user_directory_path(instance, filename):
     # file will be uploaded to MEDIA_ROOT/user_<id>/<filename>
     return f"{instance.id}/{filename}"
+
 
 # TODO: test and implement refresh_uri to get around cloudflare r2 expiration
 class UploadedFile(models.Model):
@@ -207,7 +234,7 @@ class Application(models.Model):
         WAITLIST_IN_PERSON = 'WI', _('Wait-list, In-Person')
         WAITLIST_ONLINE = 'WO', _('Wait-list, Online')
         DECLINED = 'D', _('Declined')
-        
+
     class ThemeInterestTrackChoice(models.TextChoices):
         YES = 'Y', _('Yes')
         NO = 'N', _('No')
@@ -222,39 +249,41 @@ class Application(models.Model):
         G = 'G', _('60 or older')
         H = 'H', _('I prefer not to say')
 
-    GENDER_IDENTITIES = (('A', 'Cisgender female'),
-                       ('B', 'Cisgender male'),
-                       ('C', 'Transgender female'),
-                       ('D', 'Transgender male'),
-                       ('E', 'Gender non-conforming, non-binary, or gender queer'),
-                       ('F', 'Two-spirit'),
-                       ('G', 'I prefer not to say'),
-                       ('O', 'Other'))
-    
-    # RACE_ETHNIC_GROUPS = (('A', 'Asian, Asian American, or of Asian descent'),
-    RACE_ETHNIC_GROUPS = (
-                       ('B', 'Black, African American, or of African descent'),
-                       ('C', 'Hispanic, Latino, Latina, Latinx, or of Latinx or Spanish-speaking descent'),
-                       ('D', 'Middle Eastern, North African, or of North African descent'),
-                       ('E', 'Native American, American Indian, Alaska Native, or Indigenous'),
-                       ('F', 'Pacific Islander or Native Hawaiian'),
-                       ('G', 'White or of European descent'),
-                       ('H', 'Multi-racial or multi-ethnic'),
-                       ('I', 'I prefer not to say'),
-                       ('J', 'East Asian'),
-                       ('K', 'South Asian'),
-                       ('L', 'Southeast Asian'),
-                       ('M', 'Central Asian'),
-                       ('O', 'Other'))
+    class GenderIdentities(models.TextChoices):
+        CISGENDER_FEMALE = 'A', _('Cisgender female')
+        CISGENDER_MALE = 'B', _('Cisgender male')
+        TRANSGENDER_FEMALE = 'C', _('Transgender female')
+        TRANSGENDER_MALE = 'D', _('Transgender male')
+        GENDER_NONCORFORMING = 'E', _('Gender non-conforming, non-binary, or gender queer')
+        TWO_SPIRIT = 'F', _('Two-spirit')
+        PREFER_NONE = 'G', _('I prefer not to say')
+        OTHER = 'O', _('Other')
 
-    PREVIOUS_PARTICIPATION = (('A', '2016'),
-                              ('B', '2017'),
-                              ('C', '2018'),
-                              ('D', '2019'),
-                              ('E', '2020'),
-                              ('F', '2022'),
-                              ('G', '2023'),
-                              ('H', '2024'))
+    class RaceEthnicGroups(models.TextChoices):
+        BLACK_AFRICAN = 'B', _('Black, African American, or of African descent')
+        HISPANIC_LATINO = 'C', _('Hispanic, Latino, Latina, Latinx, or of Latinx or Spanish-speaking descent')
+        MIDDLE_EASTERN_N_AFRICAN = 'D', _('Middle Eastern, North African, or of North African descent')
+        NATIVE_AMERICAN_INDIGENOUS = 'E', _('Native American, American Indian, Alaska Native, or Indigenous')
+        PACIFIC_ISLANDER = 'F', _('Pacific Islander or Native Hawaiian')
+        WHITE_EUROPEAN = 'G', _('White or of European descent')
+        MULTI_RACIAL_ETHNIC = 'H', _('Multi-racial or multi-ethnic')
+        PREFER_NONE = 'I', _('I prefer not to say')
+        EAST_ASIAN = 'J', _('East Asian')
+        SOUTH_ASIAN = 'K', _('South Asian')
+        SOUTHEAST_ASIAN = 'L', _('Southeast Asian')
+        CENTRAL_ASIAN = 'M', _('Central Asian')
+        OTHER = 'O', _('Other')
+
+    class PreviousParticipation(models.TextChoices):
+        YEAR_2016 = 'A', _('2016')
+        YEAR_2017 = 'B', _('2017')
+        YEAR_2018 = 'C', _('2018')
+        YEAR_2019 = 'D', _('2019')
+        YEAR_2020 = 'E', _('2020')
+        YEAR_2022 = 'F', _('2022')
+        YEAR_2023 = 'G', _('2023')
+        YEAR_2024 = 'H', _('2024')
+        YEAR_2025 = 'I', _('2025')
 
     class HardwareHackDetail(models.TextChoices):
         A = 'A', _("3D Printing")
@@ -266,7 +295,7 @@ class Application(models.Model):
         G = 'G', _("Physical Prototyping")
         H = 'H', _("I have no prior experience")
         O = 'O', _("Other")
-        
+
     class HardwareHackInterest(models.TextChoices):
         A = 'A', _("Not at all interested; I'll pass")
         B = 'B', _("Some mild interest")
@@ -292,15 +321,15 @@ class Application(models.Model):
             if "test" not in sys.argv and "setup_test_data" not in sys.argv and "setup_fake_users" not in sys.argv:
                 subject, body = None, None
                 if instance.participation_class == Application.ParticipationClass.MENTOR:
-                    subject, body = email.get_mentor_application_confirmation_template(instance.first_name, response_email_address="Jared Bienz <jared@mitrealityhack.com>")
+                    subject, body = email.get_mentor_application_confirmation_template(instance.first_name, response_email_address="Mentors <mentors@realityhackinc.org>")
                 elif instance.participation_class == Application.ParticipationClass.JUDGE:
-                    subject, body = email.get_judge_application_confirmation_template(instance.first_name, response_email_address="Catherine Dumas <catherine@mitrealityhack.com>")
+                    subject, body = email.get_judge_application_confirmation_template(instance.first_name, response_email_address="Catherine Dumas <catherine@realityhackinc.org>")
                 else:
                     subject, body = email.get_hacker_application_confirmation_template(instance.first_name)
                 send_mail(
                     subject,
                     body,
-                    "no-reply@mitrealityhack.com",
+                    "no-reply@realityhackinc.org",
                     [instance.email],
                     fail_silently=False,
                 )
@@ -311,6 +340,7 @@ class Application(models.Model):
             instance.resume.delete()
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='%(class)s_set')
     first_name = models.CharField(max_length=100, blank=False, null=False)
     middle_name = models.CharField(max_length=100, blank=False, null=True)
     last_name = models.CharField(max_length=100, blank=False, null=False)
@@ -341,7 +371,6 @@ class Application(models.Model):
         null=True
     )
     email = models.EmailField(blank=False, null=False, unique=True)
-    event_year = models.IntegerField(default=2025, null=False)
     portfolio = models.URLField(null=True)
     secondary_portfolio = models.URLField(null=True)
     resume = models.OneToOneField(
@@ -349,9 +378,9 @@ class Application(models.Model):
         related_name="application_resume_uploaded_file",
         null=True
     )
-    gender_identity = MultiSelectField(choices=GENDER_IDENTITIES, max_choices=8, max_length=len(GENDER_IDENTITIES) * 2)
+    gender_identity = MultiSelectField(choices=GenderIdentities.choices, max_choices=8, max_length=len(GenderIdentities) * 2)
     gender_identity_other = models.CharField(max_length=20, null=True)
-    race_ethnic_group = MultiSelectField(choices=RACE_ETHNIC_GROUPS, max_choices=10, max_length=len(RACE_ETHNIC_GROUPS) * 2)
+    race_ethnic_group = MultiSelectField(choices=RaceEthnicGroups.choices, max_choices=10, max_length=len(RaceEthnicGroups) * 2)
     race_ethnic_group_other = models.CharField(max_length=20, null=True)
     disability_identity = models.CharField(
         max_length=1,
@@ -380,6 +409,7 @@ class Application(models.Model):
     )
     industry_other = models.CharField(max_length=20, null=True)
     specialized_expertise = models.TextField(max_length=1000, blank=False, null=True)
+    other_skills_experiences = models.TextField(max_length=1000, blank=False, null=True)
     status = models.CharField(
         max_length=2,
         choices=Status.choices,
@@ -387,7 +417,12 @@ class Application(models.Model):
         default=None
     )
     previously_participated = models.BooleanField(default=False, null=True)
-    previous_participation = MultiSelectField(choices=PREVIOUS_PARTICIPATION, max_choices=7, max_length=len(PREVIOUS_PARTICIPATION) * 2, null=True)
+    previous_participation = MultiSelectField(
+        choices=PreviousParticipation.choices,
+        max_choices=7,
+        max_length=len(PreviousParticipation) * 2,
+        null=True,
+    )
     participation_role = models.CharField(
         max_length=1,
         choices=ParticipationRole.choices,
@@ -428,20 +463,19 @@ class Application(models.Model):
         default=ThemeInterestTrackChoice.NO,
         null=True
     )
-    
     hardware_hack_interest = models.CharField(
         max_length=1,
         choices=HardwareHackInterest.choices,
-        default=HardwareHackInterest.B
+        default=HardwareHackInterest.B,
+        null=True
     )
-    
     hardware_hack_detail = MultiSelectField(
         max_length=100,
         choices=HardwareHackDetail.choices,
         max_choices=7,
         null=True
     )
-    
+
     heard_about_us = MultiSelectField(choices=HeardAboutUs.choices, max_length=30)
     heard_about_us_other = models.CharField(max_length=20, null=True)
     digital_designer_skills = MultiSelectField(
@@ -462,8 +496,244 @@ class Application(models.Model):
     # rsvp
     rsvp_email_sent_at = models.DateTimeField(null=True)
 
+    objects = EventScopedManager()
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['event', 'email']),
+            models.Index(fields=['event', 'status']),
+        ]
+
     def __str__(self) -> str:  # pragma: nocover
         return f"Participation Class: {self.participation_class}, Name: {self.first_name} {self.last_name}"
+
+
+class ApplicationQuestion(models.Model):
+    """Event-specific application questions"""
+    class QuestionType(models.TextChoices):
+        SINGLE_CHOICE = 'S', _('Single Choice')
+        MULTIPLE_CHOICE = 'M', _('Multiple Choice')
+        TEXT = 'T', _('Text Response')
+        LONG_TEXT = 'L', _('Long Text/Essay')
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event = models.ForeignKey(
+        Event,
+        on_delete=models.CASCADE, related_name='%(class)s_set'
+    )
+
+    # Question metadata
+    question_key = models.CharField(
+        max_length=100,
+        help_text="Internal identifier like 'hardware_hack_interest'"
+    )
+    question_text = models.TextField()
+    question_type = models.CharField(max_length=1, choices=QuestionType.choices)
+    order = models.IntegerField(default=0)
+    required = models.BooleanField(default=True)
+
+    # Conditional logic for sub-questions
+    parent_question = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='sub_questions',
+        help_text="If set, this question only appears based on parent response"
+    )
+    trigger_choices = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=(
+            "List of choice_keys from parent that trigger this question. "
+            "Empty = always show"
+        )
+    )
+
+    # essay question input configurations
+    max_length = models.IntegerField(
+        null=True,
+        default=2000,
+        blank=True,
+        help_text="Maximum character length for text responses"
+    )
+    min_length = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Minimum character length for text responses"
+    )
+    placeholder_text = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Placeholder text for text inputs"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = EventScopedManager()
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['event', 'question_key']),
+            models.Index(fields=['event', 'order']),
+            models.Index(fields=['parent_question']),
+        ]
+        unique_together = [['event', 'question_key']]
+
+    def __str__(self) -> str:
+        return f"{self.event.name} - {self.question_key}"
+
+    def should_show_for_response(self, parent_response):
+        """Check if this question should be shown based on parent response"""
+        if not self.parent_question:
+            return True
+
+        if not self.trigger_choices:
+            return True
+
+        # Check if any selected choices match trigger_choices
+        selected = parent_response.selected_choices.values_list('choice_key', flat=True)
+        return any(choice in self.trigger_choices for choice in selected)
+
+
+class ApplicationQuestionChoice(models.Model):
+    """Choices for single/multiple choice questions"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    question = models.ForeignKey(
+        ApplicationQuestion,
+        on_delete=models.CASCADE,
+        related_name='choices'
+    )
+
+    choice_key = models.CharField(
+        max_length=10,
+        help_text="Short code like 'A', 'B', 'Y', 'N'"
+    )
+    choice_text = models.CharField(max_length=500)
+    order = models.IntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['question', 'order']),
+        ]
+        ordering = ['order']
+        unique_together = [['question', 'choice_key']]
+
+    def __str__(self) -> str:
+        return f"{self.question.question_key} - {self.choice_key}: {self.choice_text}"
+
+
+class ApplicationResponse(models.Model):
+    """User responses to application questions"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    application = models.ForeignKey(
+        Application,
+        on_delete=models.CASCADE,
+        related_name='question_responses'
+    )
+    question = models.ForeignKey(
+        ApplicationQuestion,
+        on_delete=models.PROTECT,
+        related_name='responses'
+    )
+
+    # Store selected choices
+    selected_choices = models.ManyToManyField(
+        ApplicationQuestionChoice,
+        blank=True,
+        related_name='responses'
+    )
+
+    # Snapshot data - preserved even if question/choices are modified
+    question_text_snapshot = models.TextField(
+        help_text="Question text at time of response"
+    )
+    choices_snapshot = models.JSONField(
+        default=dict,
+        help_text="{'choice_key': 'choice_text'} at time of response"
+    )
+    selected_keys_snapshot = models.JSONField(
+        default=list,
+        help_text="List of choice_keys selected, preserved snapshot"
+    )
+    text_response = models.TextField(
+        blank=True,
+        help_text="Free-form text response for TEXT question types"
+    )
+    text_response_snapshot = models.TextField(
+        blank=True,
+        help_text="Snapshot of text response at time of submission"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [['application', 'question']]
+        indexes = [
+            models.Index(fields=['application']),
+            models.Index(fields=['question']),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.application.email} - {self.question.question_key}"
+
+    def save(self, *args, **kwargs):
+        """Auto-populate snapshots on creation"""
+        super().save(*args, **kwargs)
+
+        self.question_text_snapshot = self.question.question_text
+
+        if self.question.question_type in ['S', 'M']:
+            choices_dict = {}
+            for choice in self.question.choices.all():
+                choices_dict[choice.choice_key] = choice.choice_text
+            self.choices_snapshot = choices_dict
+
+        if self.question.question_type in ['T', 'L']:
+            self.text_response_snapshot = self.text_response
+
+        super().save(update_fields=[
+            'question_text_snapshot',
+            'choices_snapshot',
+            'text_response_snapshot'
+        ])
+
+    def update_selected_snapshot(self):
+        """Update the selected_keys_snapshot based on current selected_choices"""
+        self.selected_keys_snapshot = list(
+            self.selected_choices.values_list('choice_key', flat=True)
+        )
+        self.save(update_fields=['selected_keys_snapshot'])
+
+    def clean(self):
+        """Validate response based on question type"""
+
+        if self.question.question_type in ['T', 'L']:
+            if not self.text_response and self.question.required:
+                raise ValidationError("Text response is required for this question")
+
+            if (
+                self.question.max_length and
+                len(self.text_response) > self.question.max_length
+            ):
+                raise ValidationError(
+                    "Response exceeds maximum length of "
+                    f"{self.question.max_length} characters"
+                )
+            if (
+                self.question.min_length and
+                len(self.text_response) < self.question.min_length
+            ):
+                raise ValidationError(
+                    f"Response must be at least {self.question.min_length} characters"
+                )
+        else:
+            if self.text_response:
+                raise ValidationError("Text responses are only for TEXT question types")
 
 
 class Track(models.TextChoices): # limit to 1
@@ -493,8 +763,8 @@ class LoanerHeadsetPreference(models.TextChoices):
     META = 'META', _('Meta Quest 3')
     SNAP = 'SNAP', _('Snap Spectacles')
     BYOD = 'BYOD', _('I am bringing my own XR device to work with.')
-    HWHACK = 'HWHACK', _('I’ve chosen the Hardware Hack, so I will probably not need a headset.')
-    TBD = 'TBD', _('I’m not sure yet')
+    HWHACK = 'HWHACK', _("I've chosen the Hardware Hack, so I will probably not need a headset.")
+    TBD = 'TBD', _("I'm not sure yet")
 
 
 class Attendee(AbstractUser):
@@ -519,9 +789,6 @@ class Attendee(AbstractUser):
         if instance.profile_image:
             instance.profile_image.claimed = True
             instance.profile_image.save()
-        if "test" not in sys.argv and "setup_test_data" not in sys.argv and "setup_fake_users" not in sys.argv:
-            if created:
-                instance.create_authentication_account()
 
     @classmethod
     def post_delete(cls, sender, instance, **kwargs):
@@ -529,26 +796,12 @@ class Attendee(AbstractUser):
             instance.profile_image.delete()
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    application = models.OneToOneField(
-        Application, on_delete=models.CASCADE, null=True)
+
     authentication_id = models.CharField(max_length=36, null=True)
     authentication_roles_assigned = models.BooleanField(default=False, null=False)
-    participation_role = models.CharField(
-        max_length=1,
-        choices=ParticipationRole.choices,
-        default=ParticipationRole.SPECIALIST,
-        null=True
-    )
-    bio = models.TextField(max_length=1000, blank=True)
+
     email = models.EmailField(unique=True)
-    guardian_of = models.ManyToManyField("Attendee", related_name='attendee_guardian_of', blank=True)
-    sponsor_handler = models.ForeignKey("Attendee", related_name="attendee_sponsor_of", null=True, on_delete=models.SET_NULL)
-    shirt_size = models.CharField(
-        max_length=1,
-        choices=ShirtSize.choices,
-        default=ShirtSize.M,
-        null=True
-    )
+    bio = models.TextField(max_length=1000, blank=True)
     initial_setup = models.BooleanField(default=False)
     profile_image = models.OneToOneField(
         UploadedFile, on_delete=models.SET_NULL,
@@ -557,6 +810,24 @@ class Attendee(AbstractUser):
     )
     communications_platform_username = models.CharField(
         max_length=40, null=True, help_text="I.e., a Discord username")
+
+
+    application = models.OneToOneField(
+        Application, on_delete=models.CASCADE, null=True)
+    participation_role = models.CharField(
+        max_length=1,
+        choices=ParticipationRole.choices,
+        default=ParticipationRole.SPECIALIST,
+        null=True
+    )
+    guardian_of = models.ManyToManyField("Attendee", related_name='attendee_guardian_of', blank=True)
+    sponsor_handler = models.ForeignKey("Attendee", related_name="attendee_sponsor_of", null=True, on_delete=models.SET_NULL)
+    shirt_size = models.CharField(
+        max_length=1,
+        choices=ShirtSize.choices,
+        default=ShirtSize.M,
+        null=True
+    )
     intended_tracks = MultiSelectField(max_choices=2, max_length=7, null=True, choices=Track.choices)
     intended_hardware_hack = models.BooleanField(default=False, null=False)
     prefers_destiny_hardware = MultiSelectField(max_choices=len(DestinyHardware.choices), max_length=len(DestinyHardware.choices) * 2 + 1, null=True, choices=DestinyHardware.choices)
@@ -571,8 +842,6 @@ class Attendee(AbstractUser):
     additional_accommodations = models.TextField(max_length=200, blank=False, null=True)
     us_visa_support_is_required = models.BooleanField(null=False)
     visa_support_form_confirmation = models.BooleanField(null=False, default=False)
-    
-    ###
     # getting rid of this, but keeping here for back compat
     us_visa_letter_of_invitation_required = models.BooleanField(null=True, default=False)
     us_visa_support_full_name = models.CharField(max_length=200, blank=False, null=True)
@@ -588,7 +857,7 @@ class Attendee(AbstractUser):
         null=True
     )
     us_visa_support_address = models.TextField(max_length=500, null=True, blank=False)
-    under_18_by_date = models.BooleanField(null=True, help_text="Will you be under 18 on January 23, 2025")
+    under_18_by_date = models.BooleanField(null=True, help_text="Will you be under 18 on January 22, 2026")
     parental_consent_form_signed = models.BooleanField(null=True, default=None)
     agree_to_media_release = models.BooleanField(null=False, default=False)
     agree_to_liability_release = models.BooleanField(null=False, default=False)
@@ -642,96 +911,6 @@ class Attendee(AbstractUser):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-
-    def __str__(self) -> str:  # pragma: nocover
-        return f"Name: {self.first_name} {self.last_name}, Username: {self.communications_platform_username}"
-
-    def get_authentication_token(self):
-        access_token_params = {"grant_type": "client_credentials", "client_id": os.environ['KEYCLOAK_CLIENT_ID'], "client_secret": os.environ['KEYCLOAK_CLIENT_SECRET_KEY']}
-        return requests.post(
-            url=f"{os.environ['KEYCLOAK_SERVER_URL']}/realms/{os.getenv('KEYCLOAK_REALM', 'reality-hack-2024')}/protocol/openid-connect/token",
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-            data=urllib.parse.urlencode(access_token_params)
-        )
-
-    def assign_authentication_roles(self):
-        access_token = self.get_authentication_token()
-        realm_role = None
-        if self.participation_class == self.ParticipationClass.PARTICIPANT:
-            realm_role = "attendee"
-        elif self.participation_class == self.ParticipationClass.MENTOR:
-            realm_role = "mentor"
-        elif self.participation_class == self.ParticipationClass.JUDGE:
-            realm_role = "judge"
-        elif self.participation_class == self.ParticipationClass.SPONSOR:
-            realm_role = "sponsor"
-        elif self.participation_class == self.ParticipationClass.VOLUNTEER:
-            realm_role = "volunteer"
-        elif self.participation_class == self.ParticipationClass.ORGANIZER:
-            realm_role = "organizer"
-        role_by_name = requests.get(
-            url=f"{os.environ['KEYCLOAK_SERVER_URL']}/admin/realms/{os.getenv('KEYCLOAK_REALM', 'reality-hack-2024')}/roles/{realm_role}",
-            headers={"Authorization": f"Bearer { access_token.json()['access_token']}", "Content-Type": "application/json"},
-        )
-        realm_roles = [role_by_name.json()]
-        created_realm_roles = requests.post(
-            url=f"{os.environ['KEYCLOAK_SERVER_URL']}/admin/realms/{os.getenv('KEYCLOAK_REALM', 'reality-hack-2024')}/users/{self.authentication_id}/role-mappings/realm",
-            headers={"Authorization": f"Bearer {access_token.json()['access_token']}", "Content-Type": "application/json"},
-            data=json.dumps(realm_roles)
-        )
-        if created_realm_roles.ok:
-            self.authentication_roles_assigned = True
-            self.save()
-        return created_realm_roles
-
-    def create_authentication_account(self):
-        temporary_password = secrets.token_hex(10 // 2)
-        access_token = self.get_authentication_token()
-        auth_user_dict = {
-            "id": str(uuid.uuid4()),
-            "username": f"{self.first_name}.{self.last_name}.{uuid.uuid4()}",
-            "enabled": True,
-            "email": self.email,
-            "firstName": self.first_name,
-            "lastName": self.last_name,
-            "credentials": [
-                {
-                    "type": "password",
-                    "value": temporary_password,
-                    "temporary": True
-                }
-            ],
-            "clientRoles": {
-                "account": [
-                    "manage-account",
-                    "view-profile"
-                ]
-            }
-        }
-        authentication_account = requests.post(
-            url=f"{os.environ['KEYCLOAK_SERVER_URL']}/admin/realms/{os.getenv('KEYCLOAK_REALM', 'reality-hack-2024')}/users",
-            headers={"Authorization": f"Bearer {access_token.json()['access_token']}", "Content-Type": "application/json"},
-            data=json.dumps(auth_user_dict)
-        )
-        if authentication_account.ok:
-            authentication_account_id = authentication_account.headers["Location"].split("/")[-1]
-            self.authentication_id = authentication_account_id
-            self.save()
-            self.assign_authentication_roles()
-            # send email with credentials
-            subject, body = None, None
-            if self.participation_class == Attendee.ParticipationClass.PARTICIPANT:
-                subject, body = email.get_hacker_rsvp_confirmation_template(self.first_name, temporary_password)
-            else:
-                subject, body = email.get_non_hacker_rsvp_confirmation_template(self.first_name, temporary_password)
-            send_mail(
-                subject,
-                body,
-                "no-reply@mitrealityhack.com",
-                [self.email],
-                fail_silently=False,
-            )
-
     class Meta:
         verbose_name = "attendees"
         indexes = [
@@ -756,13 +935,13 @@ class Location(models.Model):
         ROOM_124 = '24', _('32-124')
         ROOM_144 = '44', _('32-144')
         ROOM_141 = '41', _('32-141')
-        
 
     class Building(models.TextChoices):
         STATA = 'ST', _('Stata')
         WALKER = 'WK', _('Walker')
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='%(class)s_set')
     building = models.CharField(
         max_length=2,
         choices=Building.choices,
@@ -776,16 +955,21 @@ class Location(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    objects = EventScopedManager()
+
     def __str__(self) -> str:  # pragma: no cover
         return f"Building: {self.building}, Room: {self.room}"
 
 
 class Table(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='%(class)s_set')
     number = models.PositiveBigIntegerField()
     location = models.ForeignKey(Location, on_delete=models.SET_NULL, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects = EventScopedManager()
 
     def __str__(self) -> str:  # pragma: no cover
         return f"{self.number}"
@@ -793,6 +977,7 @@ class Table(models.Model):
 
 class Team(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='%(class)s_set')
     number = models.IntegerField(null=True)
     name = models.CharField(max_length=50)
     attendees = models.ManyToManyField(Attendee, related_name="team_attendees", blank=True)
@@ -808,8 +993,11 @@ class Team(models.Model):
     team_description = models.TextField(max_length=2000, null=True)
     # add census field
 
+    objects = EventScopedManager()
+
     class Meta:
         indexes = [
+            models.Index(fields=['event', 'name']),
             models.Index(fields=['name']),
             models.Index(fields=['table'])
         ]
@@ -820,12 +1008,13 @@ class Team(models.Model):
     @classmethod
     def post_save(cls, sender, instance, created, **kwargs):
         if created:
-            instance.number = Team.objects.count() + 1
+            instance.number = Team.objects.for_event(instance.event).count() + 1
             instance.save()
 
 
 class Project(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='%(class)s_set')
     name = models.CharField(max_length=50)
     description = models.TextField(max_length=1000, blank=False, null=False)
     repository_location = models.URLField()
@@ -836,6 +1025,8 @@ class Project(models.Model):
     team_primary_contact = models.CharField(max_length=75, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects = EventScopedManager()
 
     def __str__(self) -> str:  # pragma: no cover
         return f"{self.name}"
@@ -882,12 +1073,15 @@ class LightHouse(models.Model):
         # )
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='%(class)s_set')
     table = models.ForeignKey(Table, on_delete=models.CASCADE)
     ip_address = models.GenericIPAddressField()
     announcement_pending = models.CharField(choices=AnnouncementStatus.choices ,max_length=1, default=AnnouncementStatus.RESOLVE.value)
     mentor_requested = models.CharField(choices=MentorRequestStatus.choices, max_length=1, default=MentorRequestStatus.RESOLVED.value)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects = EventScopedManager()
 
     def __str__(self) -> str:  # pragma: no cover
         return f"Table: {self.table}, IP: {self.ip_address}"
@@ -912,6 +1106,7 @@ class MentorHelpRequest(models.Model):
         # lighthouse.save()
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='%(class)s_set')
     title = models.CharField(max_length=250, null=True)
     description = models.TextField(max_length=2000, null=True)
     category = models.CharField(choices=MentorHelpRequestCategory.choices, null=True, max_length=1)
@@ -926,6 +1121,13 @@ class MentorHelpRequest(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     history = HistoricalRecords()
+
+    objects = EventScopedManager()
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['event', 'status', 'created_at']),
+        ]
 
     def __str__(self):
         return f"Reporter: {self.reporter}, Mentor: {self.mentor}, Title: {self.title}"
@@ -946,6 +1148,7 @@ class HardwareTags(models.TextChoices):
 
 class Hardware(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='%(class)s_set')
     name = models.CharField(max_length=50)
     description = models.TextField(max_length=1000, blank=True)
     image = models.OneToOneField(
@@ -959,12 +1162,15 @@ class Hardware(models.Model):
         choices=HardwareTags.choices, max_length=len(HardwareTags.choices) * 2 * 2 + 1, null=True)
     relates_to_destiny_hardware = models.CharField(choices=DestinyHardware.choices, max_length=1, null=True)
 
+    objects = EventScopedManager()
+
     def __str__(self) -> str:  # pragma: no cover
         return f"Name: {self.name}"
 
 
 class HardwareDevice(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='%(class)s_set')
     hardware = models.ForeignKey(Hardware, on_delete=models.CASCADE)
     serial = models.CharField(max_length=100)
     checked_out_to = models.OneToOneField(
@@ -972,6 +1178,13 @@ class HardwareDevice(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     history = HistoricalRecords()
+
+    objects = EventScopedManager()
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['event', 'hardware']),
+        ]
 
     def __str__(self) -> str:  # pragma: no cover
         return f"Hardware: {self.hardware}, Serial: {self.serial}"
@@ -986,6 +1199,7 @@ class HardwareRequestStatus(models.TextChoices):
 
 class HardwareRequest(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='%(class)s_set')
     hardware = models.ForeignKey(Hardware, on_delete=models.CASCADE)
     hardware_device = models.OneToOneField(HardwareDevice, on_delete=models.CASCADE, null=True, blank=True)
     requester = models.ForeignKey(Attendee, on_delete=models.CASCADE, null=True)
@@ -998,12 +1212,20 @@ class HardwareRequest(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects = EventScopedManager()
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['event', 'hardware', 'status']),
+        ]
     
     def __str__(self) -> str:  # pragma: no cover
         return f"Hardware: {self.hardware}, Requester: {self.requester} (Team: {self.team})"
 
 class Workshop(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='%(class)s_set')
     name = models.CharField(max_length=300, null=False)
     datetime = models.DateTimeField(null=True)
     duration = models.IntegerField(null=True)
@@ -1020,6 +1242,8 @@ class Workshop(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    objects = EventScopedManager()
+
     def __str__(self):
         return f"Name: {self.name}, Date: {self.datetime}, Duration: {self.duration}"
 
@@ -1032,6 +1256,7 @@ class WorkshopAttendee(models.Model):
         VOLUNTEER = "V", _("Volunteer")
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='%(class)s_set')
     workshop = models.ForeignKey(
         Workshop, related_name="workshop_attendee_workshop",
         on_delete=models.CASCADE, null=False
@@ -1049,6 +1274,8 @@ class WorkshopAttendee(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    objects = EventScopedManager()
+
     def __str__(self):
         return f"Attendee: {self.attendee}, Participation: {self.participation}, Workshop: {self.workshop}"
 
@@ -1060,9 +1287,12 @@ class AttendeePreference(models.Model):
         TBD = "T"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='%(class)s_set')
     preferer = models.ForeignKey(Attendee, null=False, on_delete=models.CASCADE, related_name="attendee_preference_preferer")
     preferee = models.ForeignKey(Attendee, null=False, on_delete=models.CASCADE, related_name="attendee_preference_preferee")
     preference = models.CharField(choices=Preference.choices, null=False, max_length=1, blank=False)
+
+    objects = EventScopedManager()
 
     def __str__(self):
         return f"Preferrer: {self.preferer}, Preferee: {self.preferee}, Preference: {self.preference}"
@@ -1070,6 +1300,7 @@ class AttendeePreference(models.Model):
 
 class DestinyTeam(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='%(class)s_set')
     attendees = models.ManyToManyField(Attendee, related_name="destiny_team_attendees", blank=True)
     table = models.ForeignKey(Table, on_delete=models.SET_NULL, null=True)
     track = models.CharField(choices=Track.choices, max_length=1, null=True)
@@ -1079,15 +1310,20 @@ class DestinyTeam(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    objects = EventScopedManager()
+
     def __str__(self):  # pragma: no cover
         return f"Table: {self.table}, Round: {self.round}"
 
 
 class DestinyTeamAttendeeVibe(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='%(class)s_set')
     destiny_team = models.ForeignKey(DestinyTeam, null=False, on_delete=models.CASCADE)
     attendee = models.ForeignKey(Attendee, null=False, on_delete=models.CASCADE)
     vibe = models.PositiveIntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
+
+    objects = EventScopedManager()
 
     def __str__(self):
         return f"Destiny Team: {self.destiny_team}, Attendee: {self.attendee}, Vibe: {self.vibe}"

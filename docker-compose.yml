@@ -15,29 +15,22 @@ services:
       timeout: 5s
       retries: 5
   keycloak:
-    image: quay.io/keycloak/keycloak:25.0.0
+    image: quay.io/keycloak/keycloak:26.0.1
     environment:
       DB_ADDR: postgres
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: 123456
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: 123456
     volumes:
       - ./keycloak_data:/opt/keycloak/data/import/
     ports:
       - 8080:8080
       - 9000:9000
     entrypoint: >
-      sh -c "\
-           KC_BOOTSTRAP_ADMIN_USERNAME=admin KC_BOOTSTRAP_ADMIN_PASSWORD=123456 && \
-           /opt/keycloak/bin/kc.sh import --file /opt/keycloak/data/import/realm-export.json && \
-           /opt/keycloak/bin/kc.sh start-dev --health-enabled=true
+      sh -c "
+        echo 'First run - importing realm...';
+        /opt/keycloak/bin/kc.sh import --file /opt/keycloak/data/import/realm-export.json;
+        exec /opt/keycloak/bin/kc.sh start-dev --health-enabled=true
       "
-  # import is part of first run only, otherwise it overruns setup_fake_users 
-  # import --file /opt/keycloak/data/import/realm-export.json && \
-    # healthcheck:
-    #   test: ["CMD", "curl", "--head", "-fsS", "http://keycloak:8080/health/ready"]
-    #   interval: 5s
-    #   timeout: 2s
-    #   retries: 15
   redis:
     image: redis:6.2-alpine
     ports:

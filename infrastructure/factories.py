@@ -1,12 +1,12 @@
-from datetime import datetime
-
 import factory
 import factory.fuzzy
 import pycountry
 from django.contrib.auth.models import Group
 from factory.django import DjangoModelFactory
+from django.utils import timezone
 
 from infrastructure import models
+from infrastructure import event_context
 
 
 class UploadedFileFactory(DjangoModelFactory):
@@ -21,7 +21,7 @@ class UploadedFileFactory(DjangoModelFactory):
 class ApplicationFactory(DjangoModelFactory):
     class Meta:
         model = models.Application
-    
+
     first_name = factory.Faker("first_name")
     middle_name = factory.Faker("first_name")
     last_name = factory.Faker("last_name")
@@ -43,10 +43,10 @@ class ApplicationFactory(DjangoModelFactory):
         'random_element', elements=[str(x[0]) for x in models.Application.Status.choices]
     )
     gender_identity = factory.Faker(
-        'random_element', elements=[str(x[0]) for x in models.Application.GENDER_IDENTITIES]
+        'random_element', elements=[str(x[0]) for x in models.Application.GenderIdentities]
     )
     race_ethnic_group = factory.Faker(
-        'random_element', elements=[str(x[0]) for x in models.Application.RACE_ETHNIC_GROUPS]
+        'random_element', elements=[str(x[0]) for x in models.Application.RaceEthnicGroups]
     )
     disability_identity = factory.Faker(
         'random_element', elements=[x[0] for x in models.DisabilityIdentity.choices]
@@ -68,12 +68,13 @@ class ApplicationFactory(DjangoModelFactory):
     specialized_expertise = factory.fuzzy.FuzzyText(length=90)
     previously_participated = factory.Faker("boolean")
     previous_participation = factory.Faker(
-        'random_element', elements=[str(x[0]) for x in models.Application.PREVIOUS_PARTICIPATION]
+        'random_element', elements=[str(x[0]) for x in models.Application.PreviousParticipation]
     )
     participation_role = factory.Faker(
         'random_element', elements=[x[0] for x in models.ParticipationRole.choices]
     )
     experience_with_xr = factory.fuzzy.FuzzyText(length=900)
+    other_skills_experiences = factory.fuzzy.FuzzyText(length=900)
     experience_contribution = factory.fuzzy.FuzzyText(length=900)
     theme_essay = factory.fuzzy.FuzzyText(length=900)
     theme_essay_follow_up = factory.fuzzy.FuzzyText(length=900)
@@ -91,6 +92,7 @@ class ApplicationFactory(DjangoModelFactory):
     )
     communications_platform_username = factory.Faker("user_name")
     outreach_groups = factory.fuzzy.FuzzyText(length=900)
+    event = factory.LazyFunction(lambda: event_context.get_current_event())
 
 
 class AttendeeFactory(DjangoModelFactory):
@@ -104,9 +106,11 @@ class AttendeeFactory(DjangoModelFactory):
     authentication_id = factory.Faker("uuid4")
     email = factory.Faker("email")
     username = factory.Faker("user_name")
-    application = factory.Iterator(
-        models.Application.objects.filter(status=models.Application.Status.ACCEPTED_IN_PERSON),
-        cycle=False)
+    application = factory.LazyFunction(
+        lambda: models.Application.objects.for_event(
+            event_context.get_current_event()
+        ).filter(status=models.Application.Status.ACCEPTED_IN_PERSON).order_by('?').first()
+    )
     shirt_size = factory.Faker(
         'random_element', elements=[x[0] for x in models.ShirtSize.choices]
     )
@@ -185,6 +189,7 @@ class SkillFactory(DjangoModelFactory):
         model = models.Skill
 
     name = UniqueFaker("company")
+    event = factory.LazyFunction(lambda: event_context.get_current_event())
 
 
 class TableFactory(DjangoModelFactory):
@@ -192,17 +197,27 @@ class TableFactory(DjangoModelFactory):
         model = models.Table
 
     number = factory.Sequence(lambda n: n + 1)
-    location = factory.Iterator(models.Location.objects.all())
+    location = factory.LazyFunction(
+        lambda: models.Location.objects.for_event(
+            event_context.get_current_event()
+        ).order_by('?').first()
+    )
+    event = factory.LazyFunction(lambda: event_context.get_current_event())
 
 
 class LightHouseFactory(DjangoModelFactory):
     class Meta:
         model = models.LightHouse
 
-    table = factory.Iterator(models.Table.objects.all())
+    table = factory.LazyFunction(
+        lambda: models.Table.objects.for_event(
+            event_context.get_current_event()
+        ).order_by('?').first()
+    )
     ip_address = factory.Faker("ipv4_private")
     announcement_pending = "F"
     mentor_requested = "F"
+    event = factory.LazyFunction(lambda: event_context.get_current_event())
 
 
 class MentorHelpRequestFactory(DjangoModelFactory):
@@ -211,9 +226,23 @@ class MentorHelpRequestFactory(DjangoModelFactory):
 
     title = factory.fuzzy.FuzzyText(length=30)
     description = factory.fuzzy.FuzzyText(length=500)
-    reporter = factory.Iterator(models.Attendee.objects.filter(participation_class=models.Attendee.ParticipationClass.PARTICIPANT))
-    mentor = factory.Iterator(models.Attendee.objects.filter(participation_class=models.Attendee.ParticipationClass.MENTOR))
-    team = factory.Iterator(models.Team.objects.all())
+    reporter = factory.Iterator(
+        models.Attendee.objects.filter(
+            participation_class=models.Attendee.ParticipationClass.PARTICIPANT
+        )
+    )
+    mentor = factory.Iterator(
+        models.Attendee.objects.filter(
+            participation_class=models.Attendee.ParticipationClass.MENTOR
+        )
+    )
+    team = factory.LazyFunction(
+        lambda: models.Team.objects.for_event(
+            event_context.get_current_event()
+        ).order_by('?').first()
+    )
+    event = factory.LazyFunction(lambda: event_context.get_current_event())
+
 
 class ProjectFactory(DjangoModelFactory):
     class Meta:
@@ -223,6 +252,7 @@ class ProjectFactory(DjangoModelFactory):
     repository_location = factory.Faker("url")
     submission_location = factory.Faker("url")
     description = factory.fuzzy.FuzzyText(length=200)
+    event = factory.LazyFunction(lambda: event_context.get_current_event())
 
     @factory.post_generation
     def team(self, create, team, **kwargs):
@@ -237,10 +267,15 @@ class SkillProficiencyFactory(DjangoModelFactory):
     class Meta:
         model = models.SkillProficiency
 
-    skill = factory.Iterator(models.Skill.objects.all())
+    skill = factory.LazyFunction(
+        lambda: models.Skill.objects.for_event(
+            event_context.get_current_event()
+        ).order_by('?').first()
+    )
     proficiency = factory.Faker(
         'random_element', elements=[x[0] for x in models.SkillProficiency.Proficiency]
     )
+    event = factory.LazyFunction(lambda: event_context.get_current_event())
 
 
 class TeamFactory(DjangoModelFactory):
@@ -248,7 +283,7 @@ class TeamFactory(DjangoModelFactory):
         model = models.Team
 
     name = factory.Faker("company")
-    table = factory.Iterator(models.Table.objects.all())
+    event = factory.LazyFunction(lambda: event_context.get_current_event())
 
     @factory.post_generation
     def attendees(self, create, extracted, **kwargs):
@@ -274,26 +309,44 @@ class HardwareFactory(DjangoModelFactory):
     relates_to_destiny_hardware = factory.Faker(
         'random_element', elements=[x[0] for x in models.DestinyHardware.choices]
     )
+    event = factory.LazyFunction(lambda: event_context.get_current_event())
 
 
 class HardwareDeviceFactory(DjangoModelFactory):
     class Meta:
         model = models.HardwareDevice
 
-    hardware = factory.Iterator(models.Hardware.objects.all())
+    hardware = factory.LazyFunction(
+        lambda: models.Hardware.objects.for_event(
+            event_context.get_current_event()
+        ).order_by('?').first()
+    )
     serial = factory.fuzzy.FuzzyText(length=50)
     checked_out_to = factory.Iterator(
-        models.HardwareRequest.objects.filter(hardware_device__isnull=True))
+        models.HardwareRequest.objects.for_event(
+            event_context.get_current_event()
+        ).filter(hardware_device__isnull=True)
+    )
+    event = factory.LazyFunction(lambda: event_context.get_current_event())
 
 
 class HardwareRequestFactory(DjangoModelFactory):
     class Meta:
         model = models.HardwareRequest
 
-    hardware = factory.Iterator(models.Hardware.objects.all())
+    hardware = factory.LazyFunction(
+        lambda: models.Hardware.objects.for_event(
+            event_context.get_current_event()
+        ).order_by('?').first()
+    )
     requester = factory.Iterator(models.Attendee.objects.all())
     reason = factory.fuzzy.FuzzyText(length=900)
-    team = factory.Iterator(models.Team.objects.all())
+    team = factory.LazyFunction(
+        lambda: models.Team.objects.for_event(
+            event_context.get_current_event()
+        ).order_by('?').first()
+    )
+    event = factory.LazyFunction(lambda: event_context.get_current_event())
 
 
 class WorkshopFactory(DjangoModelFactory):
@@ -301,14 +354,19 @@ class WorkshopFactory(DjangoModelFactory):
         model = models.Workshop
 
     name = factory.Faker("company")
-    datetime = datetime.now()
+    datetime = timezone.now().replace(tzinfo=timezone.utc)
     duration = 10
     description = factory.fuzzy.FuzzyText(length=100)
-    location = factory.Iterator(models.Location.objects.all())
+    location = factory.LazyFunction(
+        lambda: models.Location.objects.for_event(
+            event_context.get_current_event()
+        ).order_by('?').first()
+    )
     course_materials = factory.Faker("url")
     recommended_for = factory.Faker(
         'random_element', elements=[x[0] for x in models.ParticipationRole.choices]
     )
+    event = factory.LazyFunction(lambda: event_context.get_current_event())
 
     @factory.post_generation
     def skills(self, create, extracted, **kwargs):
@@ -333,11 +391,16 @@ class WorkshopAttendeeFactory(DjangoModelFactory):
     class Meta:
         model = models.WorkshopAttendee
 
-    workshop = factory.Iterator(models.Workshop.objects.all())
+    workshop = factory.LazyFunction(
+        lambda: models.Workshop.objects.for_event(
+            event_context.get_current_event()
+        ).order_by('?').first()
+    )
     attendee = factory.Iterator(models.Attendee.objects.all())
     participation = factory.Faker('random_element', elements=[
         x[0] for x in models.WorkshopAttendee.Participation.choices]
     )
+    event = factory.LazyFunction(lambda: event_context.get_current_event())
 
 
 class AttendeePreferenceFactory(DjangoModelFactory):
@@ -349,11 +412,55 @@ class AttendeePreferenceFactory(DjangoModelFactory):
     preference = factory.Faker('random_element', elements=[
         x[0] for x in models.AttendeePreference.Preference.choices]
     )
+    event = factory.LazyFunction(lambda: event_context.get_current_event())
+
 
 class DestinyTeamAttendeeVibeFactory(DjangoModelFactory):
     class Meta:
         model = models.DestinyTeamAttendeeVibe
 
-    destiny_team = factory.Iterator(models.DestinyTeam.objects.all())
-    attendee = factory.Iterator(models.Attendee.objects.filter(participation_class="P"))
+    destiny_team = factory.LazyFunction(
+        lambda: models.DestinyTeam.objects.for_event(
+            event_context.get_current_event()
+        ).order_by('?').first()
+    )
+    attendee = factory.Iterator(
+        models.Attendee.objects.filter(participation_class="P")
+    )
     vibe = factory.fuzzy.FuzzyInteger(low=1, high=5)
+    event = factory.LazyFunction(lambda: event_context.get_current_event())
+
+
+class LocationFactory(DjangoModelFactory):
+    class Meta:
+        model = models.Location
+
+    building = factory.Faker(
+        'random_element',
+        elements=[x[0] for x in models.Location.Building.choices]
+    )
+    room = factory.Faker(
+        'random_element',
+        elements=[x[0] for x in models.Location.Room.choices]
+    )
+    event = factory.LazyFunction(lambda: event_context.get_current_event())
+
+
+class EventFactory(DjangoModelFactory):
+    class Meta:
+        model = models.Event
+
+    name = factory.Faker("company")
+    start_date = factory.Faker(
+        "date_time_between",
+        start_date="-30d",
+        end_date="+0d",
+        tzinfo=timezone.utc
+    )
+    end_date = factory.Faker(
+        "date_time_between",
+        start_date="+1d",
+        end_date="+60d",
+        tzinfo=timezone.utc
+    )
+    is_active = False

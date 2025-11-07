@@ -14,7 +14,8 @@ from rest_framework.test import APIClient, APITestCase
 
 from infrastructure import factories, models, serializers
 from infrastructure.management.commands import setup_test_data
-from infrastructure.views import KeycloakRoles
+from infrastructure.keycloak import KeycloakRoles
+from infrastructure import event_context
 
 
 class KeycloakTestMiddleware(object):
@@ -65,13 +66,37 @@ keycloak_test = override_settings(
 )
 
 
-@keycloak_test
-class MeTests(APITestCase):
+class EventTestCase(APITestCase):
+    """
+    Base test case that sets up an active event in thread-local storage.
+    All test classes should inherit from this instead of APITestCase directly.
+    """
+
     def setUp(self):
+        """Set up an active event for all tests."""
+        super().setUp()
+        # Create and activate an event
+        self.active_event = factories.EventFactory(is_active=True)
+        # Set it in thread-local storage
+        event_context.set_current_event(self.active_event)
+
+    def tearDown(self):
+        """Clear the event context after each test."""
+        event_context.clear_current_event()
+        super().tearDown()
+
+
+EventTestCase = keycloak_test(EventTestCase)
+
+
+@keycloak_test
+class MeTests(EventTestCase):
+    def setUp(self):
+        super().setUp()
         self.client = APIClient()
-        self.table = factories.TableFactory(location=models.Location.objects.create(room=models.Location.Room.ATLANTIS))
+        self.location = factories.LocationFactory(room=models.Location.Room.ATLANTIS)
+        self.table = factories.TableFactory(location=self.location)
         factories.GroupFactory()
-        models.Location.objects.create(room=models.Location.Room.ATLANTIS)
         self.mock_attendee_model = factories.AttendeeFactory(
             application=factories.ApplicationFactory(resume=factories.UploadedFileFactory())
         )
@@ -90,7 +115,7 @@ class MeTests(APITestCase):
 
     def tearDown(self):
         setup_test_data.delete_all()
-
+        super().tearDown()
     def test_get_me(self):
         response = self.client.get('/me/', headers={
             "Authorization": self.mock_attendee_model.authentication_id
@@ -99,7 +124,9 @@ class MeTests(APITestCase):
         self.assertEqual(response.json()["id"], self.mock_attendee["id"])
 
     def test_get_me_no_team(self):
-        models.Team.objects.all().delete()
+        models.Team.objects.for_event(
+            event_context.get_current_event()
+        ).all().delete()
         response = self.client.get('/me/', headers={
             "Authorization": self.mock_attendee_model.authentication_id
         })
@@ -107,7 +134,9 @@ class MeTests(APITestCase):
         self.assertEqual(response.json()["id"], self.mock_attendee["id"])
 
     def test_get_me_no_profile_image(self):
-        models.Team.objects.all().delete()
+        models.Team.objects.for_event(
+            event_context.get_current_event()
+        ).all().delete()
         response = self.client.get('/me/', headers={
             "Authorization": self.mock_attendee_model.authentication_id
         })
@@ -118,8 +147,8 @@ class MeTests(APITestCase):
         new_profile_image = factories.UploadedFileFactory()
         new_first_name = f"{self.mock_attendee['first_name']}partially_updated"
         new_last_name = f"{self.mock_attendee['last_name']}partially_updated"
-        intended_tracks = [models.Track.COMMUNITY_HACKS.value, models.Track.FUTURE_CONSTRUCTORS.value]
-        prefers_destiny_hardware = [models.DestinyHardware.HARDWARE_HACK.value]
+        intended_tracks = [models.Track.COMMUNITY_HACKS.value, models.Track.AUGMENTED_INTELLIGENCE.value]
+        prefers_destiny_hardware = [models.DestinyHardware.NEUROADAPTIVE.value]
         response = self.client.patch(
             f"/me/", {
                 "first_name": new_first_name,
@@ -156,8 +185,9 @@ class MeTests(APITestCase):
 
 
 @keycloak_test
-class AttendeeTests(APITestCase):
+class AttendeeTests(EventTestCase):
     def setUp(self):
+        super().setUp()
         self.client = APIClient()
         factories.GroupFactory()
         mock_attendee = factories.AttendeeFactory(
@@ -170,6 +200,7 @@ class AttendeeTests(APITestCase):
 
     def tearDown(self):
         setup_test_data.delete_all()
+        super().tearDown()
 
     def test_get_attendees(self):
         response = self.client.get('/attendees/')
@@ -246,10 +277,11 @@ class AttendeeTests(APITestCase):
         self.assertNotEqual(original_authentication_id, models.Attendee.objects.get(id=mock_attendee['id']).authentication_id)
 
 @keycloak_test
-class TeamTests(APITestCase):
+class TeamTests(EventTestCase):
     def setUp(self):
+        super().setUp()
         self.client = APIClient()
-        models.Location.objects.create(room=models.Location.Room.ATLANTIS)
+        self.location = factories.LocationFactory(room=models.Location.Room.ATLANTIS)
         self.table = factories.TableFactory()
         group = factories.GroupFactory()
         mock_attendees = [
@@ -268,6 +300,7 @@ class TeamTests(APITestCase):
 
     def tearDown(self):
         setup_test_data.delete_all()
+        super().tearDown()
 
     def test_get_teams(self):
         response = self.client.get('/teams/')
@@ -287,7 +320,7 @@ class TeamTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()), 0)
         response = self.client.get(self.get_teams_with_filter(
-            "attendees", self.mock_team["attendees"][0]["id"]))
+            "attendees", self.mock_team["attendees"][0]))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()), 1)
         fake_attendee = str(uuid.uuid4())
@@ -296,7 +329,7 @@ class TeamTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data["attendees"][0].code, "invalid_choice")
         response = self.client.get(self.get_teams_with_filter(
-            "table", self.mock_team["table"]["id"]))
+            "table", self.mock_team["table"]))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()), 1)
         response = self.client.get(self.get_teams_with_filter(
@@ -322,7 +355,9 @@ class TeamTests(APITestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_get_team_no_project(self):
-        team = models.Team.objects.get(pk=self.mock_team["id"])
+        team = models.Team.objects.for_event(
+            event_context.get_current_event()
+        ).get(pk=self.mock_team["id"])
         team.project = None
         team.save()
         response = self.client.get(f"/teams/{self.mock_team['id']}/")
@@ -332,7 +367,9 @@ class TeamTests(APITestCase):
     def test_create_team(self):
         table = factories.TableFactory()
         mock_team = serializers.TeamCreateSerializer(
-            models.Team.objects.get(pk=self.mock_team["id"])).data
+            models.Team.objects.for_event(
+                event_context.get_current_event()
+            ).get(pk=self.mock_team["id"])).data
         mock_team["table"] = table.id
         mock_team["name"] = f"{self.mock_team['name']}updated"
         response = self.client.post('/teams/', mock_team)
@@ -342,7 +379,9 @@ class TeamTests(APITestCase):
 
     def test_partial_update_team(self):
         mock_team = serializers.TeamCreateSerializer(
-            models.Team.objects.get(pk=self.mock_team["id"])).data
+            models.Team.objects.for_event(
+                event_context.get_current_event()
+            ).get(pk=self.mock_team["id"])).data
         new_name = f"{self.mock_team['name']}updated"
         mock_team = copy.deepcopy(self.mock_team)
         new_name = f"{self.mock_team['name']}partially_updated"
@@ -353,10 +392,11 @@ class TeamTests(APITestCase):
         self.assertNotEqual(self.mock_team["name"], response.json()["name"])
 
 @keycloak_test
-class ProjectTests(APITestCase):
+class ProjectTests(EventTestCase):
     def setUp(self):
+        super().setUp()
         self.client = APIClient()
-        models.Location.objects.create(room=models.Location.Room.ATLANTIS)
+        self.location = factories.LocationFactory(room=models.Location.Room.ATLANTIS)
         self.table = factories.TableFactory()
         group = factories.GroupFactory()
         mock_attendees = [
@@ -376,6 +416,7 @@ class ProjectTests(APITestCase):
 
     def tearDown(self):
         setup_test_data.delete_all()
+        super().tearDown()
 
     def test_get_projects(self):
         response = self.client.get('/projects/')
@@ -392,7 +433,9 @@ class ProjectTests(APITestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_create_project(self):
-        models.Project.objects.all().delete()
+        models.Project.objects.for_event(
+            event_context.get_current_event()
+        ).all().delete()
         mock_project = copy.deepcopy(self.mock_project)
         mock_project["name"] = f"{self.mock_project['name']}updated"
         response = self.client.post('/projects/', mock_project)
@@ -418,14 +461,16 @@ class ProjectTests(APITestCase):
         self.assertNotEqual(self.mock_project["name"], response.json()["name"])
 
 @keycloak_test
-class HardwareTests(APITestCase):
+class HardwareTests(EventTestCase):
     def setUp(self):
+        super().setUp()
         self.client = APIClient()
         self.hardware_type = factories.HardwareFactory()
         self.mock_hardware_type = serializers.HardwareSerializer(self.hardware_type).data
 
     def tearDown(self):
         setup_test_data.delete_all()
+        super().tearDown()
 
     def test_get_hardwares(self):
         response = self.client.get('/hardware/')
@@ -477,7 +522,9 @@ class HardwareTests(APITestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_create_hardware(self):
-        models.Hardware.objects.all().delete()
+        models.Hardware.objects.for_event(
+            event_context.get_current_event()
+        ).all().delete()
         mock_hardware_type = copy.deepcopy(self.mock_hardware_type)
         del mock_hardware_type["id"]
         del mock_hardware_type["created_at"]
@@ -501,16 +548,20 @@ class HardwareTests(APITestCase):
         self.assertNotEqual(self.mock_hardware_type["name"], response.json()["name"])
 
 @keycloak_test
-class HardwareDeviceTests(APITestCase):
+class HardwareDeviceTests(EventTestCase):
     def setUp(self):
+        super().setUp()
         self.client = APIClient()
         mock_attendee = factories.AttendeeFactory(
             application=factories.ApplicationFactory(resume=factories.UploadedFileFactory())
         )
         self.mock_attendee = serializers.AttendeeSerializer(mock_attendee).data
-        self.mock_request = serializers.HardwareRequestSerializer(
-            factories.HardwareRequestFactory(requester=mock_attendee)).data
         hardware_type = factories.HardwareFactory()
+        self.mock_request = serializers.HardwareRequestSerializer(
+            factories.HardwareRequestFactory(
+                requester=mock_attendee,
+                hardware=hardware_type
+            )).data
         self.mock_hardware_type = serializers.HardwareSerializer(
             hardware_type).data
         hardware_device = factories.HardwareDeviceFactory(
@@ -520,6 +571,7 @@ class HardwareDeviceTests(APITestCase):
 
     def tearDown(self):
         setup_test_data.delete_all()
+        super().tearDown()
 
     def test_get_hardware_devices(self):
         response = self.client.get('/hardwaredevices/')
@@ -537,7 +589,9 @@ class HardwareDeviceTests(APITestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_create_hardware_device(self):
-        models.HardwareDevice.objects.all().delete()
+        models.HardwareDevice.objects.for_event(
+            event_context.get_current_event()
+        ).all().delete()
         mock_hardware_device = copy.deepcopy(self.mock_hardware_device)
         response = self.client.post('/hardwaredevices/', mock_hardware_device)
         self.assertEqual(response.status_code, 201)
@@ -569,8 +623,9 @@ class HardwareDeviceTests(APITestCase):
         )
 
 @keycloak_test
-class HardwareRequestTests(APITestCase):
+class HardwareRequestTests(EventTestCase):
     def setUp(self):
+        super().setUp()
         self.client = APIClient()
         factories.GroupFactory()
         self.mock_attendee = factories.AttendeeFactory(application=None)
@@ -580,7 +635,7 @@ class HardwareRequestTests(APITestCase):
             ) for _ in range(setup_test_data.TEAM_SIZE)
         ]
         self.mock_attendees.append(self.mock_attendee)
-        models.Location.objects.create(room=models.Location.Room.ATLANTIS)
+        self.location = factories.LocationFactory(room=models.Location.Room.ATLANTIS)
         self.mock_table = factories.TableFactory()
         self.mock_team = factories.TeamFactory(attendees=self.mock_attendees)
         self.mock_hardware = factories.HardwareFactory()
@@ -596,6 +651,7 @@ class HardwareRequestTests(APITestCase):
 
     def tearDown(self):
         setup_test_data.delete_all()
+        super().tearDown()
 
     def test_get_hardware_requests(self):
         response = self.client.get('/hardwarerequests/')
@@ -613,7 +669,7 @@ class HardwareRequestTests(APITestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_create_hardware_request(self):
-        models.HardwareRequest.objects.all().delete()
+        models.HardwareRequest.objects.for_event(event_context.get_current_event()).all().delete()
         mock_hardware_request = copy.deepcopy(self.mock_hardware_request)
         del mock_hardware_request["id"]
         response = self.client.post('/hardwarerequests/', mock_hardware_request)
@@ -635,14 +691,16 @@ class HardwareRequestTests(APITestCase):
         self.assertNotEqual(self.mock_hardware_request["reason"], response.json()["reason"])
 
 @keycloak_test
-class SkillTests(APITestCase):
+class SkillTests(EventTestCase):
     def setUp(self):
+        super().setUp()
         self.client = APIClient()
         skill = factories.SkillFactory()
         self.mock_skill = serializers.SkillSerializer(skill).data
 
     def tearDown(self):
         setup_test_data.delete_all()
+        super().tearDown()
 
     def test_get_skills(self):
         response = self.client.get('/skills/')
@@ -659,7 +717,9 @@ class SkillTests(APITestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_create_skill(self):
-        models.Skill.objects.all().delete()
+        models.Skill.objects.for_event(
+            event_context.get_current_event()
+        ).all().delete()
         mock_skill = copy.deepcopy(self.mock_skill)
         response = self.client.post('/skills/', mock_skill)
         self.assertEqual(response.status_code, 201)
@@ -677,8 +737,9 @@ class SkillTests(APITestCase):
         self.assertNotEqual(self.mock_skill["name"], response.json()["name"])
 
 @keycloak_test
-class SkillProficiencyTests(APITestCase):
+class SkillProficiencyTests(EventTestCase):
     def setUp(self):
+        super().setUp()
         self.client = APIClient()
         factories.GroupFactory()
         mock_attendee = factories.AttendeeFactory(
@@ -693,7 +754,8 @@ class SkillProficiencyTests(APITestCase):
 
     def tearDown(self):
         setup_test_data.delete_all()
-
+        super().tearDown()
+    
     def test_get_skill_proficiencies(self):
         response = self.client.get('/skillproficiencies/')
         self.assertEqual(response.status_code, 200)
@@ -711,9 +773,13 @@ class SkillProficiencyTests(APITestCase):
 
     def test_create_skill_proficiency(self):
         mock_skill_proficiency = serializers.SkillProficiencyCreateSerializer(
-            models.SkillProficiency.objects.get(pk=self.mock_skill_proficiency["id"])
+            models.SkillProficiency.objects.for_event(
+                event_context.get_current_event()
+            ).get(pk=self.mock_skill_proficiency["id"])
         ).data
-        models.SkillProficiency.objects.all().delete()
+        models.SkillProficiency.objects.for_event(
+            event_context.get_current_event()
+        ).all().delete()
         response = self.client.post('/skillproficiencies/', mock_skill_proficiency)
         self.assertEqual(response.status_code, 201)
         self.assertEqual(
@@ -723,7 +789,9 @@ class SkillProficiencyTests(APITestCase):
 
     def test_create_non_unique_skill_proficiency(self):
         mock_skill_proficiency = serializers.SkillProficiencyCreateSerializer(
-            models.SkillProficiency.objects.get(pk=self.mock_skill_proficiency["id"])
+            models.SkillProficiency.objects.for_event(
+                event_context.get_current_event()
+            ).get(pk=self.mock_skill_proficiency["id"])
         ).data
         response = self.client.post('/skillproficiencies/', mock_skill_proficiency)
         self.assertEqual(response.status_code, 400)
@@ -739,14 +807,14 @@ class SkillProficiencyTests(APITestCase):
         self.assertEqual(str(mock_skill.id), response.json()["skill"])
         self.assertNotEqual(
             self.mock_skill_proficiency["skill"], response.json()["skill"])
-        
+
 @keycloak_test
-class TableTests(APITestCase):
+class TableTests(EventTestCase):
     def setUp(self):
+        super().setUp()
         self.client = APIClient()
-        location = models.Location.objects.create(room=models.Location.Room.ATLANTIS)
-        self.mock_location = serializers.LocationSerializer(location).data
-        table = factories.TableFactory(location=location)
+        self.location = factories.LocationFactory(room=models.Location.Room.ATLANTIS)
+        table = factories.TableFactory(location=self.location)
         self.mock_table = serializers.TableSerializer(table).data
         group = factories.GroupFactory()
         mock_attendees = [
@@ -767,6 +835,7 @@ class TableTests(APITestCase):
 
     def tearDown(self):
         setup_test_data.delete_all()
+        super().tearDown()
 
     def test_get_tables(self):
         response = self.client.get('/tables/')
@@ -782,14 +851,10 @@ class TableTests(APITestCase):
         response = self.client.get(f"/tables/{str(uuid.uuid4())}/")
         self.assertEqual(response.status_code, 404)
 
-    def test_get_table_404(self):
-        response = self.client.get(f"/tables/{str(uuid.uuid4())}/")
-        self.assertEqual(response.status_code, 404)
-
     def test_create_table(self):
         mock_table = serializers.TableCreateSerializer(factories.TableFactory()).data
         mock_table["number"] += 1
-        mock_table["location"] = self.mock_location["id"]
+        mock_table["location"] = self.location.id
         response = self.client.post('/tables/', mock_table)
         self.assertEqual(response.status_code, 201)
         self.assertEqual(mock_table["number"], response.json()["number"])
@@ -797,7 +862,9 @@ class TableTests(APITestCase):
 
     def test_partial_update_table(self):
         mock_table = serializers.TableCreateSerializer(
-            models.Table.objects.get(pk=self.mock_table["id"])).data
+            models.Table.objects.for_event(
+                event_context.get_current_event()
+            ).get(pk=self.mock_table["id"])).data
         new_number = self.mock_table["number"] + 1
         mock_table["number"] = new_number
         response = self.client.patch(
@@ -806,18 +873,20 @@ class TableTests(APITestCase):
         self.assertEqual(new_number, response.json()["number"])
         self.assertNotEqual(self.mock_table["number"], response.json()["number"])
 
+
 @keycloak_test
-class ApplicationTests(APITestCase):
+class ApplicationTests(EventTestCase):
     def setUp(self):
         # Mocking fake phone numbers does not always succeed
+        super().setUp()
         self.client = APIClient()
         mock_resume = factories.UploadedFileFactory()
         mock_application = factories.ApplicationFactory(resume=mock_resume)
         self.mock_application = serializers.ApplicationSerializer(mock_application).data
 
-
     def tearDown(self):
         setup_test_data.delete_all()
+        super().tearDown()
 
     def test_get_applications(self):
         response = self.client.get('/applications/')
@@ -873,7 +942,7 @@ class ApplicationTests(APITestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_create_application(self):
-        models.Application.objects.all().delete()
+        models.Application.objects.for_event(self.active_event).delete()
         mock_resume = factories.UploadedFileFactory()
         mock_application = copy.deepcopy(self.mock_application)
         del mock_application["id"]
@@ -911,11 +980,14 @@ class ApplicationTests(APITestCase):
 
 
 @keycloak_test
-class UploadedFileTests(APITestCase):
+class UploadedFileTests(EventTestCase):
     def setUp(self):
         self.filename = "test_file.pdf"
         self.client = APIClient()
         self.file_path = f"{settings.MEDIA_ROOT}/{self.filename}"
+
+        os.makedirs(settings.MEDIA_ROOT, exist_ok=True)
+
         with open(self.file_path, "wb") as f:
             self.file_data = b"Test data"
             f.write(self.file_data)
@@ -934,7 +1006,9 @@ class UploadedFileTests(APITestCase):
                 ), content_type=MULTIPART_CONTENT
             )
         self.assertEqual(response.status_code, 201)
-        with open(f"{settings.MEDIA_ROOT}/{response.json()['id']}/{self.filename}", "rb") as f:
+        with open(
+            f"{settings.MEDIA_ROOT}/{response.json()['id']}/{self.filename}", "rb"
+        ) as f:
             self.assertEqual(self.file_data, f.read())
 
     def test_get_uploaded_file(self):
@@ -953,15 +1027,18 @@ class UploadedFileTests(APITestCase):
 
 
 @keycloak_test
-class WorkshopTests(APITestCase):
+class WorkshopTests(EventTestCase):
     def setUp(self):
+        super().setUp()
         self.client = APIClient()
-        models.Location.objects.create(room=models.Location.Room.ATLANTIS)
-        mock_location = models.Location.objects.create(room=models.Location.Room.MAIN_HALL)
+        self.location = factories.LocationFactory(room=models.Location.Room.ATLANTIS)
+        factories.LocationFactory(room=models.Location.Room.MAIN_HALL)
         group = factories.GroupFactory()
         mock_attendees = [
             factories.AttendeeFactory(
-                application=factories.ApplicationFactory(resume=factories.UploadedFileFactory())
+                application=factories.ApplicationFactory(
+                    resume=factories.UploadedFileFactory(),
+                )
             ) for _ in range(
                 setup_test_data.TEAM_SIZE + 1)]
         [mock_attendee.groups.set([group]) for mock_attendee in mock_attendees]
@@ -988,7 +1065,7 @@ class WorkshopTests(APITestCase):
             for mock_hardware_type in mock_hardware_types
         ]
         mock_workshop = factories.WorkshopFactory(
-            location=mock_location,
+            location=self.location,
             skills=random.sample(mock_skills, random.randint(1, 10)),
             hardware=random.sample(mock_hardware_types, random.randint(1, 10)),
         )
@@ -996,6 +1073,7 @@ class WorkshopTests(APITestCase):
 
     def tearDown(self):
         setup_test_data.delete_all()
+        super().tearDown()
 
     def test_get_workshops(self):
         response = self.client.get('/workshops/')
@@ -1025,12 +1103,14 @@ class WorkshopTests(APITestCase):
         self.assertEqual(len(response.json()), 1)
         location_choices = [
             str(location["id"]) for location
-            in models.Location.objects.all().values()
+            in models.Location.objects.for_event(
+                event_context.get_current_event()
+            ).all().values()
         ]
         response = self.client.get(self.get_workshops_with_filter(
             "location", self.get_workshop_alternate_choice(
                 str(self.mock_workshop["location"]), location_choices
-        )))
+            )))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()), 0)
         response = self.client.get(self.get_workshops_with_filter(
@@ -1066,7 +1146,9 @@ class WorkshopTests(APITestCase):
 
     def test_create_workshop(self):
         mock_workshop = serializers.WorkshopSerializer(
-            models.Workshop.objects.get(pk=self.mock_workshop["id"])).data
+            models.Workshop.objects.for_event(
+                event_context.get_current_event()
+            ).get(pk=self.mock_workshop["id"])).data
         mock_workshop["name"] = f"{self.mock_workshop['name']}updated"
         response = self.client.post('/workshops/', mock_workshop)
         self.assertEqual(response.status_code, 201)
@@ -1075,12 +1157,17 @@ class WorkshopTests(APITestCase):
 
     def test_partial_update_workshop(self):
         mock_workshop = serializers.WorkshopSerializer(
-            models.Workshop.objects.get(pk=self.mock_workshop["id"])).data
+            models.Workshop.objects.for_event(
+                event_context.get_current_event()
+            ).get(pk=self.mock_workshop["id"])).data
         new_name = f"{self.mock_workshop['name']}updated"
         mock_workshop = copy.deepcopy(self.mock_workshop)
         new_name = f"{self.mock_workshop['name']}partially_updated"
         mock_workshop["name"] = new_name
-        response = self.client.patch(f"/workshops/{mock_workshop['id']}/", {"name": new_name})
+        response = self.client.patch(
+            f"/workshops/{mock_workshop['id']}/",
+            {"name": new_name},
+        )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(new_name, response.json()["name"])
         self.assertNotEqual(self.mock_workshop["name"], response.json()["name"])
@@ -1091,16 +1178,19 @@ class WorkshopTests(APITestCase):
         response = self.client.delete(f"/workshops/{mock_workshop['id']}/")
         self.assertEqual(response.status_code, 204)
 
+
 @keycloak_test
-class WorkshopAttendeeTests(APITestCase):
+class WorkshopAttendeeTests(EventTestCase):
     def setUp(self):
+        super().setUp()
         self.client = APIClient()
-        models.Location.objects.create(room=models.Location.Room.ATLANTIS)
-        mock_location = models.Location.objects.create(room=models.Location.Room.MAIN_HALL)
+        self.location = factories.LocationFactory(room=models.Location.Room.MAIN_HALL)
         group = factories.GroupFactory()
         mock_attendees = [
             factories.AttendeeFactory(
-                application=factories.ApplicationFactory(resume=factories.UploadedFileFactory())
+                application=factories.ApplicationFactory(
+                    resume=factories.UploadedFileFactory()
+                )
             ) for _ in range(
                 setup_test_data.TEAM_SIZE + 1)]
         [mock_attendee.groups.set([group]) for mock_attendee in mock_attendees]
@@ -1129,7 +1219,7 @@ class WorkshopAttendeeTests(APITestCase):
             for mock_hardware_type in mock_hardware_types
         ]
         mock_workshop = factories.WorkshopFactory(
-            location=mock_location,
+            location=self.location,
             skills=random.sample(mock_skills, random.randint(1, 10)),
             hardware=random.sample(mock_hardware_types, random.randint(1, 10)),
         )
@@ -1142,6 +1232,7 @@ class WorkshopAttendeeTests(APITestCase):
 
     def tearDown(self):
         setup_test_data.delete_all()
+        super().tearDown()
 
     def test_get_workshop_attendees(self):
         response = self.client.get('/workshopattendees/')
@@ -1164,7 +1255,9 @@ class WorkshopAttendeeTests(APITestCase):
         factories.WorkshopFactory()
         workshop_choices = [
             str(workshop["id"]) for workshop
-            in models.Workshop.objects.all().values()
+            in models.Workshop.objects.for_event(
+                event_context.get_current_event()
+            ).values()
         ]
         response = self.client.get(self.get_workshop_attendees_with_filter(
             "workshop", self.get_workshop_attendee_alternate_choice(
@@ -1196,7 +1289,9 @@ class WorkshopAttendeeTests(APITestCase):
         self.assertEqual(len(response.json()), 0)
 
     def test_get_workshop_attendee(self):
-        response = self.client.get(f"/workshopattendees/{self.mock_workshop_attendee['id']}/")
+        response = self.client.get(
+            f"/workshopattendees/{self.mock_workshop_attendee['id']}/"
+        )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.mock_workshop_attendee["id"], response.json()["id"])
 
@@ -1206,19 +1301,27 @@ class WorkshopAttendeeTests(APITestCase):
 
     def test_create_workshop_attendee(self):
         mock_workshop_attendee = serializers.WorkshopAttendeeSerializer(
-            models.WorkshopAttendee.objects.get(pk=self.mock_workshop_attendee["id"])).data
-        mock_workshop_attendee["participation"] = self.get_workshop_attendee_alternate_choice(
+            models.WorkshopAttendee.objects.for_event(
+                event_context.get_current_event()
+            ).get(pk=self.mock_workshop_attendee["id"])).data
+        participation = self.get_workshop_attendee_alternate_choice(
             self.mock_workshop_attendee["participation"],
             [x[0] for x in models.WorkshopAttendee.Participation.choices]
         )
+        mock_workshop_attendee["participation"] = participation
         response = self.client.post('/workshopattendees/', mock_workshop_attendee)
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(mock_workshop_attendee["participation"], response.json()["participation"])
+        self.assertEqual(
+            mock_workshop_attendee["participation"],
+            response.json()["participation"]
+        )
         self.assertNotEqual(self.mock_workshop_attendee["id"], response.json()["id"])
 
     def test_partial_update_workshop_attendee(self):
         mock_workshop_attendee = serializers.WorkshopAttendeeSerializer(
-            models.WorkshopAttendee.objects.get(pk=self.mock_workshop_attendee["id"])).data
+            models.WorkshopAttendee.objects.for_event(
+                event_context.get_current_event()
+            ).get(pk=self.mock_workshop_attendee["id"])).data
         new_participation = self.get_workshop_attendee_alternate_choice(
             self.mock_workshop_attendee["participation"],
             [x[0] for x in models.WorkshopAttendee.Participation.choices]
@@ -1232,18 +1335,23 @@ class WorkshopAttendeeTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(new_participation, response.json()["participation"])
         self.assertNotEqual(
-            self.mock_workshop_attendee["participation"], response.json()["participation"])
-        
+            self.mock_workshop_attendee["participation"],
+            response.json()["participation"]
+        )
+
     def test_delete_workshop(self):
         mock_workshop_atttendee = serializers.WorkshopAttendeeSerializer(
             factories.WorkshopAttendeeFactory()).data
-        response = self.client.delete(f"/workshopattendees/{mock_workshop_atttendee['id']}/")
+        response = self.client.delete(
+            f"/workshopattendees/{mock_workshop_atttendee['id']}/"
+        )
         self.assertEqual(response.status_code, 204)
 
 
 @keycloak_test
-class AttendeeRSVPTests(APITestCase):
+class AttendeeRSVPTests(EventTestCase):
     def setUp(self):
+        super().setUp()
         # Mocking fake phone numbers does not always succeed
         self.client = APIClient()
         factories.GroupFactory()
@@ -1253,11 +1361,16 @@ class AttendeeRSVPTests(APITestCase):
         mock_attendee = factories.AttendeeFactory(application=mock_application)
         self.mock_attendee_model = mock_attendee
         self.mock_attendee = serializers.AttendeeSerializer(mock_attendee).data
-        self.mock_attendee_detail = serializers.AttendeeRSVPSerializer(mock_attendee).data
-        self.mock_attendee_create = serializers.AttendeeRSVPCreateSerializer(mock_attendee).data
+        self.mock_attendee_detail = serializers.AttendeeRSVPSerializer(
+            mock_attendee
+        ).data
+        self.mock_attendee_create = serializers.AttendeeRSVPCreateSerializer(
+            mock_attendee
+        ).data
 
     def tearDown(self):
         setup_test_data.delete_all()
+        super().tearDown()
 
     def test_get_rsvps(self):
         response = self.client.get('/rsvps/')
@@ -1291,7 +1404,9 @@ class AttendeeRSVPTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()), 0)
         response = self.client.get(self.get_rsvps_with_filter(
-            "communications_platform_username", self.mock_attendee["communications_platform_username"]))
+            "communications_platform_username",
+            self.mock_attendee["communications_platform_username"])
+        )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()), 1)
         response = self.client.get(self.get_rsvps_with_filter(
@@ -1345,7 +1460,9 @@ class AttendeeRSVPTests(APITestCase):
 
     def test_create_rsvp(self):
         models.Attendee.objects.all().delete()
-        mock_sponsor_handler = serializers.AttendeeSerializer(factories.AttendeeFactory(application=None)).data
+        mock_sponsor_handler = serializers.AttendeeSerializer(
+            factories.AttendeeFactory(application=None)
+        ).data
         mock_attendee = copy.deepcopy(self.mock_attendee)
         del mock_attendee["id"]
         mock_attendee["application"] = self.mock_application["id"]
@@ -1367,8 +1484,14 @@ class AttendeeRSVPTests(APITestCase):
         mock_attendee["sponsor_handler"] = mock_sponsor_handler["id"]
         response = self.client.post('/rsvps/', mock_attendee)
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(str(self.mock_attendee_model.application.id), response.json()["application"])
-        self.assertEqual(self.mock_application["last_name"], response.json()["last_name"])
+        self.assertEqual(
+            str(self.mock_attendee_model.application.id),
+            response.json()["application"]
+        )
+        self.assertEqual(
+            self.mock_application["last_name"],
+            response.json()["last_name"]
+        )
         self.assertNotEqual(self.mock_attendee["id"], response.json()["id"])
 
     def test_create_rsvp_application_not_exists(self):
@@ -1394,35 +1517,48 @@ class AttendeeRSVPTests(APITestCase):
             f"/rsvps/{mock_attendee['id']}/", {"last_name": new_last_name})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(new_last_name, response.json()["last_name"])
-        self.assertNotEqual(self.mock_attendee["last_name"], response.json()["last_name"])
+        self.assertNotEqual(
+            self.mock_attendee["last_name"],
+            response.json()["last_name"]
+        )
 
 
-class LightHouseTests(APITestCase):
+class LightHouseTests(EventTestCase):
     pass
 
 
-class DiscordTests(APITestCase):
+class DiscordTests(EventTestCase):
     pass
 
 
 @keycloak_test
-class BulkTests(APITestCase):
+class BulkTests(EventTestCase):
     def setUp(self):
+        super().setUp()
         setup_test_data.add_all()
 
     def tearDown(self):
         setup_test_data.delete_all()
+        super().tearDown()
 
     def test_bulk_add(self):
         self.assertLessEqual(
-            setup_test_data.NUMBER_OF_ATTENDEES, models.Attendee.objects.count())
+            setup_test_data.NUMBER_OF_ATTENDEES,
+            models.Attendee.objects.count()
+        )
         self.assertEqual(
-            setup_test_data.NUMBER_OF_ATTENDEES * 2, models.Application.objects.count())
+            (setup_test_data.NUMBER_OF_ATTENDEES + 5) * 2,
+            models.Application.objects.count()
+        )
         self.assertEqual(
             setup_test_data.NUMBER_OF_GROUPS, Group.objects.count())
         self.assertEqual(
-            setup_test_data.NUMBER_OF_TEAMS, models.Team.objects.count())
-        for team in models.Team.objects.all():
+            setup_test_data.NUMBER_OF_TEAMS, models.Team.objects.for_event(
+                event_context.get_current_event()
+            ).count())
+        for team in models.Team.objects.for_event(
+            event_context.get_current_event()
+        ):
             self.assertEqual(setup_test_data.TEAM_SIZE, len(team.attendees.values()))
         self.assertEqual(
             setup_test_data.NUMBER_OF_SKILLS, models.Skill.objects.count())
@@ -1431,6 +1567,62 @@ class BulkTests(APITestCase):
         self.assertEqual(
             setup_test_data.NUMBER_OF_WORKSHOPS, models.Workshop.objects.count())
         self.assertEqual(
-            setup_test_data.NUMBER_OF_WORKSHOP_ATTENDEES * setup_test_data.NUMBER_OF_WORKSHOPS,
+            (setup_test_data.NUMBER_OF_WORKSHOP_ATTENDEES *
+             setup_test_data.NUMBER_OF_WORKSHOPS),
             models.WorkshopAttendee.objects.count()
         )
+
+
+@keycloak_test
+class EventIsolationTests(EventTestCase):
+    def setUp(self):
+        super().setUp()
+        self.event1 = self.active_event
+        self.event2 = factories.EventFactory(name="Event 2", is_active=False)
+
+    def test_team_isolation(self):
+        team1 = factories.TeamFactory(event=self.event1, name="Team 1")
+        team2 = factories.TeamFactory(event=self.event2, name="Team 2")
+
+        event1_teams = models.Team.objects.for_event(self.event1).all()
+        self.assertEqual(event1_teams.count(), 1)
+        self.assertEqual(event1_teams.first(), team1)
+
+        event2_teams = models.Team.objects.for_event(self.event2).all()
+        self.assertEqual(event2_teams.count(), 1)
+        self.assertEqual(event2_teams.first(), team2)
+
+    def test_project_isolation(self):
+        team1 = factories.TeamFactory(event=self.event1)
+        team2 = factories.TeamFactory(event=self.event2)
+        project1 = factories.ProjectFactory(event=self.event1, name="Project 1", team=team1)
+        project2 = factories.ProjectFactory(event=self.event2, name="Project 2", team=team2)
+
+        event1_projects = models.Project.objects.for_event(self.event1).all()
+        self.assertEqual(event1_projects.count(), 1)
+        self.assertEqual(event1_projects.first(), project1)
+
+        event2_projects = models.Project.objects.for_event(self.event2).all()
+        self.assertEqual(event2_projects.count(), 1)
+        self.assertEqual(event2_projects.first(), project2)
+
+    def test_hardware_request_isolation(self):
+        attendee1 = factories.AttendeeFactory()
+        attendee2 = factories.AttendeeFactory()
+        hardware1 = factories.HardwareFactory(event=self.event1)
+        hardware2 = factories.HardwareFactory(event=self.event2)
+
+        hr1 = factories.HardwareRequestFactory(
+            event=self.event1, hardware=hardware1, requester=attendee1
+        )
+        hr2 = factories.HardwareRequestFactory(
+            event=self.event2, hardware=hardware2, requester=attendee2
+        )
+
+        event1_requests = models.HardwareRequest.objects.for_event(self.event1).all()
+        self.assertEqual(event1_requests.count(), 1)
+        self.assertEqual(event1_requests.first(), hr1)
+
+        event2_requests = models.HardwareRequest.objects.for_event(self.event2).all()
+        self.assertEqual(event2_requests.count(), 1)
+        self.assertEqual(event2_requests.first(), hr2)

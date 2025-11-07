@@ -2,9 +2,10 @@ import pycountry
 from django.contrib.auth.models import Group
 from rest_framework import fields, serializers
 
-from infrastructure import models
+from infrastructure import models, event_context
 from infrastructure.models import (INDUSTRIES, MENTOR_HELP_REQUEST_TOPICS,
-                                   Application, Attendee,
+                                   Application, Attendee, ApplicationQuestion,
+                                   ApplicationQuestionChoice, ApplicationResponse,
                                    AttendeePreference, DestinyHardware,
                                    DestinyTeam, DestinyTeamAttendeeVibe,
                                    Hardware, HardwareDevice, HardwareRequest,
@@ -12,7 +13,45 @@ from infrastructure.models import (INDUSTRIES, MENTOR_HELP_REQUEST_TOPICS,
                                    MentorHelpRequest, ParticipationRole,
                                    Project, Skill, SkillProficiency, Table,
                                    Team, Track, UploadedFile, Workshop,
-                                   WorkshopAttendee)
+                                   WorkshopAttendee, Event)
+
+
+class EventScopedSerializer(serializers.ModelSerializer):
+    """
+    Base serializer that automatically scopes foreign key fields to the current event.
+
+    This serializer ensures that when validating foreign key relationships,
+    only objects from the current event are considered valid. This is crucial
+    for maintaining proper event isolation in the multi-tenant system.
+
+    Usage:
+        class MySerializer(EventScopedSerializer):
+            class Meta:
+                model = MyModel
+                fields = ['id', 'name', 'foreign_key_field']
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        event = event_context.get_current_event()
+
+        # Auto-scope fields that have EventScopedManager
+        for field_name, field in self.fields.items():
+            if isinstance(
+                field,
+                (
+                    serializers.PrimaryKeyRelatedField,
+                    serializers.SlugRelatedField,
+                ),
+            ):
+                queryset = field.queryset
+                # Check if the queryset has event scoping methods
+                if queryset is not None and hasattr(queryset, 'for_event'):
+                    if event:
+                        field.queryset = queryset.for_event(event)
+                    else:
+                        # Fallback: allow all events (for admin use or testing without event)
+                        field.queryset = queryset.all_events()
 
 
 class GroupSerializer(serializers.ModelSerializer):
@@ -23,12 +62,12 @@ class GroupSerializer(serializers.ModelSerializer):
 
 
 class GroupDetailSerializer(serializers.ModelSerializer):
-
-# TODO: finish implementing cache refresh for file uploads
+    # TODO: finish implementing cache refresh for file uploads
     class Meta:
         model = Group
         # remove after change
         fields = ['id', 'name', 'permissions']
+
 
 class FileUploadSerializer(serializers.ModelSerializer):
     class Meta:
@@ -45,21 +84,138 @@ class FileUploadSerializer(serializers.ModelSerializer):
     #         data['expires_at'] = instance.expires_at
     #     return data
 
-# keep disability_identity, remove disability_accommodations, disabilities, disabilities_other
-class ApplicationSerializer(serializers.ModelSerializer):
-    gender_identity = fields.MultipleChoiceField(choices=Application.GENDER_IDENTITIES)
-    nationality = fields.MultipleChoiceField(choices=[(x.alpha_2, x.name) for x in pycountry.countries])
-    current_country = fields.MultipleChoiceField(choices=[(x.alpha_2, x.name) for x in pycountry.countries])
-    race_ethnic_group = fields.MultipleChoiceField(choices=Application.RACE_ETHNIC_GROUPS)
-    # disabilities = fields.MultipleChoiceField(choices=Application.DISABILITIES)
-    previous_participation = fields.MultipleChoiceField(choices=Application.PREVIOUS_PARTICIPATION)
-    heard_about_us = fields.MultipleChoiceField(choices=Application.HeardAboutUs.choices)
-    digital_designer_skills = fields.MultipleChoiceField(choices=Application.DigitalDesignerProficientSkills.choices)
+
+class ApplicationSerializer(EventScopedSerializer):
+    gender_identity = fields.MultipleChoiceField(
+        choices=Application.GenderIdentities.choices,
+    )
+    nationality = fields.MultipleChoiceField(
+        choices=[(x.alpha_2, x.name) for x in pycountry.countries],
+    )
+    current_country = fields.MultipleChoiceField(
+        choices=[(x.alpha_2, x.name) for x in pycountry.countries]
+    )
+    race_ethnic_group = fields.MultipleChoiceField(
+        choices=Application.RaceEthnicGroups.choices,
+    )
+    previous_participation = fields.MultipleChoiceField(
+        choices=Application.PreviousParticipation.choices,
+    )
+    heard_about_us = fields.MultipleChoiceField(
+        choices=Application.HeardAboutUs.choices,
+    )
+    digital_designer_skills = fields.MultipleChoiceField(
+        choices=Application.DigitalDesignerProficientSkills.choices,
+    )
+    age_group = fields.ChoiceField(
+        choices=Application.AgeGroup.choices,
+    )
     industry = fields.MultipleChoiceField(choices=INDUSTRIES)
-    hardware_hack_detail = fields.MultipleChoiceField(choices=Application.HardwareHackDetail.choices)
 
     class Meta:
         model = Application
+        fields = "__all__"
+
+
+class ApplicationQuestionChoiceSerializer(serializers.ModelSerializer):
+    """Serializer for question choices"""
+    class Meta:
+        model = ApplicationQuestionChoice
+        fields = ['id', 'choice_key', 'choice_text', 'order']
+
+
+class ApplicationQuestionSerializer(EventScopedSerializer):
+    """Serializer for application questions with nested choices"""
+    choices = ApplicationQuestionChoiceSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ApplicationQuestion
+        fields = [
+            'id', 'question_key', 'question_text', 'question_type',
+            'order', 'required', 'parent_question', 'trigger_choices',
+            'choices', 'max_length', 'min_length',
+            'placeholder_text', 'created_at', 'updated_at'
+        ]
+
+
+class ApplicationResponseSerializer(serializers.ModelSerializer):
+    """Serializer for application responses with snapshots"""
+    selected_choice_keys = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ApplicationResponse
+        fields = [
+            'id', 'question', 'question_text_snapshot',
+            'choices_snapshot', 'selected_keys_snapshot',
+            'selected_choice_keys',
+            'text_response',
+            'text_response_snapshot',
+            'created_at', 'updated_at'
+        ]
+
+    def get_selected_choice_keys(self, obj):
+        """Get the selected choice keys (for convenience)"""
+        return obj.selected_keys_snapshot
+
+    def validate(self, data):
+        """Validate based on question type"""
+        question = data.get('question')
+
+        if question.question_type in ['T', 'L']:
+            # Text question validation
+            if not data.get('text_response') and question.required:
+                raise serializers.ValidationError(
+                    "Text response is required for this question"
+                )
+            if data.get('selected_choices'):
+                raise serializers.ValidationError(
+                    "Choice selection not allowed for text questions"
+                )
+        else:
+            # Choice question validation
+            if data.get('text_response'):
+                raise serializers.ValidationError(
+                    "Text response not allowed for choice questions"
+                )
+
+        return data
+
+
+class ApplicationDetailSerializer(EventScopedSerializer):
+    """Detailed application serializer with question responses"""
+    gender_identity = fields.MultipleChoiceField(
+        choices=Application.GenderIdentities.choices,
+    )
+    nationality = fields.MultipleChoiceField(
+        choices=[(x.alpha_2, x.name) for x in pycountry.countries],
+    )
+    current_country = fields.MultipleChoiceField(
+        choices=[(x.alpha_2, x.name) for x in pycountry.countries],
+    )
+    race_ethnic_group = fields.MultipleChoiceField(choices=Application.RaceEthnicGroups)
+    previous_participation = fields.MultipleChoiceField(
+        choices=Application.PreviousParticipation,
+    )
+    heard_about_us = fields.MultipleChoiceField(
+        choices=Application.HeardAboutUs.choices,
+    )
+    digital_designer_skills = fields.MultipleChoiceField(
+        choices=Application.DigitalDesignerProficientSkills.choices,
+    )
+    industry = fields.MultipleChoiceField(choices=INDUSTRIES)
+    hardware_hack_detail = fields.MultipleChoiceField(
+        choices=Application.HardwareHackDetail.choices,
+    )
+    question_responses = ApplicationResponseSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Application
+        fields = "__all__"
+
+
+class EventSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Event
         fields = "__all__"
 
 
@@ -96,7 +252,7 @@ class DiscordUsernameRoleSerializer(serializers.ModelSerializer):
         fields = ['communications_platform_username', 'participation_role', 'participation_class']
 
 
-class AttendeeRSVPCreateSerializer(serializers.ModelSerializer):
+class AttendeeRSVPCreateSerializer(EventScopedSerializer):
     dietary_restrictions = fields.MultipleChoiceField(choices=models.DietaryRestrictions.choices)
     dietary_allergies = fields.MultipleChoiceField(choices=models.DietaryAllergies.choices)
 
@@ -129,7 +285,7 @@ class AttendeeRSVPCreateSerializer(serializers.ModelSerializer):
         ]
 
 
-class AttendeeRSVPSerializer(serializers.ModelSerializer):
+class AttendeeRSVPSerializer(EventScopedSerializer):
     dietary_restrictions = fields.MultipleChoiceField(choices=models.DietaryRestrictions.choices)
     dietary_allergies = fields.MultipleChoiceField(choices=models.DietaryAllergies.choices)
 
@@ -162,7 +318,7 @@ class AttendeeRSVPSerializer(serializers.ModelSerializer):
         ]
 
 
-class SkillSerializer(serializers.ModelSerializer):
+class SkillSerializer(EventScopedSerializer):
     class Meta:
         model = Skill
         fields = ['id', 'name']
@@ -178,14 +334,14 @@ class SkillProficiencyDetailSerializer(serializers.ModelSerializer):
                   'created_at', 'updated_at']
 
 
-class SkillProficiencySerializer(serializers.ModelSerializer):
+class SkillProficiencySerializer(EventScopedSerializer):
     class Meta:
         model = SkillProficiency
         fields = ['id', 'skill', 'proficiency', 'attendee',
                   'created_at', 'updated_at']
 
 
-class SkillProficiencyCreateSerializer(serializers.ModelSerializer):
+class SkillProficiencyCreateSerializer(EventScopedSerializer):
 
     class Meta:
         model = SkillProficiency
@@ -200,14 +356,14 @@ class SkillProficiencyAttendeeSerializer(serializers.ModelSerializer):
         fields = ['id', 'skill', 'proficiency']
 
 
-class LocationSerializer(serializers.ModelSerializer):
+class LocationSerializer(EventScopedSerializer):
     class Meta:
         model = Location
         fields = ['id', 'building', 'room',
                   'created_at', 'updated_at']
 
 
-class TableSerializer(serializers.ModelSerializer):
+class TableSerializer(EventScopedSerializer):
     is_claimed = serializers.SerializerMethodField()
 
     def get_is_claimed(self, obj) -> bool:
@@ -218,7 +374,7 @@ class TableSerializer(serializers.ModelSerializer):
         fields = ['id', 'number', 'location', 'created_at', 'updated_at', 'is_claimed']
 
 
-class TableTruncatedSerializer(serializers.ModelSerializer):
+class TableTruncatedSerializer(EventScopedSerializer):
     class Meta:
         model = Table
         fields = ['id']
@@ -232,14 +388,14 @@ class TeamTableSerializer(serializers.ModelSerializer):
         fields = ['id', 'number', 'location', 'created_at', 'updated_at']
 
 
-class ProjectSerializer(serializers.ModelSerializer):
+class ProjectSerializer(EventScopedSerializer):
     class Meta:
         model = Project
         fields = ['id', 'name', 'repository_location', 'description', 'submission_location',
                   'team', 'created_at', 'updated_at', 'census_taker_name', 'census_location_override', 'team_primary_contact']
 
 
-class LightHouseSerializer(serializers.ModelSerializer):
+class LightHouseSerializer(EventScopedSerializer):
     table = serializers.IntegerField()
 
     class Meta:
@@ -258,7 +414,7 @@ def serialize_lighthouse(lighthouse):
         })
 
 
-class MentorHelpRequestSerializer(serializers.ModelSerializer):
+class MentorHelpRequestSerializer(EventScopedSerializer):
     topic = fields.MultipleChoiceField(choices=MENTOR_HELP_REQUEST_TOPICS)
 
     class Meta:
@@ -272,7 +428,7 @@ class HelpRequestReporterSerializer(serializers.ModelSerializer):
     class Meta:
         model = Attendee
         fields = ['id', 'first_name', 'last_name']
-        
+
 
 class HelpRequestTeamLocationSerializer(serializers.ModelSerializer):
     class Meta:
@@ -322,7 +478,7 @@ class TableNumberSerializer(serializers.ModelSerializer):
         fields = ['id', 'number']
 
 
-class TeamSerializer(serializers.ModelSerializer):
+class TeamSerializer(EventScopedSerializer):
     class Meta:
         model = Team
         fields = ['id', 'number', 'name', 'attendees', 'table', 
@@ -358,12 +514,12 @@ class TeamDetailSerializer(serializers.ModelSerializer):
                   'team_description','created_at', 'updated_at']
 
 
-class TeamCreateSerializer(serializers.ModelSerializer):
+class TeamCreateSerializer(EventScopedSerializer):
     class Meta:
         model = Team
         fields = ['id', 'name', 'attendees', 'table', 'team_description']
         
-class TeamUpdateSerializer(serializers.ModelSerializer):
+class TeamUpdateSerializer(EventScopedSerializer):
     table = TableSerializer(allow_null=True)
     project = ProjectSerializer()
     tracks = fields.MultipleChoiceField(choices=Track.choices)
@@ -373,7 +529,7 @@ class TeamUpdateSerializer(serializers.ModelSerializer):
         model = Team
         fields = ['id', 'name', 'attendees', 'table', 'team_description', 'tracks', 'destiny_hardware', 'project', 'hardware_hack', 'startup_hack']
 
-class TableDetailSerializer(serializers.ModelSerializer):
+class TableDetailSerializer(EventScopedSerializer):
     team = TeamSerializer()
     lighthouse = TeamLightHouseSerializer()
 
@@ -383,7 +539,7 @@ class TableDetailSerializer(serializers.ModelSerializer):
                   'created_at', 'updated_at']
 
 
-class TableCreateSerializer(serializers.ModelSerializer):
+class TableCreateSerializer(EventScopedSerializer):
     class Meta:
         model = Table
         fields = ['id', 'number', 'location']
@@ -393,7 +549,7 @@ class MentorRequestSerializer(serializers.Serializer):
     table = serializers.IntegerField()
 
 
-class LightHousesSerializer(serializers.ModelSerializer):
+class LightHousesSerializer(EventScopedSerializer):
     class Meta:
         model = LightHouse
         fields = ['id', 'table', 'ip_address', 'announcement_pending',
@@ -438,7 +594,7 @@ class HardwareCountDetailSerializer(serializers.ModelSerializer):
                   'created_at', 'updated_at', 'hardware_devices', 'tags']
 
 
-class HardwareSerializer(serializers.ModelSerializer):
+class HardwareSerializer(EventScopedSerializer):
     image = FileUploadSerializer()
     tags = fields.MultipleChoiceField(choices=HardwareTags)
     
@@ -449,7 +605,7 @@ class HardwareSerializer(serializers.ModelSerializer):
                   'created_at', 'updated_at']
 
 
-class HardwareCreateSerializer(serializers.ModelSerializer):
+class HardwareCreateSerializer(EventScopedSerializer):
     tags = fields.MultipleChoiceField(choices=HardwareTags)
     
     class Meta:
@@ -463,7 +619,7 @@ class HardwareDeviceHardwareSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'tags']
 
 
-class HardwareDeviceSerializer(serializers.ModelSerializer):
+class HardwareDeviceSerializer(EventScopedSerializer):
     class Meta:
         model = HardwareDevice
         fields = ['id', 'hardware', 'serial', 'checked_out_to',
@@ -477,7 +633,7 @@ class HardwareDeviceHistorySerializer(serializers.ModelSerializer):
                   'created_at', 'updated_at']
 
 
-class HardwareRequestSerializer(serializers.ModelSerializer):
+class HardwareRequestSerializer(EventScopedSerializer):
     class Meta:
         model = HardwareRequest
         fields = ["id", "hardware", "hardware_device", "requester", "team", "reason", "status", "created_at", "updated_at"]
@@ -507,38 +663,50 @@ class HardwareDeviceDetailSerializer(serializers.ModelSerializer):
         fields = ['id', 'hardware', 'serial', 'checked_out_to',
                   'created_at', 'updated_at']
 
+
 class HardwareRequestDetailSerializer(serializers.ModelSerializer):
     hardware = HardwareCountSerializer(read_only=True)
     hardware_device = HardwareDeviceDetailSerializer(read_only=True)
     requester = AttendeeSerializer(read_only=True)
     team = TeamSerializer()
-    
+
     class Meta:
         model = HardwareRequest
         fields = ["id", "hardware", "hardware_device", "requester", "team", "reason", "status", "created_at", "updated_at"]
 
 
-class HardwareRequestCreateSerializer(serializers.ModelSerializer):
+class HardwareRequestCreateSerializer(EventScopedSerializer):
     hardware = serializers.PrimaryKeyRelatedField(queryset=Hardware.objects.all())
     requester = serializers.SlugRelatedField(
         slug_field="email",
         queryset=Attendee.objects.all()
     )
-    
+
     class Meta:
         model = HardwareRequest
         fields = ["id", "hardware", "hardware_device", "requester", "team", "reason", "status", "created_at", "updated_at"]
 
 
-class WorkshopSerializer(serializers.ModelSerializer):
+class WorkshopSerializer(EventScopedSerializer):
     recommended_for = fields.MultipleChoiceField(choices=ParticipationRole.choices)
+
+    skills = serializers.SerializerMethodField()
+    hardware = serializers.SerializerMethodField()
 
     class Meta:
         model = Workshop
         fields = "__all__"
 
+    def get_skills(self, obj):
+        """Get skill IDs from the workshop's existing relationships."""
+        return list(Skill.objects.for_event(obj.event).filter(workshop_skills=obj).values_list('id', flat=True))
 
-class WorkshopAttendeeSerializer(serializers.ModelSerializer):
+    def get_hardware(self, obj):
+        """Get hardware IDs from the workshop's existing relationships."""
+        return list(Hardware.objects.for_event(obj.event).filter(workshop_hardware=obj).values_list('id', flat=True))
+
+
+class WorkshopAttendeeSerializer(EventScopedSerializer):
     class Meta:
         model = WorkshopAttendee
         fields = "__all__"
@@ -599,14 +767,14 @@ class AttendeeUpdateSerializer(serializers.ModelSerializer):
                   'created_at', 'updated_at', 'authentication_id']
 
 
-class AttendeePreferenceSerializer(serializers.ModelSerializer):
+class AttendeePreferenceSerializer(EventScopedSerializer):
 
     class Meta:
         model = AttendeePreference
         fields = "__all__"
 
 
-class DestinyTeamSerializer(serializers.ModelSerializer):
+class DestinyTeamSerializer(EventScopedSerializer):
     attendees = AttendeeNameSerializer(many=True)
     table = TableNumberSerializer()
 
@@ -615,7 +783,7 @@ class DestinyTeamSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
-class DestinyTeamUpdateSerializer(serializers.ModelSerializer):
+class DestinyTeamUpdateSerializer(EventScopedSerializer):
     table = TableNumberSerializer()
 
     class Meta:
@@ -623,7 +791,7 @@ class DestinyTeamUpdateSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
-class DestinyTeamAttendeeVibeSerializer(serializers.ModelSerializer):
+class DestinyTeamAttendeeVibeSerializer(EventScopedSerializer):
 
     class Meta:
         model = DestinyTeamAttendeeVibe

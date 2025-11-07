@@ -27,7 +27,7 @@ class Command(BaseCommand):  # pragma: no cover
             send_mail(
                 subject,
                 body,
-                "no-reply@mitrealityhack.com",
+                "no-reply@realityhackinc.org",
                 [application.email],
                 fail_silently=False,
             )

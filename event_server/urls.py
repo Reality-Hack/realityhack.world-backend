@@ -26,10 +26,12 @@ from rest_framework_simplejwt.views import (TokenObtainPairView,
                                             TokenRefreshView, TokenVerifyView)
 
 from infrastructure import views
-from infrastructure.models import (Application, Attendee, AttendeePreference,
+from infrastructure.models import (Application, ApplicationQuestion,
+                                   ApplicationQuestionChoice, ApplicationResponse,
+                                   Attendee, AttendeePreference,
                                    DestinyTeam, DestinyTeamAttendeeVibe,
                                    Hardware, HardwareDevice, HardwareRequest,
-                                   LightHouse, Location, MentorHelpRequest,
+                                   LightHouse, Location,
                                    Project, Skill, SkillProficiency, Table,
                                    Team, UploadedFile, Workshop,
                                    WorkshopAttendee)
@@ -50,14 +52,23 @@ swagger_schema_view = get_schema_view(
 router = routers.DefaultRouter()
 router.register(r'attendees', views.AttendeeViewSet, basename="attendees")
 router.register(r'discord', views.DiscordViewSet, basename="discord")
+router.register(r'events', views.EventViewSet, basename="events")
 router.register(r'rsvps', views.AttendeeRSVPViewSet, basename="rsvps")
 router.register(r'skills', views.SkillViewSet)
 router.register(r'locations', views.LocationViewSet)
 router.register(r'tables', views.TableViewSet)
 router.register(r'teams', views.TeamViewSet)
 router.register(r'lighthouses', views.LightHouseViewSet, basename='lighthouses')
-router.register(r'mentorhelprequests', views.MentorHelpRequestViewSet, basename='mentorhelprequests')
-router.register(r'mentorhelprequestshistory', views.MentorHelpRequestViewSetHistoryViewSet, basename='mentorhelprequestshistory')
+router.register(
+    r'mentorhelprequests',
+    views.MentorHelpRequestViewSet,
+    basename='mentorhelprequests'
+)
+router.register(
+    r'mentorhelprequestshistory',
+    views.MentorHelpRequestViewSetHistoryViewSet,
+    basename='mentorhelprequestshistory'
+)
 router.register(r'skillproficiencies', views.SkillProficiencyViewSet)
 router.register(r'projects', views.ProjectViewSet)
 router.register(r'groups', views.GroupViewSet)
@@ -66,6 +77,7 @@ router.register(r'hardwaredevices', views.HardwareDeviceViewSet)
 router.register(r'hardwarerequests', views.HardwareRequestsViewSet)
 router.register(r'hardwaredevicehistory', views.HardwareDeviceHistoryViewSet)
 router.register(r'applications', views.ApplicationViewSet)
+router.register(r'applicationquestions', views.ApplicationQuestionViewSet)
 router.register(r'uploaded_files', views.UploadedFileViewSet)
 router.register(r'workshops', views.WorkshopViewSet)
 router.register(r'workshopattendees', views.WorkshopAttendeeViewSet)
@@ -85,6 +97,9 @@ admin.site.register(Hardware)
 admin.site.register(HardwareDevice)
 admin.site.register(HardwareRequest)
 admin.site.register(Application)
+admin.site.register(ApplicationQuestion)
+admin.site.register(ApplicationQuestionChoice)
+admin.site.register(ApplicationResponse)
 admin.site.register(UploadedFile)
 admin.site.register(Workshop)
 admin.site.register(WorkshopAttendee)
@@ -100,6 +115,7 @@ urlpatterns = [
     path('auth/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
     path('schema/spectacular/', SpectacularAPIView.as_view(), name='schema'),
     path('me/', views.me, name='me'),
+    path('events/<str:event_id>/activate', views.activate_event, name='activate_event'),
     # path("lighthouse/", views.lighthouse, name="lighthouse"),
     # path("lighthouse/<str:table_number>/", views.lighthouse_table, name="lighthouse_table"),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
