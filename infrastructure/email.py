@@ -43,7 +43,7 @@ def get_judge_application_confirmation_template(first_name, response_email_addre
         "\n\n"
         "Please keep an eye on your email to hear back from us regarding your interest. "
         "If you were specifically invited to be a judge by our team or are part of a sponsoring company, you're all set! "
-        f"If you have any questions regarding the role of a judge at MIT Reality Hack, please send an email to {response_email_address}!"
+        f"If you have any questions regarding the role of a judge at Reality Hack, please send an email to {response_email_address}!"
         "\n\n"
         "Thank you,"
         "\n\n"

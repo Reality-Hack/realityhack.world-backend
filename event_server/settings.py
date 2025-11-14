@@ -117,6 +117,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'simple_history.middleware.HistoryRequestMiddleware',
+    'infrastructure.middleware.EventDetectionMiddleware',
 ]
 
 LOCAL_DECODE = True

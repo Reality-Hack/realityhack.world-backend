@@ -7,7 +7,7 @@ import multiselectfield.db.fields
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('infrastructure', '0045_applicationquestion_applicationquestionchoice_and_more'),
+        ('infrastructure', '0044_remove_application_event_year_application_event_and_more'),
     ]
 
     operations = [

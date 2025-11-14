@@ -855,11 +855,14 @@ class ApplicationViewSet(EventScopedLoggingViewSet):
             ).get(id=response.data['id'])
 
             questions = ApplicationQuestion.objects.for_event(event)
-            for question in questions:
+            questions_list = list(questions)
+
+            for question in questions_list:
                 if question.question_key in dynamic_responses:
                     value = dynamic_responses[question.question_key]
 
-                    if value is None or value == '' or (isinstance(value, list) and len(value) == 0):
+                    if (value is None or value == '' or
+                            (isinstance(value, list) and len(value) == 0)):
                         continue
 
                     app_response = ApplicationResponse.objects.create(
@@ -870,7 +873,7 @@ class ApplicationViewSet(EventScopedLoggingViewSet):
 
                     if question.question_type in ['S', 'M']:
                         choices_dict = {
-                            c.choice_key: c.choice_text 
+                            c.choice_key: c.choice_text
                             for c in question.choices.all()
                         }
                         app_response.choices_snapshot = choices_dict

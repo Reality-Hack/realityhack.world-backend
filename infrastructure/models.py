@@ -1,6 +1,9 @@
 import re
 import sys
 import uuid
+import time
+import logging
+import threading
 
 import language_tags
 import pycountry
@@ -17,6 +20,25 @@ from simple_history.models import HistoricalRecords
 from infrastructure.constants import MENTOR_HELP_REQUEST_TOPICS
 from infrastructure import email
 from infrastructure.managers import EventScopedManager
+
+logger = logging.getLogger(__name__)
+
+
+def send_email_background(subject, body, from_email, recipient_list):
+    """Send email in background thread to avoid blocking HTTP response."""
+    send_start = time.time()
+    try:
+        send_mail(subject, body, from_email, recipient_list, fail_silently=False)
+        logger.info(
+            f"[EMAIL_BACKGROUND] Email to {recipient_list} sent successfully in "
+            f"{time.time() - send_start:.3f}s"
+        )
+    except Exception as e:
+        logger.error(
+            f"[EMAIL_BACKGROUND] Failed to send email to {recipient_list}: {e} "
+            f"(after {time.time() - send_start:.3f}s)"
+        )
+
 
 # settings.AUTH_USER_MODEL
 
@@ -317,21 +339,56 @@ class Application(models.Model):
             if instance.resume:
                 instance.resume.claimed = True
                 instance.resume.save()
+
             # send email
-            if "test" not in sys.argv and "setup_test_data" not in sys.argv and "setup_fake_users" not in sys.argv:
+            skip_email = (
+                "test" in sys.argv or
+                "setup_test_data" in sys.argv or
+                "setup_fake_users" in sys.argv
+            )
+            if not skip_email:
+                email_start = time.time()
                 subject, body = None, None
-                if instance.participation_class == Application.ParticipationClass.MENTOR:
-                    subject, body = email.get_mentor_application_confirmation_template(instance.first_name, response_email_address="Mentors <mentors@realityhackinc.org>")
-                elif instance.participation_class == Application.ParticipationClass.JUDGE:
-                    subject, body = email.get_judge_application_confirmation_template(instance.first_name, response_email_address="Catherine Dumas <catherine@realityhackinc.org>")
+                cls_mentor = Application.ParticipationClass.MENTOR
+                cls_judge = Application.ParticipationClass.JUDGE
+                if instance.participation_class == cls_mentor:
+                    subject, body = (
+                        email.get_mentor_application_confirmation_template(
+                            instance.first_name,
+                            response_email_address=(
+                                "Mentors <mentors@realityhackinc.org>"
+                            )
+                        )
+                    )
+                elif instance.participation_class == cls_judge:
+                    subject, body = (
+                        email.get_judge_application_confirmation_template(
+                            instance.first_name,
+                            response_email_address=(
+                                "Catherine Dumas <catherine@realityhackinc.org>"
+                            )
+                        )
+                    )
                 else:
-                    subject, body = email.get_hacker_application_confirmation_template(instance.first_name)
-                send_mail(
-                    subject,
-                    body,
-                    "no-reply@realityhackinc.org",
-                    [instance.email],
-                    fail_silently=False,
+                    subject, body = (
+                        email.get_hacker_application_confirmation_template(
+                            instance.first_name
+                        )
+                    )
+
+                thread = threading.Thread(
+                    target=send_email_background,
+                    args=(
+                        subject,
+                        body,
+                        "no-reply@realityhackinc.org",
+                        [instance.email]
+                    )
+                )
+                thread.daemon = False
+                thread.start()
+                logger.info(
+                    "[APPLICATION_POST_SAVE] Email queued in background thread"
                 )
 
     @classmethod
@@ -370,7 +427,7 @@ class Application(models.Model):
         default=AgeGroup.H,
         null=True
     )
-    email = models.EmailField(blank=False, null=False, unique=True)
+    email = models.EmailField(blank=False, null=False)
     portfolio = models.URLField(null=True)
     secondary_portfolio = models.URLField(null=True)
     resume = models.OneToOneField(
@@ -499,6 +556,7 @@ class Application(models.Model):
     objects = EventScopedManager()
 
     class Meta:
+        unique_together = [('email', 'event')]
         indexes = [
             models.Index(fields=['event', 'email']),
             models.Index(fields=['event', 'status']),

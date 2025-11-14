@@ -31,7 +31,7 @@ def reverse_migrate(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('infrastructure', '0044_remove_application_event_year_application_event_and_more'),
+        ('infrastructure', '0045_application_other_skills_experiences_and_more'),
     ]
 
     operations = [
