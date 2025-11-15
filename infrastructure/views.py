@@ -801,7 +801,9 @@ class ApplicationViewSet(EventScopedLoggingViewSet):
     queryset = Application.objects.all()
     permission_classes = [permissions.AllowAny]
     serializer_class = ApplicationSerializer
-    filterset_fields = ['participation_capacity', 'participation_role', 'email']
+    filterset_fields = [
+        'participation_capacity', 'participation_role', 'email', 'participation_class'
+    ]
     keycloak_roles = {
         'GET': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
         'DELETE': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
