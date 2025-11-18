@@ -222,7 +222,7 @@ class UploadedFile(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     # expires_at = models.DateTimeField(null=True, blank=True)
     # uri = models.URLField(null=True, blank=True)
-    
+
     class Meta:
         verbose_name = "uploaded files"
 
@@ -344,10 +344,10 @@ class Application(models.Model):
             skip_email = (
                 "test" in sys.argv or
                 "setup_test_data" in sys.argv or
-                "setup_fake_users" in sys.argv
+                "setup_fake_users" in sys.argv or
+                "create_test_applications" in sys.argv
             )
             if not skip_email:
-                email_start = time.time()
                 subject, body = None, None
                 cls_mentor = Application.ParticipationClass.MENTOR
                 cls_judge = Application.ParticipationClass.JUDGE
@@ -869,7 +869,6 @@ class Attendee(AbstractUser):
     communications_platform_username = models.CharField(
         max_length=40, null=True, help_text="I.e., a Discord username")
 
-
     application = models.OneToOneField(
         Application, on_delete=models.CASCADE, null=True)
     participation_role = models.CharField(
@@ -983,6 +982,172 @@ class Attendee(AbstractUser):
 
     def __str__(self) -> str:  # pragma: no cover
         return f"Name: {self.first_name} {self.last_name}, Email: {self.email}"
+
+
+class EventRsvp(models.Model):
+    class ParticipationClass(models.TextChoices):
+        PARTICIPANT = 'P', _("Participant")
+        MENTOR = 'M', _("Mentor")
+        JUDGE = 'J', _("Judge")
+        SPONSOR = 'S', _("Sponsor")
+        VOLUNTEER = 'V', _("Volunteer")
+        ORGANIZER = 'O', _("Organizer")
+        GUARDIAN = 'G', _("Guardian")
+        MEDIA = 'E', _("Media")
+
+    class Status(models.TextChoices):
+        RSVP = 'R', _("RSVP'd")
+        ARRIVED = 'A', _("Arrived")
+        CANCELED = 'C', _("Canceled")
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event = models.ForeignKey(
+        Event, on_delete=models.CASCADE, related_name='%(class)s_set'
+    )
+    attendee = models.ForeignKey(
+        Attendee, on_delete=models.CASCADE, related_name='%(class)s_set'
+    )
+
+    # start previous attendee fields
+    communications_platform_username = models.CharField(
+        max_length=40, null=True, help_text="I.e., a Discord username"
+    )
+    application = models.OneToOneField(
+        Application, on_delete=models.CASCADE, null=True
+    )
+    participation_role = models.CharField(
+        max_length=1,
+        choices=ParticipationRole.choices,
+        default=ParticipationRole.SPECIALIST,
+        null=True
+    )
+    guardian_of = models.ManyToManyField(
+        "Attendee",
+        related_name='rsvp_attendee_guardian_of',
+        blank=True
+    )
+    sponsor_handler = models.ForeignKey(
+        "Attendee",
+        related_name="rsvp_attendee_sponsor_of",
+        null=True,
+        on_delete=models.SET_NULL
+    )
+    shirt_size = models.CharField(
+        max_length=1,
+        choices=ShirtSize.choices,
+        default=ShirtSize.M,
+        null=True
+    )
+    intended_tracks = MultiSelectField(
+        max_choices=2, max_length=7, null=True, choices=Track.choices
+    )
+    intended_hardware_hack = models.BooleanField(default=False, null=False)
+    prefers_destiny_hardware = MultiSelectField(
+        max_choices=len(DestinyHardware.choices),
+        max_length=len(DestinyHardware.choices) * 2 + 1,
+        null=True, choices=DestinyHardware.choices
+    )
+    dietary_restrictions = MultiSelectField(
+        max_length=15, max_choices=7, null=True, choices=DietaryRestrictions.choices
+    )
+    dietary_restrictions_other = models.CharField(max_length=40, null=True)
+    dietary_allergies = MultiSelectField(
+        max_length=10, max_choices=5, null=True, choices=DietaryAllergies.choices
+    )
+    dietary_allergies_other = models.CharField(max_length=40, null=True)
+    additional_accommodations = models.TextField(max_length=200, blank=False, null=True)
+    us_visa_support_is_required = models.BooleanField(null=False)
+    visa_support_form_confirmation = models.BooleanField(null=False, default=False)
+    # getting rid of this, but keeping here for back compat
+    us_visa_letter_of_invitation_required = models.BooleanField(
+        null=True, default=False
+    )
+    us_visa_support_full_name = models.CharField(max_length=200, blank=False, null=True)
+    us_visa_support_document_number = models.CharField(
+        max_length=50, blank=False, null=True
+    )
+    us_visa_support_national_identification_document_type = models.CharField(
+        choices=[('P', 'Passport'), ('N', 'National/State/Municipal ID')],
+        max_length=1, blank=False, null=True
+    )  # passport or national ID
+    us_visa_support_citizenship = models.CharField(
+        max_length=2,
+        choices=[(x.alpha_2, x.name) for x in pycountry.countries],
+        blank=False,
+        null=True
+    )
+    us_visa_support_address = models.TextField(max_length=500, null=True, blank=False)
+    under_18_by_date = models.BooleanField(
+        null=True, help_text="Will you be under 18 on January 22, 2026"
+    )
+    parental_consent_form_signed = models.BooleanField(null=True, default=None)
+    agree_to_media_release = models.BooleanField(null=False, default=False)
+    agree_to_liability_release = models.BooleanField(null=False, default=False)
+    agree_to_rules_code_of_conduct = models.BooleanField(null=False, default=False)
+    emergency_contact_name = models.CharField(max_length=200, null=False, blank=False)
+    personal_phone_number = PhoneNumberField(blank=False, null=False)
+    emergency_contact_phone_number = PhoneNumberField(blank=False, null=False)
+    emergency_contact_email = models.EmailField(blank=False, null=False)
+    emergency_contact_relationship = models.CharField(
+        max_length=100, null=False, blank=False
+    )
+    special_interest_track_one = models.CharField(
+        max_length=1,
+        choices=[('Y', 'Yes'), ('N', 'No')],
+        null=True
+    )
+    special_interest_track_two = models.CharField(
+        max_length=1,
+        choices=[('Y', 'Yes'), ('N', 'No')],
+        null=True
+    )
+    breakthrough_hacks_interest = models.TextField(
+        max_length=2000, null=True, blank=False
+    )
+    loaner_headset_preference = models.CharField(
+        max_length=6,
+        choices=LoanerHeadsetPreference.choices,
+        null=True
+    )
+    app_in_store = models.CharField(
+        max_length=250, null=True, blank=False,
+        help_text="AR or VR apps in any store? And if so, which ones?"
+    )
+    currently_build_for_xr = models.CharField(max_length=250, null=True, blank=False)
+    currently_use_xr = models.CharField(max_length=250, null=True, blank=False)
+    non_xr_talents = models.CharField(max_length=250, null=True, blank=False)
+    ar_vr_ap_in_store = models.CharField(max_length=250, null=True, blank=False)
+    reality_hack_project_to_product = models.BooleanField(default=False, null=False)
+    participation_class = models.CharField(
+        choices=ParticipationClass.choices,
+        max_length=1,
+        null=False,
+        default=ParticipationClass.PARTICIPANT
+    )
+    status = models.CharField(
+        max_length=1,
+        choices=Status.choices,
+        null=False,
+        default=Status.RSVP
+    )
+    checked_in_at = models.DateTimeField(null=True)
+    # sponsor
+    sponsor_company = models.CharField(max_length=100, null=True, blank=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = EventScopedManager()
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"Event: {self.event}, Email: {self.attendee.email}"
+
+    class Meta:
+        unique_together = [('attendee', 'event')]
+        indexes = [
+            models.Index(fields=['event', 'attendee']),
+            models.Index(fields=['event', 'participation_role']),
+        ]
 
 
 class Location(models.Model):

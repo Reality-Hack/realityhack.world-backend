@@ -46,7 +46,7 @@ class KeycloakClient:
         self.client_uuid = None
         self.base_url = f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}"
         self.client_role_map = {}
-        self.get_authentication_token()
+        self._get_authentication_token()
 
     @property
     def authentication_headers(self):
@@ -55,7 +55,7 @@ class KeycloakClient:
             "Content-Type": "application/json"
         }
 
-    def get_authentication_token(self):
+    def _get_authentication_token(self):
         access_token_params = {
             "grant_type": "client_credentials",
             "client_id": CLIENT_ID,
@@ -78,7 +78,7 @@ class KeycloakClient:
 
     def get_client_uuid(self):
         if not self.access_token:
-            self.get_authentication_token()
+            self._get_authentication_token()
         client_uuid = requests.get(
             url=f"{self.base_url}/clients?clientId={CLIENT_ID}",
             headers=self.authentication_headers,
@@ -92,9 +92,9 @@ class KeycloakClient:
         self.client_uuid = client_uuid.json()[0]['id']
         return self.client_uuid
 
-    def get_client_roles_map(self):
+    def _get_client_roles_map(self):
         if not self.access_token:
-            self.get_authentication_token()
+            self._get_authentication_token()
         if not self.client_uuid:
             self.get_client_uuid()
 
@@ -119,7 +119,7 @@ class KeycloakClient:
 
     def get_client_role_mapping(self, role_name: str):
         if not self.client_role_map:
-            self.get_client_roles_map()
+            self._get_client_roles_map()
 
         role_mapping = self.client_role_map[role_name]
         if not role_mapping:
@@ -185,7 +185,6 @@ class KeycloakClient:
         else:
             role = attendee.get_participation_class_display().lower()
 
-        role = attendee.get_participation_class_display().lower()
         client_role = self.get_client_role_mapping(f"{role}:{EVENT_YEAR}")
 
         if not client_role:
@@ -208,9 +207,9 @@ class KeycloakClient:
             )
         return auth_roles
 
-    def find_user_by_email(self, email: str):
+    def find_user_by_email(self, attendee_email: str):
         users = requests.get(
-            url=f"{self.base_url}/users?email={email}&exact=true",
+            url=f"{self.base_url}/users?email={attendee_email}&exact=true",
             headers=self.authentication_headers,
         )
         return users.json()
@@ -222,7 +221,7 @@ class KeycloakClient:
                 authentication_account_id = self.create_authentication_account(
                     attendee, temporary_password
                 )
-                print(f"Authentication account created for {attendee.email}")
+                print(f"Keycloak account created for {attendee.email}")
                 attendee.authentication_id = authentication_account_id
             self.assign_authentication_roles(attendee)
             return temporary_password
@@ -230,25 +229,28 @@ class KeycloakClient:
             print(f"Error creating keycloak account for {attendee.email}: {e}")
             raise e
 
-    def handle_user_rsvp(self, attendee: Attendee) -> str | None:
-        existing_users = self.find_user_by_email(attendee.email)
-        temp_password = None
-        if len(existing_users) > 1:
-            send_mail(
-                email.get_multiple_users_found_template(attendee.email),
-                "no-reply@realityhackinc.org",
-                [attendee.email, "apply@realityhackinc.org"],
-                fail_silently=False,
-            )
+    def _ensure_authentication_account(self, attendee: Attendee) -> str | None:
+        if attendee.authentication_id:
             return None
-
-        if existing_users:
-            attendee.authentication_id = existing_users[0]['id']
-            self.assign_authentication_roles(attendee)
-            attendee.save()
+        elif existing_users := self.find_user_by_email(attendee.email):
+            if len(existing_users) > 1:
+                send_mail(
+                    email.get_multiple_users_found_template(attendee.email),
+                    "no-reply@realityhackinc.org",
+                    [attendee.email, "apply@realityhackinc.org"],
+                    fail_silently=False,
+                )
+                raise Exception(f"Multiple users found for email: {attendee.email}")
+            else:
+                attendee.authentication_id = existing_users[0]['id']
+                attendee.save()
+                return None
         else:
-            temp_password = self.handle_user_creation(attendee)
+            return self.handle_user_creation(attendee)
 
+    def handle_user_rsvp(self, attendee: Attendee) -> None:
+        temp_password = self._ensure_authentication_account(attendee)
+        self.assign_authentication_roles(attendee)
         if attendee.participation_class == Attendee.ParticipationClass.PARTICIPANT:
             subject, body = email.get_hacker_rsvp_confirmation_template(
                 attendee.first_name, temp_password

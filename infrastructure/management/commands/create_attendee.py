@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 
 from infrastructure.keycloak import KeycloakClient
 from infrastructure.models import Attendee
-import datetime
+from datetime import datetime
 
 now_str = datetime.now().strftime("%Y%m%d%H%M%S")
 
@@ -12,12 +12,12 @@ class Command(BaseCommand):  # pragma: no cover
 
     def add_arguments(self, parser):
         parser.add_argument(
-            "--first-name",
+            "--first_name",
             default="Reality",
             help="First name"
         )
         parser.add_argument(
-            "--last-name",
+            "--last_name",
             default="Hack",
             help="Last name"
         )
