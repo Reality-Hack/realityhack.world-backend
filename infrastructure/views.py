@@ -10,7 +10,7 @@ from django_keycloak_auth.decorators import keycloak_roles
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 from infrastructure.keycloak import KeycloakRoles
 from infrastructure.mixins import LoggingMixin, EventScopedLoggingViewSet
 from infrastructure.event_context import get_active_event
@@ -21,7 +21,7 @@ from infrastructure.models import (Application,
                                    LightHouse, Location, MentorHelpRequest,
                                    Project, Skill, SkillProficiency, Table,
                                    Team, UploadedFile, Workshop,
-                                   WorkshopAttendee,
+                                   WorkshopAttendee, EventRsvp,
                                    ApplicationQuestion, ApplicationResponse, Event)
 from infrastructure.serializers import (ApplicationSerializer,
                                         ApplicationDetailSerializer,
@@ -50,8 +50,8 @@ from infrastructure.serializers import (ApplicationSerializer,
                                         HardwareRequestListSerializer,
                                         HardwareRequestSerializer,
                                         HardwareSerializer,
-                                        LightHouseSerializer,
-                                        LocationSerializer,
+                                        LightHouseSerializer, EventRsvpDetailSerializer,
+                                        LocationSerializer, EventRsvpSerializer,
                                         MentorHelpRequestHistorySerializer,
                                         MentorHelpRequestReadSerializer,
                                         MentorHelpRequestSerializer,
@@ -112,13 +112,19 @@ def prepare_attendee_for_detail(attendee, event=None):
 @cache_page(60 * 3)
 @vary_on_headers("Authorization")
 @keycloak_roles([KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.ATTENDEE, KeycloakRoles.MENTOR])
-@api_view(['GET', 'PATCH'])
 @extend_schema(
-    methods=['GET', 'PATCH'],
+    methods=['GET'],
     request=None,
     responses={200: AttendeeDetailSerializer},
     description="Get detailed information about an authenticated user."
 )
+@extend_schema(
+    methods=['PATCH'],
+    request=AttendeePatchSerializer,
+    responses={200: AttendeePatchSerializer},
+    description="Update the authenticated user's information."
+)
+@api_view(['GET', 'PATCH'])
 def me(request):
     """
     API endpoint for getting detailed information about an authenticated user.
@@ -515,6 +521,17 @@ class DiscordViewSet(LoggingMixin, viewsets.ViewSet):
         serializer = DiscordUsernameRoleSerializer(queryset, many=True)
         return Response(serializer.data)
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name='attendee__communications_platform_username',
+                description='Discord username of the attendee',
+                required=True,
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.PATH,
+            )
+        ]
+    )
     def destroy(self, request, attendee__communications_platform_username=None):
         event = get_active_event()
         attendee = get_object_or_404(Attendee, communications_platform_username=attendee__communications_platform_username)
@@ -906,6 +923,38 @@ def activate_event(request, event_id):
     event.activate()
     serializer = EventSerializer(event)
     return Response(serializer.data)
+
+
+class EventRsvpViewSet(EventScopedLoggingViewSet):
+    """
+    API endpoint that allows event RSVPs to be viewed or edited.
+    """
+    queryset = EventRsvp.objects.for_event(get_active_event())
+    permission_classes = [permissions.AllowAny]
+    serializer_class = EventRsvpSerializer
+    filterset_fields = ['event', 'attendee']
+    keycloak_roles = {
+        'GET': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        'DELETE': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        'PATCH': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+    }
+
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return EventRsvpDetailSerializer
+        return EventRsvpSerializer
+
+    def list(self, request):
+        event = self.get_event()
+        event_rsvps = EventRsvp.objects.for_event(event)
+        serializer = EventRsvpSerializer(event_rsvps, many=True)
+        return Response(serializer.data)
+
+    def retrieve(self, request, pk=None):
+        event = self.get_event()
+        event_rsvp = get_object_or_404(EventRsvp.objects.for_event(event), pk=pk)
+        serializer = EventRsvpSerializer(event_rsvp)
+        return Response(serializer.data)
 
 
 class UploadedFileViewSet(LoggingMixin, viewsets.ModelViewSet):

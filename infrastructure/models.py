@@ -241,14 +241,20 @@ class UploadedFile(models.Model):
     #     self.save()
 
 
+class ParticipationClass(models.TextChoices):
+    PARTICIPANT = 'P', _('Participant')
+    MENTOR = 'M', _('Mentor')
+    JUDGE = 'J', _('Judge')
+    SPONSOR = 'S', _('Sponsor')
+    VOLUNTEER = 'V', _('Volunteer')
+    ORGANIZER = 'O', _('Organizer')
+    GUARDIAN = 'G', _('Guardian')
+    MEDIA = 'E', _('Media')
+
+
 class Application(models.Model):
     DISABILITIES = DISABILITIES
     HeardAboutUs = HeardAboutUs
-
-    class ParticipationClass(models.TextChoices):
-        PARTICIPANT = 'P', _('Participant')
-        MENTOR = 'M', _('Mentor')
-        JUDGE = 'J', _('Judge')
 
     class Status(models.TextChoices):
         ACCEPTED_IN_PERSON = 'AI', _('Accepted, In-Person')
@@ -349,8 +355,8 @@ class Application(models.Model):
             )
             if not skip_email:
                 subject, body = None, None
-                cls_mentor = Application.ParticipationClass.MENTOR
-                cls_judge = Application.ParticipationClass.JUDGE
+                cls_mentor = ParticipationClass.MENTOR
+                cls_judge = ParticipationClass.JUDGE
                 if instance.participation_class == cls_mentor:
                     subject, body = (
                         email.get_mentor_application_confirmation_template(
@@ -827,16 +833,6 @@ class LoanerHeadsetPreference(models.TextChoices):
 
 class Attendee(AbstractUser):
 
-    class ParticipationClass(models.TextChoices):
-        PARTICIPANT = 'P', _('Participant')
-        MENTOR = 'M', _('Mentor')
-        JUDGE = 'J', _('Judge')
-        SPONSOR = 'S', _('Sponsor')
-        VOLUNTEER = 'V', _('Volunteer')
-        ORGANIZER = 'O', _('Organizer')
-        GUARDIAN = 'G', _('Guardian')
-        MEDIA = 'E', _('Media')
-
     class Status(models.TextChoices):
         RSVP = 'R', _("RSVP'd")
         ARRIVED = 'A', _('Arrived')
@@ -985,15 +981,6 @@ class Attendee(AbstractUser):
 
 
 class EventRsvp(models.Model):
-    class ParticipationClass(models.TextChoices):
-        PARTICIPANT = 'P', _("Participant")
-        MENTOR = 'M', _("Mentor")
-        JUDGE = 'J', _("Judge")
-        SPONSOR = 'S', _("Sponsor")
-        VOLUNTEER = 'V', _("Volunteer")
-        ORGANIZER = 'O', _("Organizer")
-        GUARDIAN = 'G', _("Guardian")
-        MEDIA = 'E', _("Media")
 
     class Status(models.TextChoices):
         RSVP = 'R', _("RSVP'd")
@@ -1009,7 +996,7 @@ class EventRsvp(models.Model):
     )
 
     # start previous attendee fields
-    communications_platform_username = models.CharField(
+    communication_platform_username = models.CharField(
         max_length=40, null=True, help_text="I.e., a Discord username"
     )
     application = models.OneToOneField(

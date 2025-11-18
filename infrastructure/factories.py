@@ -162,7 +162,8 @@ class AttendeeFactory(DjangoModelFactory):
     ar_vr_ap_in_store = None
     reality_hack_project_to_product = False
     participation_class = factory.Faker(
-        'random_element', elements=[str(x[0]) for x in models.Attendee.ParticipationClass.choices]
+        'random_element', 
+        elements=[str(x[0]) for x in models.ParticipationClass.choices]
     )
     # sponsor
     sponsor_company = None
@@ -228,12 +229,12 @@ class MentorHelpRequestFactory(DjangoModelFactory):
     description = factory.fuzzy.FuzzyText(length=500)
     reporter = factory.Iterator(
         models.Attendee.objects.filter(
-            participation_class=models.Attendee.ParticipationClass.PARTICIPANT
+            participation_class=models.ParticipationClass.PARTICIPANT
         )
     )
     mentor = factory.Iterator(
         models.Attendee.objects.filter(
-            participation_class=models.Attendee.ParticipationClass.MENTOR
+            participation_class=models.ParticipationClass.MENTOR
         )
     )
     team = factory.LazyFunction(

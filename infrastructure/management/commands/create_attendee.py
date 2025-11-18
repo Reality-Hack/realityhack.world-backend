@@ -29,7 +29,7 @@ class Command(BaseCommand):  # pragma: no cover
         parser.add_argument(
             "--role",
             default="P",
-            help="Participation class (P, M, J)",
+            help="Participation class (P, M, J, S, V, O, G, E)",
         )
 
     def create_attendee(self, **options):

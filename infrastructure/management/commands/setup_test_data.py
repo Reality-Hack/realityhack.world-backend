@@ -13,7 +13,8 @@ from infrastructure.models import (Application, Attendee, AttendeePreference,
                                    Hardware, HardwareDevice, LightHouse,
                                    Location, MentorHelpRequest, Project, Skill,
                                    SkillProficiency, Table, Team, UploadedFile,
-                                   Workshop, WorkshopAttendee, Event)
+                                   Workshop, WorkshopAttendee, Event,
+                                   ParticipationClass)
 
 NUMBER_OF_ATTENDEES = 50
 NUMBER_OF_GROUPS = 5
@@ -112,11 +113,11 @@ def add_all():  # noqa: C901
         if application.status != Application.Status.ACCEPTED_IN_PERSON:
             continue
         if i < NUMBER_OF_ATTENDEES:
-            participation_class = Attendee.ParticipationClass.PARTICIPANT
+            participation_class = ParticipationClass.PARTICIPANT
         elif i < NUMBER_OF_ATTENDEES + 5:
-            participation_class = Attendee.ParticipationClass.MENTOR
+            participation_class = ParticipationClass.MENTOR
         else:
-            participation_class = Attendee.ParticipationClass.PARTICIPANT
+            participation_class = ParticipationClass.PARTICIPANT
 
         attendee = factories.AttendeeFactory(
             application=application,
@@ -142,7 +143,7 @@ def add_all():  # noqa: C901
     attendee_subset_index = 0
     teams = []
     participants = list(Attendee.objects.filter(
-        participation_class=Attendee.ParticipationClass.PARTICIPANT)
+        participation_class=ParticipationClass.PARTICIPANT)
     )
     team_participants = []
     for _ in range(NUMBER_OF_TEAMS):

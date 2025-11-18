@@ -274,28 +274,32 @@ SPECTACULAR_SETTINGS = {
     # Key settings for client generation
     'COMPONENT_SPLIT_REQUEST': True,  # Most important for Orval compatibility
     'COMPONENT_NO_READ_ONLY_REQUIRED': True,  # Helps with required field issues
-    'ENUM_ADD_EXPLICIT_BLANK_NULL_CHOICE': False,  # Prevents enum issues in client generation
+    # Prevents enum issues in client generation
+    'ENUM_ADD_EXPLICIT_BLANK_NULL_CHOICE': False,
     # Fix enum naming conflicts - map from desired name to actual enum class
     'ENUM_NAME_OVERRIDES': {
         # Use clean names as keys, enum classes as values
-        'ParticipationClassEnum': 'infrastructure.models.Attendee.ParticipationClass',
-        'ApplicationStatusEnum': 'infrastructure.models.Application.Status', 
+        'ParticipationClassEnum': 'infrastructure.models.ParticipationClass',
+        'ApplicationStatusEnum': 'infrastructure.models.Application.Status',
         'MentorHelpRequestStatusEnum': 'infrastructure.models.MentorRequestStatus',
         'HardwareRequestStatusEnum': 'infrastructure.models.HardwareRequestStatus',
         'DestinyHardwareEnum': 'infrastructure.models.DestinyHardware',
         'TrackEnum': 'infrastructure.models.Track',
         'SpecialInterestTrackEnum': [('Y', 'Yes'), ('N', 'No')],  # inline choices
-        'ThemeInterestTrackEnum': 'infrastructure.models.Application.ThemeInterestTrackChoice',
-        'ThemeDetailEnum': 'infrastructure.models.Application.ThemeInterestTrackChoice',
+        'ThemeInterestTrackEnum':
+            'infrastructure.models.Application.ThemeInterestTrackChoice',
         'RecommendedForEnum': 'infrastructure.models.ParticipationRole',
         'AgeGroupEnum': 'infrastructure.models.Application.AgeGroup',
         'GenderIdentityEnum': 'infrastructure.models.Application.GenderIdentities',
         'RaceEthnicGroupEnum': 'infrastructure.models.Application.RaceEthnicGroups',
-        'PreviousParticipationEnum': 'infrastructure.models.Application.PreviousParticipation',
+        'PreviousParticipationEnum':
+            'infrastructure.models.Application.PreviousParticipation',
         'HeardAboutUsEnum': 'infrastructure.models.Application.HeardAboutUs',
-        'DigitalDesignerSkillsEnum': 'infrastructure.models.Application.DigitalDesignerProficientSkills',
-        'HardwareHackDetailEnum': 'infrastructure.models.Application.HardwareHackDetail',
-        'CountryEnum': [(x.alpha_2, x.name) for x in pycountry.countries],  # dynamic choices
+        'DigitalDesignerSkillsEnum':
+            'infrastructure.models.Application.DigitalDesignerProficientSkills',
+        'HardwareHackDetailEnum':
+            'infrastructure.models.Application.HardwareHackDetail',
+        'CountryEnum': [(x.alpha_2, x.name) for x in pycountry.countries],
     },
 }
 CSP_DEFAULT_SRC = ("'self'", "'unsafe-inline'")

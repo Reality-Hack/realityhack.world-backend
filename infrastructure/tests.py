@@ -1421,7 +1421,7 @@ class AttendeeRSVPTests(EventTestCase):
             "email", str(uuid.uuid4())))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()), 0)
-        choices = [x[0] for x in models.Attendee.ParticipationClass.choices]
+        choices = [x[0] for x in models.ParticipationClass.choices]
         response = self.client.get(self.get_rsvps_with_filter(
             "participation_class", self.mock_attendee["participation_class"]))
         self.assertEqual(response.status_code, 200)

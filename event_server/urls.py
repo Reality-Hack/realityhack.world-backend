@@ -84,6 +84,7 @@ router.register(r'workshopattendees', views.WorkshopAttendeeViewSet)
 router.register(r'attendeepreferences', views.AttendeePreferenceViewSet)
 router.register(r'destinyteams', views.DestinyTeamViewSet)
 router.register(r'destinyteamattendeevibes', views.DestinyTeamAttendeeVibeViewSet)
+router.register(r'eventrsvps', views.EventRsvpViewSet)
 
 admin.site.register(Skill)
 admin.site.register(Attendee)

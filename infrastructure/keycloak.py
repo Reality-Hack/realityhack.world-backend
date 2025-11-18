@@ -6,7 +6,7 @@ import uuid
 import json
 from django.core.mail import send_mail
 from infrastructure import email
-from infrastructure.models import Attendee
+from infrastructure.models import Attendee, ParticipationClass
 
 
 CLIENT_ID = os.environ['KEYCLOAK_CLIENT_ID']
@@ -180,7 +180,7 @@ class KeycloakClient:
         if not attendee.participation_class:
             raise Exception("Participation class is not set")
 
-        if attendee.participation_class == Attendee.ParticipationClass.PARTICIPANT:
+        if attendee.participation_class == ParticipationClass.PARTICIPANT:
             role = "attendee"
         else:
             role = attendee.get_participation_class_display().lower()
@@ -251,7 +251,7 @@ class KeycloakClient:
     def handle_user_rsvp(self, attendee: Attendee) -> None:
         temp_password = self._ensure_authentication_account(attendee)
         self.assign_authentication_roles(attendee)
-        if attendee.participation_class == Attendee.ParticipationClass.PARTICIPANT:
+        if attendee.participation_class == ParticipationClass.PARTICIPANT:
             subject, body = email.get_hacker_rsvp_confirmation_template(
                 attendee.first_name, temp_password
             )

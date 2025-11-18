@@ -1,7 +1,7 @@
 import pycountry
 from django.contrib.auth.models import Group
 from rest_framework import fields, serializers
-
+from drf_spectacular.utils import extend_schema_field
 from infrastructure import models, event_context
 from infrastructure.models import (INDUSTRIES, MENTOR_HELP_REQUEST_TOPICS,
                                    Application, Attendee, ApplicationQuestion,
@@ -153,6 +153,7 @@ class ApplicationResponseSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at'
         ]
 
+    @extend_schema_field(serializers.ListField(child=serializers.CharField()))
     def get_selected_choice_keys(self, obj):
         """Get the selected choice keys (for convenience)"""
         return obj.selected_keys_snapshot
@@ -298,7 +299,7 @@ class EventRsvpSerializer(EventScopedSerializer):
         fields = [
             "id", "participation_role", "event",
             "application", "shirt_size",
-            "communications_platform_username",
+            "communication_platform_username",
             "dietary_restrictions", "dietary_restrictions_other",
             "dietary_allergies", "dietary_allergies_other",
             "additional_accommodations",
@@ -509,10 +510,30 @@ class MentorHelpRequestHistorySerializer(serializers.ModelSerializer):
 
 class AttendeeNameSerializer(serializers.ModelSerializer):
     profile_image = FileUploadSerializer(read_only=True)
+
     class Meta:
         model = Attendee
-        fields = ['id', 'first_name', 'last_name', 'participation_role', 'profile_image']
-        
+        fields = [
+            'id', 'first_name', 'last_name', 'participation_role',
+            'profile_image', "email"
+        ]
+
+
+class EventRsvpDetailSerializer(EventRsvpSerializer):
+
+    attendee = AttendeeNameSerializer()
+
+    class Meta:
+        model = EventRsvp
+        fields = EventRsvpSerializer.Meta.fields + [
+            "created_at", "updated_at",
+            "application", "attendee", "shirt_size",
+            "communication_platform_username", "us_visa_support_is_required",
+            "emergency_contact_name", "emergency_contact_phone_number",
+            "special_interest_track_one", "special_interest_track_two", "under_18_by_date",
+        ]
+
+
 class TableNumberSerializer(serializers.ModelSerializer):
     
     class Meta:
@@ -739,10 +760,12 @@ class WorkshopSerializer(EventScopedSerializer):
         model = Workshop
         fields = "__all__"
 
+    @extend_schema_field(serializers.ListField(child=serializers.IntegerField()))
     def get_skills(self, obj):
         """Get skill IDs from the workshop's existing relationships."""
         return list(Skill.objects.for_event(obj.event).filter(workshop_skills=obj).values_list('id', flat=True))
 
+    @extend_schema_field(serializers.ListField(child=serializers.IntegerField()))
     def get_hardware(self, obj):
         """Get hardware IDs from the workshop's existing relationships."""
         return list(Hardware.objects.for_event(obj.event).filter(workshop_hardware=obj).values_list('id', flat=True))
