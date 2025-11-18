@@ -299,7 +299,7 @@ class EventRsvpSerializer(EventScopedSerializer):
         fields = [
             "id", "participation_role", "event",
             "application", "shirt_size",
-            "communications_platform_username",
+            "communication_platform_username",
             "dietary_restrictions", "dietary_restrictions_other",
             "dietary_allergies", "dietary_allergies_other",
             "additional_accommodations",
