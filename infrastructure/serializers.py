@@ -286,6 +286,44 @@ class AttendeeRSVPCreateSerializer(EventScopedSerializer):
         ]
 
 
+class EventRsvpSerializer(EventScopedSerializer):
+    dietary_restrictions = fields.MultipleChoiceField(
+        choices=models.DietaryRestrictions.choices,
+    )
+    dietary_allergies = fields.MultipleChoiceField(
+        choices=models.DietaryAllergies.choices
+    )
+
+    class Meta:
+        model = EventRsvp
+        fields = [
+            "id", "participation_role", "event",
+            "application", "shirt_size",
+            "communications_platform_username",
+            "dietary_restrictions", "dietary_restrictions_other",
+            "dietary_allergies", "dietary_allergies_other",
+            "additional_accommodations",
+            "us_visa_support_is_required",  "us_visa_letter_of_invitation_required",
+            "us_visa_support_full_name", "us_visa_support_document_number",
+            "us_visa_support_national_identification_document_type",
+            "us_visa_support_citizenship", "us_visa_support_address",
+            "under_18_by_date", "parental_consent_form_signed",
+            "agree_to_media_release", "agree_to_liability_release",
+            "agree_to_rules_code_of_conduct",
+            "emergency_contact_name", "personal_phone_number",
+            "emergency_contact_phone_number", "emergency_contact_email",
+            "emergency_contact_relationship",
+            "special_interest_track_one",
+            "special_interest_track_two",
+            "app_in_store", "currently_build_for_xr", "currently_use_xr",
+            "non_xr_talents", "ar_vr_ap_in_store",
+            "reality_hack_project_to_product",
+            "participation_class", "sponsor_company",
+            "breakthrough_hacks_interest",
+            "loaner_headset_preference"
+        ]
+
+
 class AttendeeRSVPSerializer(EventScopedSerializer):
     dietary_restrictions = fields.MultipleChoiceField(
         choices=models.DietaryRestrictions.choices,
