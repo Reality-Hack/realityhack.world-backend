@@ -552,6 +552,12 @@ class Application(models.Model):
     mentor_qualified_fields = models.TextField(max_length=1000, blank=False, null=True)
     mentor_mentoring_steps = models.TextField(max_length=1000, blank=False, null=True)
     mentor_previously_mentored = models.BooleanField(null=True)
+    mentor_own_troubleshooting_devices = models.TextField(
+        max_length=1000,
+        blank=True,
+        null=True,
+        help_text="List devices you are willing to bring to assist with troubleshooting"
+    )
     # judges
     judge_judging_steps = models.TextField(max_length=1000, blank=False, null=True)
     judge_invited_by = models.CharField(max_length=100, blank=False, null=True)

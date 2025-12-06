@@ -932,7 +932,7 @@ class EventRsvpViewSet(EventScopedLoggingViewSet):
     queryset = EventRsvp.objects.for_event(get_active_event())
     permission_classes = [permissions.AllowAny]
     serializer_class = EventRsvpSerializer
-    filterset_fields = ['event', 'attendee']
+    filterset_fields = ['event', 'attendee', 'participation_class']
     keycloak_roles = {
         'GET': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
         'DELETE': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
@@ -946,7 +946,20 @@ class EventRsvpViewSet(EventScopedLoggingViewSet):
 
     def list(self, request):
         event = self.get_event()
-        event_rsvps = EventRsvp.objects.for_event(event)
+        event_rsvps = EventRsvp.objects.for_event(event).select_related(
+            'application',
+            'attendee'
+        )
+
+        filters = {}
+        for filterset_field in self.filterset_fields:
+            if request.query_params.get(filterset_field):
+                filterset_value = request.query_params.get(filterset_field)
+                filters[filterset_field] = filterset_value
+
+        if filters:
+            event_rsvps = event_rsvps.filter(**filters)
+
         serializer = EventRsvpSerializer(event_rsvps, many=True)
         return Response(serializer.data)
 
