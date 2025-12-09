@@ -1,7 +1,7 @@
 import pycountry
 from django.contrib.auth.models import Group
 from rest_framework import fields, serializers
-
+from drf_spectacular.utils import extend_schema_field
 from infrastructure import models, event_context
 from infrastructure.models import (INDUSTRIES, MENTOR_HELP_REQUEST_TOPICS,
                                    Application, Attendee, ApplicationQuestion,
@@ -13,7 +13,7 @@ from infrastructure.models import (INDUSTRIES, MENTOR_HELP_REQUEST_TOPICS,
                                    MentorHelpRequest, ParticipationRole,
                                    Project, Skill, SkillProficiency, Table,
                                    Team, Track, UploadedFile, Workshop,
-                                   WorkshopAttendee, Event)
+                                   WorkshopAttendee, Event, EventRsvp)
 
 
 class EventScopedSerializer(serializers.ModelSerializer):
@@ -153,6 +153,7 @@ class ApplicationResponseSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at'
         ]
 
+    @extend_schema_field(serializers.ListField(child=serializers.CharField()))
     def get_selected_choice_keys(self, obj):
         """Get the selected choice keys (for convenience)"""
         return obj.selected_keys_snapshot
@@ -286,15 +287,19 @@ class AttendeeRSVPCreateSerializer(EventScopedSerializer):
 
 
 class AttendeeRSVPSerializer(EventScopedSerializer):
-    dietary_restrictions = fields.MultipleChoiceField(choices=models.DietaryRestrictions.choices)
-    dietary_allergies = fields.MultipleChoiceField(choices=models.DietaryAllergies.choices)
+    dietary_restrictions = fields.MultipleChoiceField(
+        choices=models.DietaryRestrictions.choices,
+    )
+    dietary_allergies = fields.MultipleChoiceField(
+        choices=models.DietaryAllergies.choices,
+    )
 
     class Meta:
         model = Attendee
         fields = [
             "id", "first_name", "last_name", "participation_role",
             "profile_image", "initial_setup", 'guardian_of', 'sponsor_handler',
-            "application", "bio", "email", "shirt_size", "communications_platform_username",
+            "application", "bio", "email", "shirt_size",
             "dietary_restrictions", "dietary_restrictions_other",
             "dietary_allergies", "dietary_allergies_other",
             "additional_accommodations", 'checked_in_at',
@@ -303,16 +308,16 @@ class AttendeeRSVPSerializer(EventScopedSerializer):
             "us_visa_support_national_identification_document_type",
             "us_visa_support_citizenship", "us_visa_support_address",
             "under_18_by_date", "parental_consent_form_signed",
-            "agree_to_media_release", "agree_to_liability_release", "agree_to_rules_code_of_conduct",
+            "agree_to_media_release", "agree_to_liability_release",
             "emergency_contact_name", "personal_phone_number",
             "emergency_contact_phone_number", "emergency_contact_email",
             "emergency_contact_relationship",
             "special_interest_track_one",
             "special_interest_track_two",
-            "breakthrough_hacks_interest",
-            "loaner_headset_preference",
+            "breakthrough_hacks_interest", "agree_to_rules_code_of_conduct",
+            "loaner_headset_preference", "communications_platform_username",
             "app_in_store", "currently_build_for_xr", "currently_use_xr",
-            "non_xr_talents", "ar_vr_ap_in_store", 
+            "non_xr_talents", "ar_vr_ap_in_store",
             "reality_hack_project_to_product",
             "participation_class", "sponsor_company"
         ]
@@ -467,10 +472,72 @@ class MentorHelpRequestHistorySerializer(serializers.ModelSerializer):
 
 class AttendeeNameSerializer(serializers.ModelSerializer):
     profile_image = FileUploadSerializer(read_only=True)
+
     class Meta:
         model = Attendee
-        fields = ['id', 'first_name', 'last_name', 'participation_role', 'profile_image']
-        
+        fields = [
+            'id', 'first_name', 'last_name', 'participation_role',
+            'profile_image', "email"
+        ]
+
+
+class EventRsvpSerializer(EventScopedSerializer):
+    application = ApplicationSerializer(read_only=True)
+    attendee = AttendeeNameSerializer(read_only=True)
+
+    dietary_restrictions = fields.MultipleChoiceField(
+        choices=models.DietaryRestrictions.choices,
+    )
+    dietary_allergies = fields.MultipleChoiceField(
+        choices=models.DietaryAllergies.choices
+    )
+
+    class Meta:
+        model = EventRsvp
+        fields = [
+            "id", "participation_role", "event",
+            "application", "shirt_size",
+            "attendee", "application",
+            "communication_platform_username",
+            "dietary_restrictions", "dietary_restrictions_other",
+            "dietary_allergies", "dietary_allergies_other",
+            "additional_accommodations",
+            "us_visa_support_is_required",  "us_visa_letter_of_invitation_required",
+            "us_visa_support_full_name", "us_visa_support_document_number",
+            "us_visa_support_national_identification_document_type",
+            "us_visa_support_citizenship", "us_visa_support_address",
+            "under_18_by_date", "parental_consent_form_signed",
+            "agree_to_media_release", "agree_to_liability_release",
+            "agree_to_rules_code_of_conduct",
+            "emergency_contact_name", "personal_phone_number",
+            "emergency_contact_phone_number", "emergency_contact_email",
+            "emergency_contact_relationship",
+            "special_interest_track_one",
+            "special_interest_track_two",
+            "app_in_store", "currently_build_for_xr", "currently_use_xr",
+            "non_xr_talents", "ar_vr_ap_in_store",
+            "reality_hack_project_to_product",
+            "participation_class", "sponsor_company",
+            "breakthrough_hacks_interest",
+            "loaner_headset_preference"
+        ]
+
+
+class EventRsvpDetailSerializer(EventRsvpSerializer):
+
+    attendee = AttendeeNameSerializer()
+
+    class Meta:
+        model = EventRsvp
+        fields = EventRsvpSerializer.Meta.fields + [
+            "created_at", "updated_at",
+            "application", "attendee", "shirt_size",
+            "communication_platform_username", "us_visa_support_is_required",
+            "emergency_contact_name", "emergency_contact_phone_number",
+            "special_interest_track_one", "special_interest_track_two", "under_18_by_date",
+        ]
+
+
 class TableNumberSerializer(serializers.ModelSerializer):
     
     class Meta:
@@ -697,10 +764,12 @@ class WorkshopSerializer(EventScopedSerializer):
         model = Workshop
         fields = "__all__"
 
+    @extend_schema_field(serializers.ListField(child=serializers.IntegerField()))
     def get_skills(self, obj):
         """Get skill IDs from the workshop's existing relationships."""
         return list(Skill.objects.for_event(obj.event).filter(workshop_skills=obj).values_list('id', flat=True))
 
+    @extend_schema_field(serializers.ListField(child=serializers.IntegerField()))
     def get_hardware(self, obj):
         """Get hardware IDs from the workshop's existing relationships."""
         return list(Hardware.objects.for_event(obj.event).filter(workshop_hardware=obj).values_list('id', flat=True))

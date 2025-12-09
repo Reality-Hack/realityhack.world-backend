@@ -127,17 +127,19 @@ def get_hacker_rsvp_confirmation_template(first_name, password):
     request_uri = f"{frontend_domain}/signin"
     if password:
         password_message = (f"You can now log in to {request_uri} with"
-                            f" your temporary password: {password}")
+                            f" your temporary password: {password}"
+                            "\n\n"
+                            "You'll be prompted to change your password immediately"
+                            " after. Please change your password to something that you"
+                            " can remember.")
     else:
-        password_message = "You can now log in with your existing account."
+        password_message = (f"You can now log in to {request_uri} with your existing"
+                            " account.")
     return RSVP_EMAIL_SUBJECT, (
         f"Hi there {first_name},"
         "\n\n"
         f"{password_message}"
         "\n\n"
-        "You'll be prompted to change your password immediately after."
-        "\n\n"
-        "Please change your password to something that you can remember. "
         "We'll be using our www.realityhack.world site as the main management hub"
         " for Reality Hack. "
         "During the event, you'll use the site to do a number of things including"
@@ -157,16 +159,18 @@ def get_non_hacker_rsvp_confirmation_template(first_name, password):
     request_uri = f"{frontend_domain}/signin"
     if password:
         password_message = (f"You can now log in to {request_uri} with"
-                            f" your temporary password: {password}")
+                            f" your temporary password: {password}"
+                            "\n\n"
+                            "You'll be prompted to change your password immediately"
+                            " after. Please change"
+                            " your password to something that you can remember.")
     else:
-        password_message = "You can now log in with your existing account."
+        password_message = (f"Welcome back! You can now log into {request_uri} "
+                            "with your existing account.")
     return RSVP_EMAIL_SUBJECT, (
         f"Hi there {first_name},"
         "\n\n"
         f"{password_message}"
-        "\n\n"
-        "You'll be prompted to change your password immediately after. Please change"
-        " your password to something that you can remember."
         " You'll need the QR Code on the site to check-in."
         "\n\n"
         "We're looking forward to welcoming you to Reality Hack!"

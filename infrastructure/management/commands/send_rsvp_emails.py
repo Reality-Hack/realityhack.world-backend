@@ -5,7 +5,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from infrastructure import email
-from infrastructure.models import Application
+from infrastructure.models import Application, ParticipationClass
 
 
 class Command(BaseCommand):  # pragma: no cover
@@ -17,12 +17,18 @@ class Command(BaseCommand):  # pragma: no cover
 
     def send_email(self, application):
         subject, body = None, None
-        if application.participation_class == Application.ParticipationClass.PARTICIPANT:
-            subject, body = email.get_hacker_rsvp_request_template(application.first_name, application.id)
-        elif application.participation_class == Application.ParticipationClass.MENTOR:
-            subject, body = email.get_mentor_rsvp_request_template(application.first_name, application.id)
-        elif application.participation_class == Application.ParticipationClass.JUDGE:
-            subject, body = email.get_judge_rsvp_request_template(application.first_name, application.id)
+        if application.participation_class == ParticipationClass.PARTICIPANT:
+            subject, body = email.get_hacker_rsvp_request_template(
+                application.first_name, application.id
+            )
+        elif application.participation_class == ParticipationClass.MENTOR:
+            subject, body = email.get_mentor_rsvp_request_template(
+                application.first_name, application.id
+            )
+        elif application.participation_class == ParticipationClass.JUDGE:
+            subject, body = email.get_judge_rsvp_request_template(
+                application.first_name, application.id
+            )
         if subject and body:
             send_mail(
                 subject,
@@ -41,15 +47,20 @@ class Command(BaseCommand):  # pragma: no cover
         accepted_applications_with_unsent_rsvp_emails = []
         try:
             if "force_email" in kwargs and kwargs["force_email"] is not None:
-                for email in kwargs["force_email"]:
-                    found_results = Application.objects.all().filter(email=email)
+                for attendee_email in kwargs["force_email"]:
+                    found_results = Application.objects.all().filter(
+                        email=attendee_email
+                    )
                     if found_results:
                         accepted_applications_with_unsent_rsvp_emails.append(
                            found_results[0]
                         )
             if "email" in kwargs and kwargs["email"] is not None:
-                for email in kwargs["email"]:
-                    found_results = Application.objects.all().filter(email=email, rsvp_email_sent_at=None)
+                for attendee_email in kwargs["email"]:
+                    found_results = Application.objects.all().filter(
+                        email=attendee_email,
+                        rsvp_email_sent_at=None
+                    )
                     if found_results:
                         accepted_applications_with_unsent_rsvp_emails.append(
                            found_results[0]

@@ -1,6 +1,6 @@
 from django.contrib.auth.models import Group
 from django.core.cache import cache
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import Http404
 from django.shortcuts import get_object_or_404, render
 from django.utils.decorators import method_decorator
@@ -10,10 +10,8 @@ from django_keycloak_auth.decorators import keycloak_roles
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from drf_spectacular.utils import extend_schema
-from infrastructure.keycloak import KeycloakClient, KeycloakRoles
-from infrastructure import email
-from django.core.mail import send_mail
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
+from infrastructure.keycloak import KeycloakRoles
 from infrastructure.mixins import LoggingMixin, EventScopedLoggingViewSet
 from infrastructure.event_context import get_active_event
 from infrastructure.models import (Application,
@@ -23,7 +21,7 @@ from infrastructure.models import (Application,
                                    LightHouse, Location, MentorHelpRequest,
                                    Project, Skill, SkillProficiency, Table,
                                    Team, UploadedFile, Workshop,
-                                   WorkshopAttendee,
+                                   WorkshopAttendee, EventRsvp,
                                    ApplicationQuestion, ApplicationResponse, Event)
 from infrastructure.serializers import (ApplicationSerializer,
                                         ApplicationDetailSerializer,
@@ -52,8 +50,8 @@ from infrastructure.serializers import (ApplicationSerializer,
                                         HardwareRequestListSerializer,
                                         HardwareRequestSerializer,
                                         HardwareSerializer,
-                                        LightHouseSerializer,
-                                        LocationSerializer,
+                                        LightHouseSerializer, EventRsvpDetailSerializer,
+                                        LocationSerializer, EventRsvpSerializer,
                                         MentorHelpRequestHistorySerializer,
                                         MentorHelpRequestReadSerializer,
                                         MentorHelpRequestSerializer,
@@ -75,6 +73,14 @@ from infrastructure.filters import (
     HardwareRequestFilter,
     WorkshopFilter,
     WorkshopAttendeeFilter,
+)
+from infrastructure.utils.rsvp_helpers import (
+    get_sponsor_handler,
+    get_guardian_of,
+    get_application,
+    create_event_rsvp_from_request,
+    get_or_create_attendee_from_request,
+    handle_keycloak_account_creation,
 )
 
 
@@ -106,13 +112,19 @@ def prepare_attendee_for_detail(attendee, event=None):
 @cache_page(60 * 3)
 @vary_on_headers("Authorization")
 @keycloak_roles([KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.ATTENDEE, KeycloakRoles.MENTOR])
-@api_view(['GET', 'PATCH'])
 @extend_schema(
-    methods=['GET', 'PATCH'],
+    methods=['GET'],
     request=None,
     responses={200: AttendeeDetailSerializer},
     description="Get detailed information about an authenticated user."
 )
+@extend_schema(
+    methods=['PATCH'],
+    request=AttendeePatchSerializer,
+    responses={200: AttendeePatchSerializer},
+    description="Update the authenticated user's information."
+)
+@api_view(['GET', 'PATCH'])
 def me(request):
     """
     API endpoint for getting detailed information about an authenticated user.
@@ -206,8 +218,8 @@ class AttendeeRSVPViewSet(LoggingMixin, viewsets.ModelViewSet):
     serializer_class = AttendeeRSVPSerializer
     permission_classes = [permissions.AllowAny]
     filterset_fields = [
-        'first_name', 'last_name', 'communications_platform_username', 'email', 'checked_in_at',
-        'participation_class', 'participation_role'
+        'first_name', 'last_name', 'communications_platform_username', 'email',
+        'checked_in_at', 'participation_class', 'participation_role'
     ]
     keycloak_roles = {
         'GET': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
@@ -222,76 +234,48 @@ class AttendeeRSVPViewSet(LoggingMixin, viewsets.ModelViewSet):
 
     def create(self, request):
         application = None
-        sponsor_handler = None
-        guardian_of = []
+        sponsor_handler = get_sponsor_handler(request.data.get("sponsor_handler"))
+        guardian_of = get_guardian_of(request.data.get("guardian_of"))
 
-        try:
-            if "sponsor_handler" in request.data:
-                sponsor_handler = Attendee.objects.get(pk=request.data["sponsor_handler"])
-                del request.data["sponsor_handler"]
-        except Attendee.DoesNotExist:  # pragma: nocover
-            pass
-        try:
-            if "guardian_of" in request.data:
-                guardian_of_attendees = list(Attendee.objects.filter(id__in=request.data["guardian_of"]))
-                guardian_of = guardian_of_attendees
-                del request.data["guardian_of"]
-        except Attendee.DoesNotExist:  # pragma: nocover
-            pass
-        if "application" in request.data:
-            try:
-                application = Application.objects.for_event(
-                    get_active_event()
-                ).get(pk=request.data.get("application"))
-            except Application.DoesNotExist:
+        if application_id := request.data.get("application"):
+            application = get_application(application_id)
+            if not application:
                 return Response(
-                    f"No application matches the query: \"{request.data.get('application')}\"",
+                    f"No application ID matches the query: \"{application_id}\"",
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            request.data["first_name"] = application.first_name
-            request.data["middle_name"] = application.middle_name
-            request.data["last_name"] = application.last_name
-            request.data["participation_class"] = application.participation_class
-            request.data["email"] = application.email.lower()
-            del request.data["application"]
-            request.data["application"] = str(application.id)
-        else:
-            if request.data.get("email") is not None:
-                request.data["email"] = request.data.get("email").lower()
 
-        serializer = AttendeeRSVPCreateSerializer(data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer_data = serializer.data
-            attendee = None
-            if serializer_data.get("application"):
-                del serializer_data["application"]
-                attendee = Attendee(application=application, **serializer_data)
-                attendee.participation_role = application.participation_role
-            else:
-                attendee = Attendee(**serializer_data)
-            attendee.username = attendee.email
-            if request.data.get("authentication_id"):
-                attendee.authentication_id = request.data["authentication_id"]
-            attendee.sponsor_handler = sponsor_handler
-            attendee.save()
-            keycloak_client = KeycloakClient()
-            try:
-                keycloak_client.handle_user_rsvp(attendee)
-            except Exception as e:
-                print(f"Error handling user RSVP: {e}")
-                send_mail(
-                    email.get_keycloak_account_error_template(attendee.email, e),
-                    "no-reply@realityhackinc.org",
-                    [attendee.email, "apply@realityhackinc.org"],
-                    fail_silently=False,
-                )
-            if guardian_of:
-                attendee.guardian_of.set([guardian_of_attendee.id for guardian_of_attendee in guardian_of])
-            serializer = AttendeeRSVPSerializer(attendee)
-            return Response(serializer.data, status=201)
-        else:
-            return Response(serializer.errors,
-                            status=status.HTTP_400_BAD_REQUEST)
+        try:
+            attendee = get_or_create_attendee_from_request(request, application)
+        except ValidationError as e:
+            return Response(
+                e.message_dict,
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except ValueError as e:
+            return Response(
+                str(e),
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            event_rsvp = create_event_rsvp_from_request(request, attendee, application)
+        except ValidationError as e:
+            return Response(
+                e.message_dict,
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        attendee.sponsor_handler = sponsor_handler
+        if guardian_of:
+            attendee.guardian_of.set(
+                [guardian_of_attendee.id for guardian_of_attendee in guardian_of]
+            )
+
+        event_rsvp.save()
+        handle_keycloak_account_creation(attendee)
+        serializer = AttendeeRSVPSerializer(attendee)
+        return Response(serializer.data, status=201)
 
 
 class SkillViewSet(EventScopedLoggingViewSet):
@@ -537,6 +521,17 @@ class DiscordViewSet(LoggingMixin, viewsets.ViewSet):
         serializer = DiscordUsernameRoleSerializer(queryset, many=True)
         return Response(serializer.data)
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name='attendee__communications_platform_username',
+                description='Discord username of the attendee',
+                required=True,
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.PATH,
+            )
+        ]
+    )
     def destroy(self, request, attendee__communications_platform_username=None):
         event = get_active_event()
         attendee = get_object_or_404(Attendee, communications_platform_username=attendee__communications_platform_username)
@@ -928,6 +923,51 @@ def activate_event(request, event_id):
     event.activate()
     serializer = EventSerializer(event)
     return Response(serializer.data)
+
+
+class EventRsvpViewSet(EventScopedLoggingViewSet):
+    """
+    API endpoint that allows event RSVPs to be viewed or edited.
+    """
+    queryset = EventRsvp.objects.for_event(get_active_event())
+    permission_classes = [permissions.AllowAny]
+    serializer_class = EventRsvpSerializer
+    filterset_fields = ['event', 'attendee', 'participation_class']
+    keycloak_roles = {
+        'GET': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        'DELETE': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        'PATCH': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+    }
+
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return EventRsvpDetailSerializer
+        return EventRsvpSerializer
+
+    def list(self, request):
+        event = self.get_event()
+        event_rsvps = EventRsvp.objects.for_event(event).select_related(
+            'application',
+            'attendee'
+        )
+
+        filters = {}
+        for filterset_field in self.filterset_fields:
+            if request.query_params.get(filterset_field):
+                filterset_value = request.query_params.get(filterset_field)
+                filters[filterset_field] = filterset_value
+
+        if filters:
+            event_rsvps = event_rsvps.filter(**filters)
+
+        serializer = EventRsvpSerializer(event_rsvps, many=True)
+        return Response(serializer.data)
+
+    def retrieve(self, request, pk=None):
+        event = self.get_event()
+        event_rsvp = get_object_or_404(EventRsvp.objects.for_event(event), pk=pk)
+        serializer = EventRsvpSerializer(event_rsvp)
+        return Response(serializer.data)
 
 
 class UploadedFileViewSet(LoggingMixin, viewsets.ModelViewSet):
