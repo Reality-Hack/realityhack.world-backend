@@ -281,7 +281,7 @@ class AttendeeRSVPCreateSerializer(EventScopedSerializer):
             "non_xr_talents", "ar_vr_ap_in_store",
             "reality_hack_project_to_product",
             "participation_class", "sponsor_company",
-            "breakthrough_hacks_interest",
+            "breakthrough_hacks_interest", "device_preference_ranked",
             "loaner_headset_preference"
         ]
 
@@ -313,7 +313,7 @@ class AttendeeRSVPSerializer(EventScopedSerializer):
             "emergency_contact_phone_number", "emergency_contact_email",
             "emergency_contact_relationship",
             "special_interest_track_one",
-            "special_interest_track_two",
+            "special_interest_track_two", "device_preference_ranked",
             "breakthrough_hacks_interest", "agree_to_rules_code_of_conduct",
             "loaner_headset_preference", "communications_platform_username",
             "app_in_store", "currently_build_for_xr", "currently_use_xr",
@@ -519,7 +519,7 @@ class EventRsvpSerializer(EventScopedSerializer):
             "reality_hack_project_to_product",
             "participation_class", "sponsor_company",
             "breakthrough_hacks_interest",
-            "loaner_headset_preference"
+            "loaner_headset_preference", "device_preference_ranked"
         ]
 
 
