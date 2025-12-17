@@ -1121,6 +1121,12 @@ class EventRsvp(models.Model):
         choices=LoanerHeadsetPreference.choices,
         null=True
     )
+    device_preference_ranked = models.CharField(
+        max_length=1000,
+        null=True,
+        blank=True,
+        help_text="List other devices you are interested in ranked by preference."
+    )
     app_in_store = models.CharField(
         max_length=250, null=True, blank=False,
         help_text="AR or VR apps in any store? And if so, which ones?"
