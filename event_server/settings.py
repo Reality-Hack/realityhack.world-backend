@@ -29,20 +29,17 @@ DEPLOYED = env('DEPLOYED', default=False)
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
-    env("FRONTEND_DOMAIN", default="http://127.0.0.1:3000"), 
-    env("KEYCLOAK_DOMAIN", default="http://127.0.0.1:3000")
+    env("FRONTEND_DOMAIN", default="http://127.0.0.1:3000"),
+    env("KEYCLOAK_DOMAIN", default="http://127.0.0.1:8080")
 ]
 
 CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:3000",
-    env("BACKEND_DOMAIN", default="http://127.0.0.1:8000")
+    env("FRONTEND_DOMAIN", default="http://127.0.0.1:3000"),
+    env("KEYCLOAK_DOMAIN", default="http://127.0.0.1:8080")
 ]
 
 CORS_ALLOW_CREDENTIALS = True
 
-CORS_ALLOW_ALL_ORIGINS = False
-if DEBUG:
-    CORS_ALLOW_ALL_ORIGINS = True
 
 CORS_ALLOW_METHODS = [
     'DELETE',
