@@ -805,17 +805,24 @@ class ApplicationViewSet(EventScopedLoggingViewSet):
         'PATCH': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
     }
 
+    def get_queryset(self):
+        """Optimize queryset with prefetch for actions that need question responses"""
+        queryset = super().get_queryset()
+
+        if self.action in ['list', 'retrieve']:
+            queryset = queryset.prefetch_related('question_responses__selected_choices')
+
+        return queryset
+
     def get_serializer_class(self):
-        if self.action == 'retrieve':
+        if self.action in ['retrieve', 'list']:
             return ApplicationDetailSerializer
         return ApplicationSerializer
 
     def retrieve(self, request, pk=None):
         event = self.get_event()
         application = get_object_or_404(
-            Application.objects.for_event(event).prefetch_related(
-                'question_responses__selected_choices'
-            ),
+            Application.objects.for_event(event),
             pk=pk
         )
         serializer = ApplicationDetailSerializer(application)
