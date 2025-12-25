@@ -2,14 +2,15 @@ from datetime import datetime
 
 from django.core.mail import send_mail
 from django.core.management.base import BaseCommand
-from django.db import transaction
 
 from infrastructure import email
 from infrastructure.models import Application, ParticipationClass
+import infrastructure.event_context as event_context
 
 
 class Command(BaseCommand):  # pragma: no cover
     help = "Sends RSVP emails to those that have not received them"
+    event = event_context.get_active_event()
 
     def add_arguments(self, parser):
         parser.add_argument("--email", nargs=1, type=str, required=False)
@@ -39,9 +40,13 @@ class Command(BaseCommand):  # pragma: no cover
             )
             application.rsvp_email_sent_at = datetime.now()
             application.save()
-            print(f"Email sent for str({application})")
+            print(f"Email sent for {application.first_name} {application.last_name}"
+                  f" Participation Class: {application.participation_class}"
+                  f" Email: ({application.email})")
         else:
-            print(f"Error with str({application})")
+            print(f"Error with {application.first_name} {application.last_name}"
+                  f" Participation Class: {application.participation_class}"
+                  f" Email: {application.email}")
 
     def handle(self, *args, **kwargs):  # noqa: C901
         accepted_applications_with_unsent_rsvp_emails = []
@@ -68,8 +73,10 @@ class Command(BaseCommand):  # pragma: no cover
         except (KeyError, IndexError):
             pass
         if not kwargs.get("force_email") and not kwargs.get("email"):
-            accepted_applications_with_unsent_rsvp_emails = Application.objects.all().filter(
+            accepted_applications_with_unsent_rsvps = Application.objects.for_event(
+                self.event
+            ).filter(
                 status=Application.Status.ACCEPTED_IN_PERSON, rsvp_email_sent_at=None
             )
-        for application in accepted_applications_with_unsent_rsvp_emails:
+        for application in accepted_applications_with_unsent_rsvps:
             self.send_email(application)

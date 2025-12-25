@@ -4,7 +4,7 @@ import uuid
 
 from django.core.management.base import BaseCommand
 
-from infrastructure.models import Application, Attendee, EventRsvp
+from infrastructure.models import Application, Attendee, EventRsvp, ParticipationClass
 from infrastructure.factories import ApplicationFactory, UploadedFileFactory
 import infrastructure.event_context as event_context
 
@@ -64,6 +64,8 @@ class Command(BaseCommand):
                     event=event,
                     resume=resume,
                     email=existing_attendee.email,
+                    participation_class=ParticipationClass.PARTICIPANT,
+                    status=Application.Status.ACCEPTED_IN_PERSON
                 )
                 application.save()
                 print(f"Returning participant: {existing_attendee.email}")
@@ -76,7 +78,9 @@ class Command(BaseCommand):
             application = ApplicationFactory(
                 event=event,
                 resume=resume,
-                email=application_email
+                email=application_email,
+                status=Application.Status.ACCEPTED_IN_PERSON,
+                participation_class=ParticipationClass.PARTICIPANT,
             )
             application.save()
             print(f"New participant: {application_email}")

@@ -348,10 +348,10 @@ class Application(models.Model):
 
             # send email
             skip_email = (
-                "test" in sys.argv or
+                "create_test_applications" in sys.argv or
                 "setup_test_data" in sys.argv or
                 "setup_fake_users" in sys.argv or
-                "create_test_applications" in sys.argv
+                "test" in sys.argv
             )
             if not skip_email:
                 subject, body = None, None
