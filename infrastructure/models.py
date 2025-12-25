@@ -348,10 +348,10 @@ class Application(models.Model):
 
             # send email
             skip_email = (
-                "test" in sys.argv or
+                "create_test_applications" in sys.argv or
                 "setup_test_data" in sys.argv or
                 "setup_fake_users" in sys.argv or
-                "create_test_applications" in sys.argv
+                "test" in sys.argv
             )
             if not skip_email:
                 subject, body = None, None
@@ -830,8 +830,19 @@ class DestinyHardware(models.TextChoices):
 
 
 class LoanerHeadsetPreference(models.TextChoices):
+    # 1234567890123456789012
     META = 'META', _('Meta Quest 3')
+    RB_META_AI = 'RB_META_AI', _('Ray-Ban Meta AI lasses')
+    ARDUINO_UNO = 'ARDUINO_UNO', _('Arduino Uno Kits')
+    SAMSUNG_GALAXY_XR = 'SAMSUNG_GALAXY_XR', _('Samsung Galaxy XR')
+    RAYNEO = 'RAYNEO', _('RayNeo')
+    RAVEN_AR = 'RAVEN_AR', _('Raven AR')
     SNAP = 'SNAP', _('Snap Spectacles')
+    APPLE_VISION_PRO = 'APPLE_VISION_PRO', _('Apple Vision Pro')
+    BLACKMAGIC = 'BLACKMAGIC', _('Blackmagic URSA Cine Immersive Camera')
+    XREAL = 'XREAL', _('XREAL')
+    PICO = 'PICO', _('Pico')
+    OPENBCI = 'OPENBCI', _('OpenBCI Sensors')
     BYOD = 'BYOD', _('I am bringing my own XR device to work with.')
     HWHACK = 'HWHACK', _("I've chosen the Hardware Hack, so I will probably not need a headset.")
     TBD = 'TBD', _("I'm not sure yet")
@@ -936,11 +947,19 @@ class Attendee(AbstractUser):
         choices=[('Y', 'Yes'),('N', 'No')],
         null=True
     )
-    breakthrough_hacks_interest = models.TextField(max_length=2000, null=True, blank=False)
+    breakthrough_hacks_interest = models.TextField(
+        max_length=2000, null=True, blank=False
+    )
     loaner_headset_preference = models.CharField(
-        max_length=6,
+        max_length=24,
         choices=LoanerHeadsetPreference.choices,
         null=True
+    )
+    device_preference_ranked = models.CharField(
+        max_length=1000,
+        null=True,
+        blank=True,
+        help_text="List other devices you are interested in ranked by preference."
     )
     app_in_store = models.CharField(
         max_length=250, null=True, blank=False,
@@ -1098,9 +1117,15 @@ class EventRsvp(models.Model):
         max_length=2000, null=True, blank=False
     )
     loaner_headset_preference = models.CharField(
-        max_length=6,
+        max_length=24,
         choices=LoanerHeadsetPreference.choices,
         null=True
+    )
+    device_preference_ranked = models.CharField(
+        max_length=1000,
+        null=True,
+        blank=True,
+        help_text="List other devices you are interested in ranked by preference."
     )
     app_in_store = models.CharField(
         max_length=250, null=True, blank=False,

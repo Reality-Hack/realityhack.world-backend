@@ -117,7 +117,6 @@ def create_event_rsvp_from_request(
     if rsvp_create_serializer.is_valid():
         rsvp_data = rsvp_create_serializer.data
         rsvp_data.pop("event")
-        rsvp_data.pop("application")
         attendee.save()
         event_rsvp = EventRsvp(
             attendee=attendee,

@@ -18,6 +18,10 @@ services:
     image: quay.io/keycloak/keycloak:26.0.1
     environment:
       DB_ADDR: postgres
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/django
+      KC_DB_USERNAME: django
+      KC_DB_PASSWORD: 123456
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: 123456
     volumes:
@@ -27,9 +31,7 @@ services:
       - 9000:9000
     entrypoint: >
       sh -c "
-        echo 'First run - importing realm...';
-        /opt/keycloak/bin/kc.sh import --file /opt/keycloak/data/import/realm-export.json;
-        exec /opt/keycloak/bin/kc.sh start-dev --health-enabled=true
+        exec /opt/keycloak/bin/kc.sh start-dev --health-enabled=true --import-realm
       "
   redis:
     image: redis:6.2-alpine

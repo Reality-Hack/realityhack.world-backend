@@ -1,3 +1,4 @@
+# TODO: add event rsvps
 import random
 import uuid
 from datetime import datetime, timedelta
