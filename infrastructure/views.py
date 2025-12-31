@@ -111,7 +111,13 @@ def prepare_attendee_for_detail(attendee, event=None):
 
 @cache_page(60 * 3)
 @vary_on_headers("Authorization")
-@keycloak_roles([KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.ATTENDEE, KeycloakRoles.MENTOR])
+@keycloak_roles([
+    KeycloakRoles.ORGANIZER,
+    KeycloakRoles.ADMIN,
+    KeycloakRoles.ATTENDEE,
+    KeycloakRoles.MENTOR,
+    KeycloakRoles.JUDGE,
+])
 @extend_schema(
     methods=['GET'],
     request=None,
