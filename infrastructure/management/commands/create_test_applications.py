@@ -10,12 +10,6 @@ import infrastructure.event_context as event_context
 
 logger = logging.getLogger(__name__)
 
-
-returning_participant = True
-new_participants = 1
-mentors = 1
-judges = 1
-
 emails_to_test = [
     # "attendee@test.com",
 ]
@@ -39,7 +33,6 @@ class Command(BaseCommand):
             if not (existing_attendee := Attendee.objects.filter(email=email).first()):
                 raise Exception(f"Attendee not found for email: {email}")
 
-        # create new and returning application objects
         for email in emails_to_test:
             print(f"Processing email: {email}")
             existing_attendee = Attendee.objects.filter(email=email).first()
@@ -84,4 +77,32 @@ class Command(BaseCommand):
             )
             application.save()
             print(f"New participant: {application_email}")
+            print(f"RSVP request URI: {get_rsvp_request_uri(application.id)}")
+
+            # new judge
+            resume = UploadedFileFactory()
+            application_email = f"{split_email[0]}+{uuid.uuid4()}@{split_email[1]}"
+            application = ApplicationFactory(
+                event=event,
+                resume=resume,
+                email=application_email,
+                status=Application.Status.ACCEPTED_IN_PERSON,
+                participation_class=ParticipationClass.JUDGE,
+            )
+            application.save()
+            print(f"New judge: {application_email}")
+            print(f"RSVP request URI: {get_rsvp_request_uri(application.id)}")
+
+            # new mentor
+            resume = UploadedFileFactory()
+            application_email = f"{split_email[0]}+{uuid.uuid4()}@{split_email[1]}"
+            application = ApplicationFactory(
+                event=event,
+                resume=resume,
+                email=application_email,
+                status=Application.Status.ACCEPTED_IN_PERSON,
+                participation_class=ParticipationClass.MENTOR,
+            )
+            application.save()
+            print(f"New mentor: {application_email}")
             print(f"RSVP request URI: {get_rsvp_request_uri(application.id)}")

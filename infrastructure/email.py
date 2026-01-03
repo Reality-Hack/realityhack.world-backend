@@ -50,6 +50,7 @@ def get_judge_application_confirmation_template(first_name, response_email_addre
         "Reality Hack Organizing Team"
     )
 
+
 def get_hacker_rsvp_request_template(first_name, application_id):
     frontend_domain = os.environ["FRONTEND_DOMAIN"]
     request_uri = f"{frontend_domain}/rsvp/{application_id}"
@@ -66,7 +67,7 @@ def get_hacker_rsvp_request_template(first_name, application_id):
         "\n\n"
         "This year, in addition to the Hardware Hack, we have a couple special tracks you can indicate your interest in on the RSVP form. Check out the tracks here: https://www.realityhackatmit.com/2026-special-tracks"
         "\n\n"
-        "We're looking forward to welcoming you in January. Until then, make sure you have joined our Discord here: https://discord.gg/XfDXqwTPfv so that you stay up-to-date with us. During the event, we will be centralizing all communications on Discord. Please submit your RSVP by December 30, 2025 to secure your spot or we will release your spot to someone on our waitlist."
+        "We're looking forward to welcoming you in January. Until then, make sure you have joined our Discord here: https://discord.gg/XfDXqwTPfv so that you stay up-to-date with us. During the event, we will be centralizing all communications on Discord. Please submit your RSVP by January 11, 2026 to secure your spot or we will release your spot to someone on our waitlist."
         "\n\n"
         "Let us know on Discord if you're having issues with the RSVP or email us back at tech@realityhackinc.org!"
         "\n\n"
