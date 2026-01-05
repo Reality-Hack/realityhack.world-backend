@@ -117,6 +117,10 @@ def prepare_attendee_for_detail(attendee, event=None):
     KeycloakRoles.ATTENDEE,
     KeycloakRoles.MENTOR,
     KeycloakRoles.JUDGE,
+    KeycloakRoles.VOLUNTEER,
+    KeycloakRoles.SPONSOR,
+    KeycloakRoles.GUARDIAN,
+    KeycloakRoles.MEDIA,
 ])
 @extend_schema(
     methods=['GET'],

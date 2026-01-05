@@ -37,6 +37,8 @@ class KeycloakRoles(object):
     JUDGE = f"judge:{EVENT_YEAR}"
     VOLUNTEER = f"volunteer:{EVENT_YEAR}"
     SPONSOR = f"sponsor:{EVENT_YEAR}"
+    GUARDIAN = f"guardian:{EVENT_YEAR}"
+    MEDIA = f"media:{EVENT_YEAR}"
 
 
 class KeycloakClient:
@@ -83,7 +85,7 @@ class KeycloakClient:
             url=f"{self.base_url}/clients?clientId={CLIENT_ID}",
             headers=self.authentication_headers,
         )
-        if not client_uuid.ok:
+        if not client_uuid.ok or not len(client_uuid.json()):
             status_code = client_uuid.status_code
             text = client_uuid.text
             raise Exception(
