@@ -140,8 +140,8 @@ class KeycloakClient:
             "username": username,
             "enabled": True,
             "email": attendee.email,
-            "firstName": attendee.first_name,
-            "lastName": attendee.last_name,
+            "firstName": first_name,
+            "lastName": last_name,
             "credentials": [
                 {
                     "type": "password",
@@ -236,8 +236,10 @@ class KeycloakClient:
             return None
         elif existing_users := self.find_user_by_email(attendee.email):
             if len(existing_users) > 1:
+                subject, body = email.get_multiple_users_found_template(attendee.email),
                 send_mail(
-                    email.get_multiple_users_found_template(attendee.email),
+                    subject,
+                    body,
                     "no-reply@realityhackinc.org",
                     [attendee.email, "apply@realityhackinc.org"],
                     fail_silently=False,

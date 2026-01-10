@@ -172,12 +172,15 @@ def handle_keycloak_account_creation(attendee: Attendee) -> None:
     keycloak_client = KeycloakClient()
     try:
         keycloak_client.handle_user_rsvp(attendee)
-    except Exception as e:
-        logger.error(f"Error handling user RSVP: {e}")
+    except Exception as error:
+        logger.error(f"Error handling user RSVP: {error}")
+        subject, body = email.get_keycloak_account_error_template(
+            attendee.email, error
+        )
         send_mail(
-            "Error creating keycloak account",
-            email.get_keycloak_account_error_template(attendee.email, e),
+            subject,
+            body,
             "no-reply@realityhackinc.org",
-            [attendee.email, "apply@realityhackinc.org"],
+            [attendee.email, "tech@realityhackinc.org"],
             fail_silently=False,
         )
