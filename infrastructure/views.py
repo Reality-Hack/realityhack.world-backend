@@ -85,13 +85,20 @@ from infrastructure.utils.rsvp_helpers import (
 
 
 def attendee_from_userinfo(request):  # pragma: nocover
+    authentication_id = request.userinfo.get("sub")
     try:
-        return Attendee.objects.get(authentication_id=request.userinfo.get("sub"))
+        return Attendee.objects.get(authentication_id=authentication_id)
     except Attendee.DoesNotExist:
-        raise Http404(f"No attendee matches the authentication_id: \"{request.userinfo.get('sub')}\"")
+        raise Http404(
+            f"No attendee matches the authentication_id: \"{authentication_id}\""
+        )
 
 
-def check_user(request, pk, special_roles={KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER}):
+def check_user(
+    request,
+    pk,
+    special_roles={KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER}
+):
     if any(special_role in request.roles for special_role in special_roles):
         return "admin"
     if str(attendee_from_userinfo(request).id) != str(pk):
@@ -102,10 +109,19 @@ def check_user(request, pk, special_roles={KeycloakRoles.ADMIN, KeycloakRoles.OR
 def prepare_attendee_for_detail(attendee, event=None):
     if event is None:
         event = get_active_event()
-    attendee.skill_proficiencies = SkillProficiency.objects.for_event(event).filter(attendee=attendee)
-    attendee.team = Team.objects.for_event(event).filter(attendees=attendee).first()
-    attendee.hardware_devices = HardwareDevice.objects.for_event(event).filter(checked_out_to=attendee.id)
-    attendee.workshops = WorkshopAttendee.objects.for_event(event).filter(attendee=attendee.id)
+    # limit queries to speed up endpoint response time
+    attendee.skill_proficiencies = []
+    # SkillProficiency.objects.for_event(event).filter(attendee=attendee)
+    attendee.team = Team.objects.for_event(event).filter(
+        attendees=attendee
+    ).first()
+    attendee.event_rsvp = EventRsvp.objects.for_event(event).filter(
+        attendee=attendee
+    ).first()
+    attendee.hardware_devices = []
+    # HardwareDevice.objects.for_event(event).filter(checked_out_to=attendee.id)
+    attendee.workshops = []
+    # WorkshopAttendee.objects.for_event(event).filter(attendee=attendee.id)
     return attendee
 
 

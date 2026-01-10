@@ -5,11 +5,12 @@ from django.core.management.base import BaseCommand
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
-from infrastructure.models import Table, Location
+from infrastructure.models import Table, Location, Event
+
 
 class Command(BaseCommand):
     help = "Create tables from a CSV file"
-
+    event = Event.get_active()
     # CSV column headers
     BUILDING_COL = 'Building'
     ROOM_COL = 'Room'
@@ -28,7 +29,7 @@ class Command(BaseCommand):
         """Parse a table range string (e.g., '1-48') into a tuple of (start, end) numbers."""
         if not range_str or range_str.upper() == 'N/A':
             return None
-        
+
         try:
             start, end = map(int, range_str.split('-'))
             return (start, end)
@@ -65,7 +66,7 @@ class Command(BaseCommand):
         try:
             normalized_building = self.normalize_building(building)
             normalized_room = self.normalize_room(room)
-            location = Location(building=normalized_building, room=normalized_room)
+            location = Location(building=normalized_building, room=normalized_room, event=self.event)
             location.full_clean()
             return None
         except ValidationError as e:
@@ -74,7 +75,7 @@ class Command(BaseCommand):
     def validate_table(self, number: int, location: Location) -> Optional[str]:
         """Validate that a Table object can be created with the given data."""
         try:
-            table = Table(number=number, location=location)
+            table = Table(number=number, location=location, event=self.event)
             # Skip foreign key validation during the dry run
             table.full_clean(exclude=['location'])
             return None
@@ -83,6 +84,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         csv_path = options['csv_path']
+        print(csv_path)
         validate_only = options['validate_only']
 
         with open(csv_path, 'r') as csvfile:
@@ -90,15 +92,15 @@ class Command(BaseCommand):
             rows_to_process = []
             total_tables = 0
             validation_errors = []
-            
+
             # First pass: validate all data
             for row_num, row in enumerate(reader, start=2):
                 table_range = self.parse_table_range(row[self.TABLE_RANGE_COL])
-                
+
                 if not table_range:
                     self.stdout.write(f"Skipping row {row_num}: No valid table range found")
                     continue
-                
+
                 if not row[self.BUILDING_COL] or not row[self.ROOM_COL]:
                     self.stdout.write(
                         self.style.WARNING(
@@ -109,7 +111,7 @@ class Command(BaseCommand):
 
                 # Validate Location
                 location_error = self.validate_location(
-                    row[self.BUILDING_COL], 
+                    row[self.BUILDING_COL],
                     row[self.ROOM_COL]
                 )
                 if location_error:
@@ -132,14 +134,14 @@ class Command(BaseCommand):
 
                 if table_errors:
                     validation_errors.append(
-                        f"Row {row_num}: Table validation errors:\n" + 
+                        f"Row {row_num}: Table validation errors:\n" +
                         "\n".join(f"  - {e}" for e in table_errors)
                     )
                     continue
 
                 num_tables = end_num - start_num + 1
                 total_tables += num_tables
-                
+
                 rows_to_process.append({
                     'building': row[self.BUILDING_COL],
                     'room': row[self.ROOM_COL],
@@ -175,16 +177,18 @@ class Command(BaseCommand):
             # Second pass: create database entries
             with transaction.atomic():
                 for row in rows_to_process:
-                    location, _ = Location.objects.get_or_create(
+                    location, _ = Location.objects.for_event(self.event).get_or_create(
                         building=self.normalize_building(row['building']),
-                        room=self.normalize_room(row['room'])
+                        room=self.normalize_room(row['room']),
+                        event=self.event
                     )
-                    
+
                     start_num, end_num = row['table_range']
                     for table_num in range(start_num, end_num + 1):
                         Table.objects.create(
                             number=table_num,
-                            location=location
+                            location=location,
+                            event=self.event
                         )
 
             self.stdout.write(

@@ -33,7 +33,9 @@ class Command(BaseCommand):  # pragma: no cover
         )
 
     def create_attendee(self, **options):
-
+        if existing_attendee := Attendee.objects.filter(email=options['email']).first():
+            print(f"Attendee already exists: {existing_attendee.email}")
+            return existing_attendee
         attendee = Attendee.objects.create(
             username=options['email'],  # Using email as username
             email=options['email'],

@@ -73,10 +73,11 @@ class Command(BaseCommand):  # pragma: no cover
         except (KeyError, IndexError):
             pass
         if not kwargs.get("force_email") and not kwargs.get("email"):
-            accepted_applications_with_unsent_rsvps = Application.objects.for_event(
+            queryset = Application.objects.for_event(
                 self.event
             ).filter(
                 status=Application.Status.ACCEPTED_IN_PERSON, rsvp_email_sent_at=None
             )
+            accepted_applications_with_unsent_rsvps = queryset
         for application in accepted_applications_with_unsent_rsvps:
             self.send_email(application)
