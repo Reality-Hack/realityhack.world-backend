@@ -351,6 +351,7 @@ class Application(models.Model):
                 "create_test_applications" in sys.argv or
                 "setup_test_data" in sys.argv or
                 "setup_fake_users" in sys.argv or
+                "create_fake_event_rsvps" in sys.argv or
                 "test" in sys.argv
             )
             if not skip_email:

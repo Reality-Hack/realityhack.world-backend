@@ -270,3 +270,64 @@ class KeycloakClient:
             [attendee.email],
             fail_silently=False,
         )
+
+    def get_all_users(self, max_users=None):
+        """
+        Get all users in the realm.
+
+        Args:
+            max_users: Optional max number of users to return (default: None for all)
+        """
+        params = {}
+        if max_users:
+            params['max'] = max_users
+
+        query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
+        url = f"{self.base_url}/users"
+        if query_string:
+            url += f"?{query_string}"
+
+        users = requests.get(
+            url=url,
+            headers=self.authentication_headers,
+        )
+
+        if not users.ok:
+            raise Exception(f"Error getting users: {users.status_code} - {users.text}")
+
+        return users.json()
+
+    def get_users_by_role(self, role_name: str, max_users=None):
+        """
+        Get all users with a specific client role.
+
+        Args:
+            role_name: The name of the client role (e.g., "attendee:2026")
+            max_users: Optional max number of users to return
+
+        Returns:
+            List of user objects with the specified role
+        """
+        if not self.client_uuid:
+            self.get_client_uuid()
+
+        params = {}
+        if max_users:
+            params['max'] = max_users
+
+        query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
+        url = f"{self.base_url}/clients/{self.client_uuid}/roles/{role_name}/users"
+        if query_string:
+            url += f"?{query_string}"
+
+        users = requests.get(
+            url=url,
+            headers=self.authentication_headers,
+        )
+
+        if not users.ok:
+            raise Exception(
+                f"Error getting users by role: {users.status_code} - {users.text}"
+            )
+
+        return users.json()
