@@ -175,17 +175,23 @@ class KeycloakClient:
                 f"Error creating authentication account for {attendee.email}"
             )
 
-    def assign_authentication_roles(self, attendee: Attendee):
+    def assign_authentication_roles(
+        self,
+        attendee: Attendee,
+        participation_class: ParticipationClass
+    ):
         if not attendee.authentication_id:
             raise Exception("Authentication ID is not set")
 
-        if not attendee.participation_class:
+        if not participation_class:
             raise Exception("Participation class is not set")
 
-        if attendee.participation_class == ParticipationClass.PARTICIPANT:
+        if participation_class == ParticipationClass.PARTICIPANT:
             role = "attendee"
         else:
-            role = attendee.get_participation_class_display().lower()
+            role = dict[str, str](
+                ParticipationClass.choices
+            )[participation_class].lower()
 
         client_role = self.get_client_role_mapping(f"{role}:{EVENT_YEAR}")
 
@@ -202,6 +208,7 @@ class KeycloakClient:
 
         if auth_roles_mapping.ok:
             attendee.authentication_roles_assigned = True
+            attendee.participation_class = participation_class
             attendee.save()
         else:
             raise Exception(
@@ -216,7 +223,11 @@ class KeycloakClient:
         )
         return users.json()
 
-    def handle_user_creation(self, attendee: Attendee) -> str:
+    def handle_user_creation(
+        self, 
+        attendee: Attendee,
+        participation_class: ParticipationClass
+    ) -> str:
         temporary_password = secrets.token_hex(10 // 2)
         try:
             if not attendee.authentication_id:
@@ -225,13 +236,17 @@ class KeycloakClient:
                 )
                 print(f"Keycloak account created for {attendee.email}")
                 attendee.authentication_id = authentication_account_id
-            self.assign_authentication_roles(attendee)
+            self.assign_authentication_roles(attendee, participation_class)
             return temporary_password
         except Exception as e:
             print(f"Error creating keycloak account for {attendee.email}: {e}")
             raise e
 
-    def _ensure_authentication_account(self, attendee: Attendee) -> str | None:
+    def _ensure_authentication_account(
+        self,
+        attendee: Attendee,
+        participation_class: ParticipationClass
+    ) -> str | None:
         if attendee.authentication_id:
             return None
         elif existing_users := self.find_user_by_email(attendee.email):
@@ -250,12 +265,18 @@ class KeycloakClient:
                 attendee.save()
                 return None
         else:
-            return self.handle_user_creation(attendee)
+            return self.handle_user_creation(attendee, participation_class)
 
-    def handle_user_rsvp(self, attendee: Attendee) -> None:
-        temp_password = self._ensure_authentication_account(attendee)
-        self.assign_authentication_roles(attendee)
-        if attendee.participation_class == ParticipationClass.PARTICIPANT:
+    def handle_user_rsvp(
+        self,
+        attendee: Attendee,
+        participation_class: ParticipationClass
+    ) -> None:
+        temp_password = self._ensure_authentication_account(
+            attendee, participation_class
+        )
+        self.assign_authentication_roles(attendee, participation_class)
+        if participation_class == ParticipationClass.PARTICIPANT:
             subject, body = email.get_hacker_rsvp_confirmation_template(
                 attendee.first_name, temp_password
             )

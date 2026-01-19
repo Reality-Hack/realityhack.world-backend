@@ -299,7 +299,7 @@ class AttendeeRSVPViewSet(LoggingMixin, viewsets.ModelViewSet):
             )
 
         event_rsvp.save()
-        handle_keycloak_account_creation(attendee)
+        handle_keycloak_account_creation(attendee, event_rsvp.participation_class)
         serializer = AttendeeRSVPSerializer(attendee)
         return Response(serializer.data, status=201)
 
@@ -962,7 +962,7 @@ class EventRsvpViewSet(EventScopedLoggingViewSet):
     """
     API endpoint that allows event RSVPs to be viewed or edited.
     """
-    queryset = EventRsvp.objects.for_event(get_active_event())
+    queryset = EventRsvp.objects.all()
     permission_classes = [permissions.AllowAny]
     serializer_class = EventRsvpSerializer
     filterset_fields = ['event', 'attendee', 'participation_class']

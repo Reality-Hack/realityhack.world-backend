@@ -4,7 +4,7 @@ import logging
 from django.core.mail import send_mail
 from django.core.exceptions import ValidationError
 
-from infrastructure.models import Attendee, Application, EventRsvp
+from infrastructure.models import Attendee, Application, EventRsvp, ParticipationClass
 from infrastructure.event_context import get_active_event
 from infrastructure.serializers import AttendeeRSVPCreateSerializer, EventRsvpSerializer
 from infrastructure.keycloak import KeycloakClient
@@ -101,6 +101,7 @@ def _create_attendee_from_validated_data(
     )
     attendee.username = attendee.email
     attendee.participation_role = application.participation_role
+    attendee.participation_class = application.participation_class
     logger.info(f"Successfully created attendee: {attendee.id}")
     return attendee
 
@@ -151,6 +152,7 @@ def get_or_create_attendee_from_request(
         attendee.last_name = application.last_name
         attendee.application = application
         attendee.participation_role = application.participation_role
+        attendee.participation_class = application.participation_class
         return attendee
     else:
         logger.info(
@@ -168,10 +170,13 @@ def get_or_create_attendee_from_request(
             raise ValidationError(attendee_serializer.errors)
 
 
-def handle_keycloak_account_creation(attendee: Attendee) -> None:
+def handle_keycloak_account_creation(
+    attendee: Attendee,
+    participation_class: ParticipationClass
+) -> None:
     keycloak_client = KeycloakClient()
     try:
-        keycloak_client.handle_user_rsvp(attendee)
+        keycloak_client.handle_user_rsvp(attendee, participation_class)
     except Exception as error:
         logger.error(f"Error handling user RSVP: {error}")
         subject, body = email.get_keycloak_account_error_template(

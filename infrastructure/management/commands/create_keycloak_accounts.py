@@ -15,7 +15,7 @@ class Command(BaseCommand):  # pragma: no cover
         attendees = Attendee.objects.filter(authentication_id__isnull=True)
         for attendee in attendees:
             try:
-                keycloak_client.handle_user_rsvp(attendee)
+                keycloak_client.handle_user_rsvp(attendee, attendee.participation_class)
             except Exception as e:
                 print(f"Error creating keycloak account for {attendee.email}")
                 print(f"Error: {e}")
