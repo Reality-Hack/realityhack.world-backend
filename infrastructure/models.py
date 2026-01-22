@@ -1222,16 +1222,37 @@ class Team(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='%(class)s_set')
     number = models.IntegerField(null=True)
     name = models.CharField(max_length=50)
-    attendees = models.ManyToManyField(Attendee, related_name="team_attendees", blank=True)
-    table = models.OneToOneField(Table, on_delete=models.SET_NULL, null=True, blank=True)
-    tracks = MultiSelectField(choices=Track.choices, max_length=len(Track.choices) * 2 + 1, max_choices=len(Track.choices), blank=True)
+    attendees = models.ManyToManyField(
+        Attendee,
+        related_name="team_attendees",
+        blank=True
+    )
+    table = models.OneToOneField(
+        Table,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
+    tracks = MultiSelectField(
+        choices=Track.choices,
+        max_length=len(Track.choices) * 2 + 1,
+        max_choices=len(Track.choices),
+        blank=True,
+        null=True
+    )
     hardware_hack = models.BooleanField(default=False, null=False)
     startup_hack = models.BooleanField(default=False, null=False)
-    destiny_hardware = MultiSelectField(choices=DestinyHardware.choices, max_length=30, max_choices=len(DestinyHardware), blank=True)
+    destiny_hardware = MultiSelectField(
+        choices=DestinyHardware.choices,
+        max_length=30,
+        max_choices=len(DestinyHardware),
+        blank=True,
+        null=True
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    devpost_url = models.URLField(null=True)
-    github_url = models.URLField(null=True)
+    devpost_url = models.URLField(blank=True, null=True)
+    github_url = models.URLField(blank=True, null=True)
     team_description = models.TextField(max_length=2000, null=True)
     # add census field
 
