@@ -13,8 +13,10 @@ class Command(BaseCommand):  # pragma: no cover
     event = event_context.get_active_event()
 
     def add_arguments(self, parser):
-        parser.add_argument("--email", nargs=1, type=str, required=False)
-        parser.add_argument("--force-email", nargs=1, type=str, required=False)
+        parser.add_argument("--email", type=str, help="Send to specific email address")
+        parser.add_argument(
+            "--force", action="store_true", help="Resend even if already sent"
+        )
 
     def send_email(self, application):
         subject, body = None, None
@@ -48,35 +50,19 @@ class Command(BaseCommand):  # pragma: no cover
                   f" Participation Class: {application.participation_class}"
                   f" Email: {application.email}")
 
-    def handle(self, *args, **kwargs):  # noqa: C901
-        accepted_applications_with_unsent_rsvp_emails = []
-        try:
-            if "force_email" in kwargs and kwargs["force_email"] is not None:
-                for attendee_email in kwargs["force_email"]:
-                    found_results = Application.objects.all().filter(
-                        email=attendee_email
-                    )
-                    if found_results:
-                        accepted_applications_with_unsent_rsvp_emails.append(
-                           found_results[0]
-                        )
-            if "email" in kwargs and kwargs["email"] is not None:
-                for attendee_email in kwargs["email"]:
-                    found_results = Application.objects.all().filter(
-                        email=attendee_email,
-                        rsvp_email_sent_at=None
-                    )
-                    if found_results:
-                        accepted_applications_with_unsent_rsvp_emails.append(
-                           found_results[0]
-                        )
-        except (KeyError, IndexError):
-            pass
-        if not kwargs.get("force_email") and not kwargs.get("email"):
-            accepted_applications_with_unsent_rsvps = Application.objects.for_event(
-                self.event
-            ).filter(
-                status=Application.Status.ACCEPTED_IN_PERSON, rsvp_email_sent_at=None
-            )
-        for application in accepted_applications_with_unsent_rsvps:
+    def handle(self, *args, **kwargs):
+        queryset = Application.objects.for_event(self.event)
+
+        # Filter by specific email if provided
+        if kwargs["email"]:
+            queryset = queryset.filter(email=kwargs["email"])
+        else:
+            # Default: only accepted in-person applicants
+            queryset = queryset.filter(status=Application.Status.ACCEPTED_IN_PERSON)
+
+        # Unless --force, only send to those who haven't received it
+        if not kwargs["force"]:
+            queryset = queryset.filter(rsvp_email_sent_at=None)
+        print(f"Sending {queryset.count()} emails")
+        for application in queryset:
             self.send_email(application)

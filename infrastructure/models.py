@@ -351,6 +351,7 @@ class Application(models.Model):
                 "create_test_applications" in sys.argv or
                 "setup_test_data" in sys.argv or
                 "setup_fake_users" in sys.argv or
+                "create_fake_event_rsvps" in sys.argv or
                 "test" in sys.argv
             )
             if not skip_email:
@@ -806,7 +807,8 @@ class ApplicationResponse(models.Model):
                 raise ValidationError("Text responses are only for TEXT question types")
 
 
-class Track(models.TextChoices): # limit to 1
+class Track(models.TextChoices):
+    """Deprecated: Use EventTrack for event-scoped choices."""
     COMMUNITY_HACKS = 'C', ('Open Lab (AKA Community Hack)')
     SOCIAL_XR = 'S', ('Connecting for Change with Social XR')
     AUGMENTED_ENGINEERING = 'E', ('Augmented Design & Engineering')
@@ -817,6 +819,7 @@ class Track(models.TextChoices): # limit to 1
 
 
 class DestinyHardware(models.TextChoices):
+    """Deprecated: Use EventDestinyHardware for event-scoped choices."""
     META = 'M', _('Best MR Lifestyle App for Meta Quest')
     HORIZON = 'Q', _('Best Lifestyle World with Meta Horizons Worlds')
     HAPTICS = 'T', _('Best use of Haptics')
@@ -827,6 +830,50 @@ class DestinyHardware(models.TextChoices):
     LAMBDA = 'L', _('Best use of Lambda AI Cloud Services')
     QUALCOMM = 'U', _('Qualcomm IoT')
     APPLE_VISION = 'V', _('Best use of Apple Vision Pro')
+
+
+class EventTrack(models.Model):
+    """Event-specific track choices."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event = models.ForeignKey(
+        Event, on_delete=models.CASCADE, related_name='%(class)s_set'
+    )
+    code = models.CharField(max_length=6, help_text="Six char code")
+    name = models.CharField(max_length=100)
+    order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = EventScopedManager()
+
+    class Meta:
+        unique_together = [['event', 'code']]
+        ordering = ['order']
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.code})"
+
+
+class EventDestinyHardware(models.Model):
+    """Event-specific destiny hardware choices."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event = models.ForeignKey(
+        Event, on_delete=models.CASCADE, related_name='%(class)s_set'
+    )
+    code = models.CharField(max_length=6, help_text="Six char code")
+    name = models.CharField(max_length=100)
+    order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = EventScopedManager()
+
+    class Meta:
+        unique_together = [['event', 'code']]
+        ordering = ['order']
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.code})"
 
 
 class LoanerHeadsetPreference(models.TextChoices):
@@ -898,9 +945,23 @@ class Attendee(AbstractUser):
         default=ShirtSize.M,
         null=True
     )
+    # Deprecated: Use intended_event_tracks instead
     intended_tracks = MultiSelectField(max_choices=2, max_length=7, null=True, choices=Track.choices)
+    intended_event_tracks = models.ManyToManyField(
+        'EventTrack',
+        related_name='attendees_intended',
+        blank=True,
+        help_text="Event-scoped track preferences"
+    )
     intended_hardware_hack = models.BooleanField(default=False, null=False)
+    # Deprecated: Use prefers_event_destiny_hardware instead
     prefers_destiny_hardware = MultiSelectField(max_choices=len(DestinyHardware.choices), max_length=len(DestinyHardware.choices) * 2 + 1, null=True, choices=DestinyHardware.choices)
+    prefers_event_destiny_hardware = models.ManyToManyField(
+        'EventDestinyHardware',
+        related_name='attendees_preferred',
+        blank=True,
+        help_text="Event-scoped destiny hardware preferences"
+    )
     dietary_restrictions = MultiSelectField(
         max_length=15, max_choices=7, null=True, choices=DietaryRestrictions.choices
     )
@@ -1050,14 +1111,28 @@ class EventRsvp(models.Model):
         default=ShirtSize.M,
         null=True
     )
+    # Deprecated: Use intended_event_tracks instead
     intended_tracks = MultiSelectField(
         max_choices=2, max_length=7, null=True, choices=Track.choices
     )
+    intended_event_tracks = models.ManyToManyField(
+        'EventTrack',
+        related_name='rsvps_intended',
+        blank=True,
+        help_text="Event-scoped track preferences"
+    )
     intended_hardware_hack = models.BooleanField(default=False, null=False)
+    # Deprecated: Use prefers_event_destiny_hardware instead
     prefers_destiny_hardware = MultiSelectField(
         max_choices=len(DestinyHardware.choices),
         max_length=len(DestinyHardware.choices) * 2 + 1,
         null=True, choices=DestinyHardware.choices
+    )
+    prefers_event_destiny_hardware = models.ManyToManyField(
+        'EventDestinyHardware',
+        related_name='rsvps_preferred',
+        blank=True,
+        help_text="Event-scoped destiny hardware preferences"
     )
     dietary_restrictions = MultiSelectField(
         max_length=15, max_choices=7, null=True, choices=DietaryRestrictions.choices
@@ -1176,10 +1251,18 @@ class Location(models.Model):
         ROOM_124 = '24', _('32-124')
         ROOM_144 = '44', _('32-144')
         ROOM_141 = '41', _('32-141')
+        MEZZANINE = 'MZ', _('Mezzanine')
+        TWENTY = 'TC', _('Twenty Chimneys')
+        ROOM_301 = '301', _('W20-301+302')
+        SALA_DE_PR = 'SP', _('Sala de Puerto Rico')
+        ROOM_401 = '401', _('W20-401')
+        REMOTE = 'RM', _('Remote')
 
     class Building(models.TextChoices):
         STATA = 'ST', _('Stata')
         WALKER = 'WK', _('Walker')
+        STRATON = 'SC', _('Student Center (Straton)')
+        BARCELONA = 'BC', _('Barcelona')
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='%(class)s_set')
@@ -1189,7 +1272,7 @@ class Location(models.Model):
         default=Building.WALKER
     )
     room = models.CharField(
-        max_length=2,
+        max_length=4,
         choices=Room.choices,
         default=Room.MAIN_HALL
     )
@@ -1207,6 +1290,18 @@ class Table(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='%(class)s_set')
     number = models.PositiveBigIntegerField()
     location = models.ForeignKey(Location, on_delete=models.SET_NULL, null=True)
+    notes = models.TextField(
+        max_length=1000,
+        blank=True,
+        null=True,
+        help_text="Optional notes about the table"
+    )
+    floor = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text="Optional free-form floor descriptor"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -1221,16 +1316,52 @@ class Team(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='%(class)s_set')
     number = models.IntegerField(null=True)
     name = models.CharField(max_length=50)
-    attendees = models.ManyToManyField(Attendee, related_name="team_attendees", blank=True)
-    table = models.OneToOneField(Table, on_delete=models.SET_NULL, null=True, blank=True)
-    tracks = MultiSelectField(choices=Track.choices, max_length=len(Track.choices) * 2 + 1, max_choices=len(Track.choices), blank=True)
+    attendees = models.ManyToManyField(
+        Attendee,
+        related_name="team_attendees",
+        blank=True
+    )
+    table = models.OneToOneField(
+        Table,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
+    # Deprecated: Use event_tracks instead
+    tracks = MultiSelectField(
+        choices=Track.choices,
+        max_length=len(Track.choices) * 2 + 1,
+        max_choices=len(Track.choices),
+        blank=True,
+        null=True
+    )
+    event_tracks = models.ManyToManyField(
+        'EventTrack',
+        related_name='teams',
+        blank=True,
+        help_text="Event-scoped track selections"
+    )
     hardware_hack = models.BooleanField(default=False, null=False)
     startup_hack = models.BooleanField(default=False, null=False)
-    destiny_hardware = MultiSelectField(choices=DestinyHardware.choices, max_length=30, max_choices=len(DestinyHardware), blank=True)
+    community_hack = models.BooleanField(default=False, null=False)
+    # Deprecated: Use event_destiny_hardware instead
+    destiny_hardware = MultiSelectField(
+        choices=DestinyHardware.choices,
+        max_length=30,
+        max_choices=len(DestinyHardware),
+        blank=True,
+        null=True
+    )
+    event_destiny_hardware = models.ManyToManyField(
+        'EventDestinyHardware',
+        related_name='teams',
+        blank=True,
+        help_text="Event-scoped destiny hardware selections"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    devpost_url = models.URLField(null=True)
-    github_url = models.URLField(null=True)
+    devpost_url = models.URLField(blank=True, null=True)
+    github_url = models.URLField(blank=True, null=True)
     team_description = models.TextField(max_length=2000, null=True)
     # add census field
 
@@ -1401,7 +1532,16 @@ class Hardware(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     tags = MultiSelectField(
         choices=HardwareTags.choices, max_length=len(HardwareTags.choices) * 2 * 2 + 1, null=True)
+    # Deprecated: Use relates_to_event_destiny_hardware instead
     relates_to_destiny_hardware = models.CharField(choices=DestinyHardware.choices, max_length=1, null=True)
+    relates_to_event_destiny_hardware = models.ForeignKey(
+        'EventDestinyHardware',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='hardware_items',
+        help_text="Event-scoped destiny hardware association"
+    )
 
     objects = EventScopedManager()
 
@@ -1460,9 +1600,10 @@ class HardwareRequest(models.Model):
         indexes = [
             models.Index(fields=['event', 'hardware', 'status']),
         ]
-    
+
     def __str__(self) -> str:  # pragma: no cover
         return f"Hardware: {self.hardware}, Requester: {self.requester} (Team: {self.team})"
+
 
 class Workshop(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -1544,10 +1685,26 @@ class DestinyTeam(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='%(class)s_set')
     attendees = models.ManyToManyField(Attendee, related_name="destiny_team_attendees", blank=True)
     table = models.ForeignKey(Table, on_delete=models.SET_NULL, null=True)
+    # Deprecated: Use event_track instead
     track = models.CharField(choices=Track.choices, max_length=1, null=True)
+    event_track = models.ForeignKey(
+        'EventTrack',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='destiny_teams',
+        help_text="Event-scoped track selection"
+    )
     round = models.PositiveIntegerField(validators=[MinValueValidator(1)])
     hardware_hack = models.BooleanField(default=False, null=False)
+    # Deprecated: Use event_destiny_hardware instead
     destiny_hardware = MultiSelectField(choices=DestinyHardware.choices, max_length=30, max_choices=len(DestinyHardware), blank=True)
+    event_destiny_hardware = models.ManyToManyField(
+        'EventDestinyHardware',
+        related_name='destiny_teams',
+        blank=True,
+        help_text="Event-scoped destiny hardware selections"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

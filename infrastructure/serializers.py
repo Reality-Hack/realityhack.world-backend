@@ -8,6 +8,7 @@ from infrastructure.models import (INDUSTRIES, MENTOR_HELP_REQUEST_TOPICS,
                                    ApplicationQuestionChoice, ApplicationResponse,
                                    AttendeePreference, DestinyHardware,
                                    DestinyTeam, DestinyTeamAttendeeVibe,
+                                   EventDestinyHardware, EventTrack,
                                    Hardware, HardwareDevice, HardwareRequest,
                                    HardwareTags, LightHouse, Location,
                                    MentorHelpRequest, ParticipationRole,
@@ -220,9 +221,33 @@ class EventSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
+class EventTrackSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EventTrack
+        fields = ['id', 'code', 'name', 'order']
+
+
+class EventDestinyHardwareSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EventDestinyHardware
+        fields = ['id', 'code', 'name', 'order']
+
+
 class AttendeeSerializer(serializers.ModelSerializer):
     intended_tracks = fields.MultipleChoiceField(choices=Track.choices)
     prefers_destiny_hardware = fields.MultipleChoiceField(choices=DestinyHardware.choices)
+    intended_event_tracks = serializers.SerializerMethodField()
+    prefers_event_destiny_hardware = serializers.SerializerMethodField()
+
+    def get_intended_event_tracks(self, obj):
+        """Properly scope EventTrack query to avoid EventScopingError."""
+        tracks = obj.intended_event_tracks.all_events().all()
+        return EventTrackSerializer(tracks, many=True).data
+
+    def get_prefers_event_destiny_hardware(self, obj):
+        """Properly scope EventDestinyHardware query to avoid EventScopingError."""
+        hardware = obj.prefers_event_destiny_hardware.all_events().all()
+        return EventDestinyHardwareSerializer(hardware, many=True).data
 
     class Meta:
         model = Attendee
@@ -230,19 +255,37 @@ class AttendeeSerializer(serializers.ModelSerializer):
                   'profile_image', 'initial_setup', 'guardian_of', 'sponsor_handler', 'prefers_destiny_hardware',
                   'communications_platform_username', 'email', 'intended_tracks', 'intended_hardware_hack',
                   'sponsor_company',  'participation_class', 'initial_setup', 'profile_image',
+                  'intended_event_tracks', 'prefers_event_destiny_hardware',
                   'created_at', 'updated_at']
 
 
 class AttendeeListSerializer(serializers.ModelSerializer):
     intended_tracks = fields.MultipleChoiceField(choices=Track.choices)
-    prefers_destiny_hardware = fields.MultipleChoiceField(choices=DestinyHardware.choices)
+    prefers_destiny_hardware = fields.MultipleChoiceField(
+        choices=DestinyHardware.choices
+    )
+    intended_event_tracks = serializers.SerializerMethodField()
+    prefers_event_destiny_hardware = serializers.SerializerMethodField()
+
+    def get_intended_event_tracks(self, obj):
+        """Properly scope EventTrack query to avoid EventScopingError."""
+        tracks = obj.intended_event_tracks.all_events().all()
+        return EventTrackSerializer(tracks, many=True).data
+
+    def get_prefers_event_destiny_hardware(self, obj):
+        """Properly scope EventDestinyHardware query to avoid EventScopingError."""
+        hardware = obj.prefers_event_destiny_hardware.all_events().all()
+        return EventDestinyHardwareSerializer(hardware, many=True).data
 
     class Meta:
         model = Attendee
-        fields = ['id', 'first_name', 'last_name', 'participation_role', 'checked_in_at',
-                  'profile_image', 'initial_setup', 'guardian_of', 'sponsor_handler', 'prefers_destiny_hardware',
-                  'communications_platform_username', 'intended_tracks', 'intended_hardware_hack',
-                  'sponsor_company',  'participation_class', 'initial_setup', 'profile_image',
+        fields = ['id', 'first_name', 'last_name', 'participation_role',
+                  'checked_in_at', 'profile_image', 'initial_setup',
+                  'guardian_of', 'sponsor_handler', 'prefers_destiny_hardware',
+                  'communications_platform_username', 'intended_tracks',
+                  'intended_hardware_hack', 'sponsor_company', 'participation_class',
+                  'initial_setup', 'profile_image',
+                  'intended_event_tracks', 'prefers_event_destiny_hardware',
                   'created_at', 'updated_at']
 
 
@@ -370,13 +413,14 @@ class LocationSerializer(EventScopedSerializer):
 
 class TableSerializer(EventScopedSerializer):
     is_claimed = serializers.SerializerMethodField()
+    location = LocationSerializer()
 
     def get_is_claimed(self, obj) -> bool:
         return hasattr(obj, 'team') and obj.team is not None
 
     class Meta:
         model = Table
-        fields = ['id', 'number', 'location', 'created_at', 'updated_at', 'is_claimed']
+        fields = ['id', 'number', 'location', 'created_at', 'updated_at', 'is_claimed', 'notes', 'floor']
 
 
 class TableTruncatedSerializer(EventScopedSerializer):
@@ -396,8 +440,10 @@ class TeamTableSerializer(serializers.ModelSerializer):
 class ProjectSerializer(EventScopedSerializer):
     class Meta:
         model = Project
-        fields = ['id', 'name', 'repository_location', 'description', 'submission_location',
-                  'team', 'created_at', 'updated_at', 'census_taker_name', 'census_location_override', 'team_primary_contact']
+        fields = ['id', 'name', 'repository_location', 'description',
+                  'submission_location', 'team', 'created_at',
+                  'updated_at', 'census_taker_name', 'census_location_override',
+                  'team_primary_contact']
 
 
 class LightHouseSerializer(EventScopedSerializer):
@@ -440,12 +486,14 @@ class HelpRequestTeamLocationSerializer(serializers.ModelSerializer):
         model = Location
         fields = ['id', 'building', 'room']
 
+
 class HelpRequestTableSerializer(serializers.ModelSerializer):
     location = HelpRequestTeamLocationSerializer()
 
     class Meta:
         model = Table
         fields = ['id', 'number', 'location']
+
 
 class HelpRequestTeamSerializer(serializers.ModelSerializer):
     table = HelpRequestTableSerializer()
@@ -454,10 +502,10 @@ class HelpRequestTeamSerializer(serializers.ModelSerializer):
         model = Team
         fields = ['id', 'name', 'table']
 
+
 class MentorHelpRequestReadSerializer(MentorHelpRequestSerializer):
     team = HelpRequestTeamSerializer()
     reporter = HelpRequestReporterSerializer()
-
 
 
 class MentorHelpRequestHistorySerializer(serializers.ModelSerializer):
@@ -491,6 +539,18 @@ class EventRsvpSerializer(EventScopedSerializer):
     dietary_allergies = fields.MultipleChoiceField(
         choices=models.DietaryAllergies.choices
     )
+    intended_event_tracks = serializers.SerializerMethodField()
+    prefers_event_destiny_hardware = serializers.SerializerMethodField()
+
+    def get_intended_event_tracks(self, obj):
+        """Properly scope EventTrack query to avoid EventScopingError."""
+        tracks = obj.intended_event_tracks.all_events().filter(event=obj.event)
+        return EventTrackSerializer(tracks, many=True).data
+
+    def get_prefers_event_destiny_hardware(self, obj):
+        """Properly scope EventDestinyHardware query to avoid EventScopingError."""
+        hardware = obj.prefers_event_destiny_hardware.all_events().filter(event=obj.event)
+        return EventDestinyHardwareSerializer(hardware, many=True).data
 
     class Meta:
         model = EventRsvp
@@ -518,11 +578,13 @@ class EventRsvpSerializer(EventScopedSerializer):
             "non_xr_talents", "ar_vr_ap_in_store",
             "reality_hack_project_to_product",
             "participation_class", "sponsor_company",
-            "breakthrough_hacks_interest",
-            "loaner_headset_preference", "device_preference_ranked"
+            "breakthrough_hacks_interest", "checked_in_at",
+            "loaner_headset_preference", "device_preference_ranked",
+            "intended_event_tracks", "prefers_event_destiny_hardware"
         ]
 
 
+# remove attendee
 class EventRsvpDetailSerializer(EventRsvpSerializer):
 
     attendee = AttendeeNameSerializer()
@@ -538,19 +600,21 @@ class EventRsvpDetailSerializer(EventRsvpSerializer):
         ]
 
 
+class EventRsvpSummarySerializer(EventScopedSerializer):
+    class Meta:
+        model = EventRsvp
+        fields = [
+            "id", "event", "shirt_size", "checked_in_at",
+            "communication_platform_username",
+            "participation_class", "sponsor_company",
+        ]
+
+
 class TableNumberSerializer(serializers.ModelSerializer):
-    
+
     class Meta:
         model = Table
         fields = ['id', 'number']
-
-
-class TeamSerializer(EventScopedSerializer):
-    class Meta:
-        model = Team
-        fields = ['id', 'number', 'name', 'attendees', 'table', 
-                  'tracks', 'destiny_hardware', 'team_description', 
-                  'created_at', 'updated_at']
 
 
 class TeamProjectSerializer(serializers.ModelSerializer):
@@ -559,6 +623,16 @@ class TeamProjectSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'repository_location', 'submission_location',
                   'census_location_override', 'census_taker_name', 'team_primary_contact',
                   'description', 'created_at', 'updated_at']
+
+
+class TeamSerializer(EventScopedSerializer):
+    project = TeamProjectSerializer()
+
+    class Meta:
+        model = Team
+        fields = ['id', 'number', 'name', 'attendees', 'table',
+                  'tracks', 'destiny_hardware', 'team_description',
+                  'created_at', 'updated_at', 'project']
 
 
 class TeamLightHouseSerializer(serializers.ModelSerializer):
@@ -573,32 +647,101 @@ class TeamDetailSerializer(serializers.ModelSerializer):
     project = TeamProjectSerializer()
     lighthouse = TeamLightHouseSerializer()
     attendees = AttendeeNameSerializer(many=True)
+    event_tracks = serializers.SerializerMethodField()
+    event_destiny_hardware = serializers.SerializerMethodField()
+
+    def get_event_tracks(self, obj):
+        """Properly scope EventTrack query to avoid EventScopingError."""
+        tracks = obj.event_tracks.all_events().all()
+        return EventTrackSerializer(tracks, many=True).data
+
+    def get_event_destiny_hardware(self, obj):
+        """Properly scope EventDestinyHardware query to avoid EventScopingError."""
+        hardware = obj.event_destiny_hardware.all_events().all()
+        return EventDestinyHardwareSerializer(hardware, many=True).data
 
     class Meta:
         model = Team
-        fields = ['id', 'number', 'name', 'attendees', 'table', 'hardware_hack',
-                  'startup_hack', 'project', 'lighthouse', 'tracks', 'destiny_hardware',
-                  'team_description','created_at', 'updated_at']
+        fields = [
+            'id', 'number', 'name', 'attendees', 'table', 'hardware_hack',
+            'startup_hack', 'community_hack', 'project', 'lighthouse',
+            'tracks', 'destiny_hardware', 'event_tracks', 'event_destiny_hardware',
+            'team_description', 'created_at', 'updated_at'
+        ]
 
 
 class TeamCreateSerializer(EventScopedSerializer):
     class Meta:
         model = Team
         fields = ['id', 'name', 'attendees', 'table', 'team_description']
-        
+
+
 class TeamUpdateSerializer(EventScopedSerializer):
     table = TableSerializer(allow_null=True)
     project = ProjectSerializer()
     tracks = fields.MultipleChoiceField(choices=Track.choices)
     destiny_hardware = fields.MultipleChoiceField(choices=DestinyHardware.choices)
+    # Write-only fields for accepting UUIDs - read handled in to_representation
+    event_tracks = serializers.PrimaryKeyRelatedField(
+        queryset=EventTrack.objects.all_events(),
+        many=True,
+        required=False,
+        write_only=True
+    )
+    event_destiny_hardware = serializers.PrimaryKeyRelatedField(
+        queryset=EventDestinyHardware.objects.all_events(),
+        many=True,
+        required=False,
+        write_only=True
+    )
 
     class Meta:
         model = Team
-        fields = ['id', 'name', 'attendees', 'table', 'team_description', 'tracks', 'destiny_hardware', 'project', 'hardware_hack', 'startup_hack']
+        fields = [
+            'id', 'name', 'attendees', 'table', 'team_description',
+            'tracks', 'destiny_hardware', 'event_tracks', 'event_destiny_hardware',
+            'project', 'hardware_hack', 'startup_hack', 'community_hack'
+        ]
+
+    def to_representation(self, instance):
+        """Override to handle event-scoped M2M fields with proper scoping."""
+        ret = super().to_representation(instance)
+        # Add event_tracks with properly scoped query
+        ret['event_tracks'] = [
+            str(track.id) for track in instance.event_tracks.all_events().all()
+        ]
+        # Add event_destiny_hardware with properly scoped query
+        ret['event_destiny_hardware'] = [
+            str(hw.id) for hw in instance.event_destiny_hardware.all_events().all()
+        ]
+        return ret
+
+    def update(self, instance, validated_data):
+        """Override update to handle event-scoped ManyToMany fields."""
+        # Extract M2M fields to handle separately (avoid EventScopingError)
+        event_tracks_data = validated_data.pop('event_tracks', None)
+        event_destiny_hardware_data = validated_data.pop('event_destiny_hardware', None)
+
+        # Update instance with remaining validated data
+        instance = super().update(instance, validated_data)
+
+        # Handle event_tracks M2M - use clear() + add() to avoid scoping issues
+        if event_tracks_data is not None:
+            instance.event_tracks.clear()
+            instance.event_tracks.add(*event_tracks_data)
+
+        # Handle event_destiny_hardware M2M - use clear() + add() to avoid scoping issues
+        if event_destiny_hardware_data is not None:
+            instance.event_destiny_hardware.clear()
+            instance.event_destiny_hardware.add(*event_destiny_hardware_data)
+
+        return instance
+
 
 class TableDetailSerializer(EventScopedSerializer):
     team = TeamSerializer()
     lighthouse = TeamLightHouseSerializer()
+    location = LocationSerializer()
 
     class Meta:
         model = Table
@@ -653,7 +796,6 @@ class HardwareCountDetailSerializer(serializers.ModelSerializer):
     image = FileUploadSerializer()
     tags = fields.MultipleChoiceField(choices=HardwareTags)
 
-
     class Meta:
         model = Hardware
         fields = ['id', 'name', 'description', 'image',
@@ -664,20 +806,25 @@ class HardwareCountDetailSerializer(serializers.ModelSerializer):
 class HardwareSerializer(EventScopedSerializer):
     image = FileUploadSerializer()
     tags = fields.MultipleChoiceField(choices=HardwareTags)
+    relates_to_event_destiny_hardware = EventDestinyHardwareSerializer(read_only=True)
     
     class Meta:
         model = Hardware
         fields = ['id', 'name', 'description', 'image', 'tags',
-                  'relates_to_destiny_hardware',
+                  'relates_to_destiny_hardware', 'relates_to_event_destiny_hardware',
                   'created_at', 'updated_at']
 
 
 class HardwareCreateSerializer(EventScopedSerializer):
     tags = fields.MultipleChoiceField(choices=HardwareTags)
-    
+    relates_to_event_destiny_hardware = serializers.PrimaryKeyRelatedField(
+        queryset=EventDestinyHardware.objects.all_events(), required=False, allow_null=True
+    )
+
     class Meta:
         model = Hardware
-        fields = ['id', 'name', 'description', 'image', 'tags', 'relates_to_destiny_hardware']
+        fields = ['id', 'name', 'description', 'image', 'tags',
+                  'relates_to_destiny_hardware', 'relates_to_event_destiny_hardware']
 
 
 class HardwareDeviceHardwareSerializer(serializers.ModelSerializer):
@@ -793,24 +940,48 @@ class AttendeeDetailSerializer(serializers.ModelSerializer):
     skill_proficiencies = SkillProficiencyAttendeeSerializer(many=True)
     profile_image = FileUploadSerializer()
     team = TeamSerializer()
+    event_rsvp = EventRsvpSummarySerializer()
     hardware_devices = HardwareDeviceDetailSerializer(many=True)
     workshops = WorkshopAttendeeWorkshopDetailSerializer(many=True)
     intended_tracks = fields.MultipleChoiceField(choices=Track.choices)
-    prefers_destiny_hardware = fields.MultipleChoiceField(choices=DestinyHardware.choices)
+    prefers_destiny_hardware = fields.MultipleChoiceField(
+        choices=DestinyHardware.choices
+    )
+    intended_event_tracks = EventTrackSerializer(
+        many=True, read_only=True, source='_cached_intended_event_tracks'
+    )
+    prefers_event_destiny_hardware = EventDestinyHardwareSerializer(
+        many=True, read_only=True, source='_cached_prefers_event_destiny_hardware'
+    )
 
     class Meta:
         model = Attendee
         fields = ['id', 'first_name', 'last_name', 'skill_proficiencies',
-                  'profile_image', 'bio', 'checked_in_at', 'team', 'hardware_devices',
-                  'communications_platform_username', 'email', 'workshops',
-                  'sponsor_company',  'participation_class', 'initial_setup', 'prefers_destiny_hardware',
-                  'guardian_of', 'sponsor_handler', 'intended_tracks', 'intended_hardware_hack',
+                  'profile_image', 'bio', 'checked_in_at', 'team', 'event_rsvp',
+                  'hardware_devices', 'communications_platform_username', 'email',
+                  'workshops', 'sponsor_company',  'participation_class',
+                  'initial_setup', 'prefers_destiny_hardware', 'guardian_of',
+                  'sponsor_handler', 'intended_tracks', 'intended_hardware_hack',
+                  'intended_event_tracks', 'prefers_event_destiny_hardware',
                   'created_at', 'updated_at']
 
 
 class AttendeePatchSerializer(serializers.ModelSerializer):
     intended_tracks = fields.MultipleChoiceField(choices=Track.choices)
-    prefers_destiny_hardware = fields.MultipleChoiceField(choices=DestinyHardware.choices)
+    prefers_destiny_hardware = fields.MultipleChoiceField(
+        choices=DestinyHardware.choices
+    )
+    # Use SerializerMethodField to properly scope event-scoped ManyToMany queries
+    intended_event_tracks = serializers.SerializerMethodField()
+    prefers_event_destiny_hardware = serializers.SerializerMethodField()
+
+    def get_intended_event_tracks(self, obj: Attendee) -> list[int]:
+        """Return IDs of intended event tracks with proper event scoping."""
+        return list(obj.intended_event_tracks.all_events().values_list('id', flat=True))
+
+    def get_prefers_event_destiny_hardware(self, obj: Attendee) -> list[int]:
+        """Return IDs of preferred event destiny hardware with proper event scoping."""
+        return list(obj.prefers_event_destiny_hardware.all_events().values_list('id', flat=True))
 
     class Meta:
         model = Attendee
@@ -819,12 +990,24 @@ class AttendeePatchSerializer(serializers.ModelSerializer):
                   'communications_platform_username', 'email', 'prefers_destiny_hardware',
                   'sponsor_company',  'participation_class', 'initial_setup',
                   'guardian_of', 'sponsor_handler', 'intended_tracks', 'intended_hardware_hack',
+                  'intended_event_tracks', 'prefers_event_destiny_hardware',
                   'created_at', 'updated_at']
 
 
 class AttendeeUpdateSerializer(serializers.ModelSerializer):
     intended_tracks = fields.MultipleChoiceField(choices=Track.choices)
     prefers_destiny_hardware = fields.MultipleChoiceField(choices=DestinyHardware.choices)
+    # Use SerializerMethodField to properly scope event-scoped ManyToMany queries
+    intended_event_tracks = serializers.SerializerMethodField()
+    prefers_event_destiny_hardware = serializers.SerializerMethodField()
+
+    def get_intended_event_tracks(self, obj: Attendee) -> list[int]:
+        """Return IDs of intended event tracks with proper event scoping."""
+        return list(obj.intended_event_tracks.all_events().values_list('id', flat=True))
+
+    def get_prefers_event_destiny_hardware(self, obj: Attendee) -> list[int]:
+        """Return IDs of preferred event destiny hardware with proper event scoping."""
+        return list(obj.prefers_event_destiny_hardware.all_events().values_list('id', flat=True))
 
     class Meta:
         model = Attendee
@@ -833,6 +1016,7 @@ class AttendeeUpdateSerializer(serializers.ModelSerializer):
                   'communications_platform_username', 'email', 'prefers_destiny_hardware',
                   'sponsor_company',  'participation_class', 'initial_setup',
                   'guardian_of', 'sponsor_handler', 'intended_tracks', 'intended_hardware_hack',
+                  'intended_event_tracks', 'prefers_event_destiny_hardware',
                   'created_at', 'updated_at', 'authentication_id']
 
 

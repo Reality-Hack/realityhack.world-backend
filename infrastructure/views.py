@@ -17,6 +17,7 @@ from infrastructure.event_context import get_active_event
 from infrastructure.models import (Application,
                                    Attendee, AttendeePreference,
                                    DestinyTeam, DestinyTeamAttendeeVibe,
+                                   EventDestinyHardware, EventTrack,
                                    Hardware, HardwareDevice, HardwareRequest,
                                    LightHouse, Location, MentorHelpRequest,
                                    Project, Skill, SkillProficiency, Table,
@@ -64,7 +65,9 @@ from infrastructure.serializers import (ApplicationSerializer,
                                         TeamCreateSerializer, TeamUpdateSerializer,
                                         TeamDetailSerializer, TeamSerializer,
                                         WorkshopAttendeeSerializer,
-                                        WorkshopSerializer, EventSerializer)
+                                        WorkshopSerializer, EventSerializer,
+                                        EventTrackSerializer,
+                                        EventDestinyHardwareSerializer)
 from infrastructure.filters import (
     TeamFilter,
     MentorHelpRequestFilter,
@@ -85,13 +88,20 @@ from infrastructure.utils.rsvp_helpers import (
 
 
 def attendee_from_userinfo(request):  # pragma: nocover
+    authentication_id = request.userinfo.get("sub")
     try:
-        return Attendee.objects.get(authentication_id=request.userinfo.get("sub"))
+        return Attendee.objects.get(authentication_id=authentication_id)
     except Attendee.DoesNotExist:
-        raise Http404(f"No attendee matches the authentication_id: \"{request.userinfo.get('sub')}\"")
+        raise Http404(
+            f"No attendee matches the authentication_id: \"{authentication_id}\""
+        )
 
 
-def check_user(request, pk, special_roles={KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER}):
+def check_user(
+    request,
+    pk,
+    special_roles={KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER}
+):
     if any(special_role in request.roles for special_role in special_roles):
         return "admin"
     if str(attendee_from_userinfo(request).id) != str(pk):
@@ -102,10 +112,27 @@ def check_user(request, pk, special_roles={KeycloakRoles.ADMIN, KeycloakRoles.OR
 def prepare_attendee_for_detail(attendee, event=None):
     if event is None:
         event = get_active_event()
-    attendee.skill_proficiencies = SkillProficiency.objects.for_event(event).filter(attendee=attendee)
-    attendee.team = Team.objects.for_event(event).filter(attendees=attendee).first()
-    attendee.hardware_devices = HardwareDevice.objects.for_event(event).filter(checked_out_to=attendee.id)
-    attendee.workshops = WorkshopAttendee.objects.for_event(event).filter(attendee=attendee.id)
+    # limit queries to speed up endpoint response time
+    attendee.skill_proficiencies = []
+    # SkillProficiency.objects.for_event(event).filter(attendee=attendee)
+    attendee.team = Team.objects.for_event(event).filter(
+        attendees=attendee
+    ).first()
+    attendee.event_rsvp = EventRsvp.objects.for_event(event).filter(
+        attendee=attendee
+    ).first()
+    attendee.hardware_devices = []
+    # HardwareDevice.objects.for_event(event).filter(checked_out_to=attendee.id)
+    attendee.workshops = []
+    # WorkshopAttendee.objects.for_event(event).filter(attendee=attendee.id)
+    # Properly scope event-scoped ManyToMany fields to avoid EventScopingError
+    # Store in separate attributes since direct ManyToMany assignment is prohibited
+    attendee._cached_intended_event_tracks = list(
+        attendee.intended_event_tracks.all_events().filter(event=event)
+    )
+    attendee._cached_prefers_event_destiny_hardware = list(
+        attendee.prefers_event_destiny_hardware.all_events().filter(event=event)
+    )
     return attendee
 
 
@@ -117,6 +144,10 @@ def prepare_attendee_for_detail(attendee, event=None):
     KeycloakRoles.ATTENDEE,
     KeycloakRoles.MENTOR,
     KeycloakRoles.JUDGE,
+    KeycloakRoles.VOLUNTEER,
+    KeycloakRoles.SPONSOR,
+    KeycloakRoles.GUARDIAN,
+    KeycloakRoles.MEDIA,
 ])
 @extend_schema(
     methods=['GET'],
@@ -273,13 +304,13 @@ class AttendeeRSVPViewSet(LoggingMixin, viewsets.ModelViewSet):
             )
 
         attendee.sponsor_handler = sponsor_handler
+        attendee.save()
         if guardian_of:
             attendee.guardian_of.set(
                 [guardian_of_attendee.id for guardian_of_attendee in guardian_of]
             )
 
-        event_rsvp.save()
-        handle_keycloak_account_creation(attendee)
+        handle_keycloak_account_creation(attendee, event_rsvp.participation_class)
         serializer = AttendeeRSVPSerializer(attendee)
         return Response(serializer.data, status=201)
 
@@ -331,7 +362,8 @@ class TableViewSet(EventScopedLoggingViewSet):
         return Response(serializer.data)
 
     def list(self, request):
-        queryset = self.get_queryset()
+        event = self.get_event()
+        queryset = Table.objects.for_event(event).all()
         serializer = TableSerializer(queryset, many=True)
         return Response(serializer.data)
 
@@ -620,10 +652,10 @@ class HardwareViewSet(EventScopedLoggingViewSet):
     keycloak_roles = {
         'OPTIONS': [KeycloakRoles.ATTENDEE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.SPONSOR, KeycloakRoles.VOLUNTEER, KeycloakRoles.MENTOR, KeycloakRoles.JUDGE],
         # organizers need GET to view hardware in requests
-        'GET': [KeycloakRoles.ATTENDEE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.SPONSOR],
-        'POST': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER, KeycloakRoles.SPONSOR],
+        'GET': [KeycloakRoles.ATTENDEE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.SPONSOR, KeycloakRoles.VOLUNTEER],
+        'POST': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER, KeycloakRoles.SPONSOR, KeycloakRoles.VOLUNTEER],
         'DELETE': [KeycloakRoles.ADMIN, KeycloakRoles.SPONSOR],
-        'PATCH': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER, KeycloakRoles.SPONSOR]
+        'PATCH': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER, KeycloakRoles.SPONSOR, KeycloakRoles.VOLUNTEER]
     }
 
     def get_queryset(self):
@@ -689,10 +721,10 @@ class HardwareDeviceViewSet(EventScopedLoggingViewSet):
     permission_classes = [permissions.AllowAny]
     filterset_class = HardwareDeviceFilter
     keycloak_roles = {
-        'GET': [KeycloakRoles.ATTENDEE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER],
+        'GET': [KeycloakRoles.ATTENDEE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER],
         'POST': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER],
-        'DELETE': [KeycloakRoles.ADMIN],
-        'PATCH': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER]
+        'DELETE': [KeycloakRoles.ADMIN, KeycloakRoles.VOLUNTEER],
+        'PATCH': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER]
     }
 
     def get_serializer_class(self):
@@ -711,7 +743,7 @@ class HardwareRequestsViewSet(EventScopedLoggingViewSet):
     keycloak_roles = {
         "GET": [KeycloakRoles.ATTENDEE, KeycloakRoles.MENTOR, KeycloakRoles.JUDGE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER],
         "POST": [KeycloakRoles.ATTENDEE, KeycloakRoles.MENTOR, KeycloakRoles.JUDGE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER],
-        "PATCH": [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.ATTENDEE],
+        "PATCH": [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.ATTENDEE, KeycloakRoles.VOLUNTEER],
         "DELETE": [KeycloakRoles.ATTENDEE, KeycloakRoles.MENTOR, KeycloakRoles.JUDGE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER]
     }
 
@@ -920,6 +952,36 @@ class EventViewSet(LoggingMixin, viewsets.ModelViewSet):
     }
 
 
+class EventTrackViewSet(EventScopedLoggingViewSet):
+    """
+    API endpoint for viewing event-scoped track choices.
+    """
+    queryset = EventTrack.objects.none()
+    serializer_class = EventTrackSerializer
+    permission_classes = [permissions.AllowAny]
+    http_method_names = ['get', 'head', 'options']
+
+    def get_queryset(self):
+        """Filter tracks by the current active event."""
+        event = self.get_event()
+        return EventTrack.objects.for_event(event)
+
+
+class EventDestinyHardwareViewSet(EventScopedLoggingViewSet):
+    """
+    API endpoint for viewing event-scoped destiny hardware choices.
+    """
+    queryset = EventDestinyHardware.objects.none()
+    serializer_class = EventDestinyHardwareSerializer
+    permission_classes = [permissions.AllowAny]
+    http_method_names = ['get', 'head', 'options']
+
+    def get_queryset(self):
+        """Filter destiny hardware by the current active event."""
+        event = self.get_event()
+        return EventDestinyHardware.objects.for_event(event)
+
+
 @extend_schema(
     methods=['POST'],
     request=None,
@@ -942,14 +1004,14 @@ class EventRsvpViewSet(EventScopedLoggingViewSet):
     """
     API endpoint that allows event RSVPs to be viewed or edited.
     """
-    queryset = EventRsvp.objects.for_event(get_active_event())
+    queryset = EventRsvp.objects.all()
     permission_classes = [permissions.AllowAny]
     serializer_class = EventRsvpSerializer
     filterset_fields = ['event', 'attendee', 'participation_class']
     keycloak_roles = {
-        'GET': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        'GET': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.VOLUNTEER],
         'DELETE': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
-        'PATCH': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        'PATCH': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.VOLUNTEER],
     }
 
     def get_serializer_class(self):
@@ -1088,8 +1150,18 @@ class AttendeePreferenceViewSet(EventScopedLoggingViewSet):
         return super().delete(request, pk=pk, **kwargs)
 
     def create(self, request, pk=None, **kwargs):
+        event = Event.get_active()
         check_user(request, request.data["preferer"])
-        return super().create(request, pk=pk, **kwargs)
+        attendee_preference = AttendeePreference(
+            preferer=attendee_from_userinfo(request),
+            preferee=get_object_or_404(Attendee, id=request.data["preferee"]),
+            preference=request.data["preference"],
+            event=event
+        )
+        attendee_preference.save()
+        return Response(status=201, data=AttendeePreferenceSerializer(
+            attendee_preference
+        ).data)
 
 
 class DestinyTeamViewSet(EventScopedLoggingViewSet):

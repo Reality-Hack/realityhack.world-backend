@@ -65,8 +65,8 @@ class EventDetectionMiddleware(MiddlewareMixin):
         if not event:
             return JsonResponse({
                 'error': 'Event not found',
-                'detail': 'No event could be detected from the request. '
-                         'Please specify an event via header, URL, subdomain, or query parameter.'
+                'detail': 'No event could be detected from the request. Please '
+                'specify an event via header, URL, subdomain, or query parameter.'
             }, status=400)
 
         # Set event in thread-local storage
@@ -290,7 +290,8 @@ class DebugEventMiddleware(MiddlewareMixin):
     def process_request(self, request):
         """Log detected event."""
         if hasattr(request, 'event'):
-            print(f"🎯 Event detected: {request.event.name} (via {request.event_detection_method})")
+            print(f"🎯 Event detected: {request.event.name}" 
+                  f" (via {request.event_detection_method})")
         else:
             print("⚠️  No event detected in request")
         return None

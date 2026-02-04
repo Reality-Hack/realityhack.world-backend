@@ -37,6 +37,8 @@ class KeycloakRoles(object):
     JUDGE = f"judge:{EVENT_YEAR}"
     VOLUNTEER = f"volunteer:{EVENT_YEAR}"
     SPONSOR = f"sponsor:{EVENT_YEAR}"
+    GUARDIAN = f"guardian:{EVENT_YEAR}"
+    MEDIA = f"media:{EVENT_YEAR}"
 
 
 class KeycloakClient:
@@ -83,7 +85,7 @@ class KeycloakClient:
             url=f"{self.base_url}/clients?clientId={CLIENT_ID}",
             headers=self.authentication_headers,
         )
-        if not client_uuid.ok:
+        if not client_uuid.ok or not len(client_uuid.json()):
             status_code = client_uuid.status_code
             text = client_uuid.text
             raise Exception(
@@ -138,8 +140,8 @@ class KeycloakClient:
             "username": username,
             "enabled": True,
             "email": attendee.email,
-            "firstName": attendee.first_name,
-            "lastName": attendee.last_name,
+            "firstName": first_name,
+            "lastName": last_name,
             "credentials": [
                 {
                     "type": "password",
@@ -173,17 +175,23 @@ class KeycloakClient:
                 f"Error creating authentication account for {attendee.email}"
             )
 
-    def assign_authentication_roles(self, attendee: Attendee):
+    def assign_authentication_roles(
+        self,
+        attendee: Attendee,
+        participation_class: ParticipationClass
+    ):
         if not attendee.authentication_id:
             raise Exception("Authentication ID is not set")
 
-        if not attendee.participation_class:
+        if not participation_class:
             raise Exception("Participation class is not set")
 
-        if attendee.participation_class == ParticipationClass.PARTICIPANT:
+        if participation_class == ParticipationClass.PARTICIPANT:
             role = "attendee"
         else:
-            role = attendee.get_participation_class_display().lower()
+            role = dict[str, str](
+                ParticipationClass.choices
+            )[participation_class].lower()
 
         client_role = self.get_client_role_mapping(f"{role}:{EVENT_YEAR}")
 
@@ -200,6 +208,7 @@ class KeycloakClient:
 
         if auth_roles_mapping.ok:
             attendee.authentication_roles_assigned = True
+            attendee.participation_class = participation_class
             attendee.save()
         else:
             raise Exception(
@@ -214,7 +223,11 @@ class KeycloakClient:
         )
         return users.json()
 
-    def handle_user_creation(self, attendee: Attendee) -> str:
+    def handle_user_creation(
+        self, 
+        attendee: Attendee,
+        participation_class: ParticipationClass
+    ) -> str:
         temporary_password = secrets.token_hex(10 // 2)
         try:
             if not attendee.authentication_id:
@@ -223,19 +236,25 @@ class KeycloakClient:
                 )
                 print(f"Keycloak account created for {attendee.email}")
                 attendee.authentication_id = authentication_account_id
-            self.assign_authentication_roles(attendee)
+            self.assign_authentication_roles(attendee, participation_class)
             return temporary_password
         except Exception as e:
             print(f"Error creating keycloak account for {attendee.email}: {e}")
             raise e
 
-    def _ensure_authentication_account(self, attendee: Attendee) -> str | None:
+    def _ensure_authentication_account(
+        self,
+        attendee: Attendee,
+        participation_class: ParticipationClass
+    ) -> str | None:
         if attendee.authentication_id:
             return None
         elif existing_users := self.find_user_by_email(attendee.email):
             if len(existing_users) > 1:
+                subject, body = email.get_multiple_users_found_template(attendee.email),
                 send_mail(
-                    email.get_multiple_users_found_template(attendee.email),
+                    subject,
+                    body,
                     "no-reply@realityhackinc.org",
                     [attendee.email, "apply@realityhackinc.org"],
                     fail_silently=False,
@@ -246,12 +265,18 @@ class KeycloakClient:
                 attendee.save()
                 return None
         else:
-            return self.handle_user_creation(attendee)
+            return self.handle_user_creation(attendee, participation_class)
 
-    def handle_user_rsvp(self, attendee: Attendee) -> None:
-        temp_password = self._ensure_authentication_account(attendee)
-        self.assign_authentication_roles(attendee)
-        if attendee.participation_class == ParticipationClass.PARTICIPANT:
+    def handle_user_rsvp(
+        self,
+        attendee: Attendee,
+        participation_class: ParticipationClass
+    ) -> None:
+        temp_password = self._ensure_authentication_account(
+            attendee, participation_class
+        )
+        self.assign_authentication_roles(attendee, participation_class)
+        if participation_class == ParticipationClass.PARTICIPANT:
             subject, body = email.get_hacker_rsvp_confirmation_template(
                 attendee.first_name, temp_password
             )
@@ -266,3 +291,64 @@ class KeycloakClient:
             [attendee.email],
             fail_silently=False,
         )
+
+    def get_all_users(self, max_users=None):
+        """
+        Get all users in the realm.
+
+        Args:
+            max_users: Optional max number of users to return (default: None for all)
+        """
+        params = {}
+        if max_users:
+            params['max'] = max_users
+
+        query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
+        url = f"{self.base_url}/users"
+        if query_string:
+            url += f"?{query_string}"
+
+        users = requests.get(
+            url=url,
+            headers=self.authentication_headers,
+        )
+
+        if not users.ok:
+            raise Exception(f"Error getting users: {users.status_code} - {users.text}")
+
+        return users.json()
+
+    def get_users_by_role(self, role_name: str, max_users=None):
+        """
+        Get all users with a specific client role.
+
+        Args:
+            role_name: The name of the client role (e.g., "attendee:2026")
+            max_users: Optional max number of users to return
+
+        Returns:
+            List of user objects with the specified role
+        """
+        if not self.client_uuid:
+            self.get_client_uuid()
+
+        params = {}
+        if max_users:
+            params['max'] = max_users
+
+        query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
+        url = f"{self.base_url}/clients/{self.client_uuid}/roles/{role_name}/users"
+        if query_string:
+            url += f"?{query_string}"
+
+        users = requests.get(
+            url=url,
+            headers=self.authentication_headers,
+        )
+
+        if not users.ok:
+            raise Exception(
+                f"Error getting users by role: {users.status_code} - {users.text}"
+            )
+
+        return users.json()

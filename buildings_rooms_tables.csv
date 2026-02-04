@@ -1,6 +1,12 @@
-Building,Room,Table Number Range,Notes
-Walker,Morss Hall,1-48,
-Stata,32-124,49-60,Hardware Hack
-Stata,32-144,61-72,Hardware Hack
-Stata,32-141,73-100,Community Hack
-Stata,32-155,N/A,"Founders Lab (office hours, no hacking)"
+Building,Floor,Room,Table Number Range,Notes
+Student Center (Straton),3rd Floor,Mezzanine,1-15,Qualcomm Hardware
+Student Center (Straton),3rd Floor,Twenty Chimneys,16-25,General Hardware Hack
+Student Center (Straton),3rd Floor,W20-301+302,26-30,DeoVR
+Student Center (Straton),2nd Floor,Sala de Puerto Rico,31-40,Software Hack (Spectacles)
+Student Center (Straton),2nd Floor,Sala de Puerto Rico,41-48,Software Hack (Android XR)
+Student Center (Straton),2nd Floor,Sala de Puerto Rico,48-49,Software Hack (RayNeo)
+Student Center (Straton),2nd Floor,Sala de Puerto Rico,50-50,Software Hack (RayBans)
+Student Center (Straton),2nd Floor,Sala de Puerto Rico,51-55,Software Hack (Raven)
+Student Center (Straton),2nd Floor,Sala de Puerto Rico,56-63,Software Hack (Raven)
+Student Center (Straton),4th Floor,W20-401,64-71,Community Hack
+Barcelona,,Remote,72-77,Barcelona Community Hack

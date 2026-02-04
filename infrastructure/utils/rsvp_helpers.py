@@ -4,7 +4,7 @@ import logging
 from django.core.mail import send_mail
 from django.core.exceptions import ValidationError
 
-from infrastructure.models import Attendee, Application, EventRsvp
+from infrastructure.models import Attendee, Application, EventRsvp, ParticipationClass
 from infrastructure.event_context import get_active_event
 from infrastructure.serializers import AttendeeRSVPCreateSerializer, EventRsvpSerializer
 from infrastructure.keycloak import KeycloakClient
@@ -101,6 +101,7 @@ def _create_attendee_from_validated_data(
     )
     attendee.username = attendee.email
     attendee.participation_role = application.participation_role
+    attendee.participation_class = application.participation_class
     logger.info(f"Successfully created attendee: {attendee.id}")
     return attendee
 
@@ -115,8 +116,13 @@ def create_event_rsvp_from_request(
         request, str(event.id), application
     )
     if rsvp_create_serializer.is_valid():
-        rsvp_data = rsvp_create_serializer.data
-        rsvp_data.pop("event")
+        rsvp_data = dict(rsvp_create_serializer.validated_data)
+        rsvp_data.pop("event", None)
+
+        # Extract ManyToMany fields - they must be set after model creation
+        intended_event_tracks = rsvp_data.pop("intended_event_tracks", None)
+        prefers_hardware = rsvp_data.pop("prefers_event_destiny_hardware", None)
+
         attendee.save()
         event_rsvp = EventRsvp(
             attendee=attendee,
@@ -124,6 +130,14 @@ def create_event_rsvp_from_request(
             application=application,
             **rsvp_data
         )
+        event_rsvp.save()
+
+        # Set ManyToMany fields after saving
+        if intended_event_tracks:
+            event_rsvp.intended_event_tracks.set(intended_event_tracks)
+        if prefers_hardware:
+            event_rsvp.prefers_event_destiny_hardware.set(prefers_hardware)
+
         logger.info(f"Successfully created event rsvp for user: {attendee.email}")
         return event_rsvp
     else:
@@ -151,6 +165,7 @@ def get_or_create_attendee_from_request(
         attendee.last_name = application.last_name
         attendee.application = application
         attendee.participation_role = application.participation_role
+        attendee.participation_class = application.participation_class
         return attendee
     else:
         logger.info(
@@ -168,16 +183,22 @@ def get_or_create_attendee_from_request(
             raise ValidationError(attendee_serializer.errors)
 
 
-def handle_keycloak_account_creation(attendee: Attendee) -> None:
+def handle_keycloak_account_creation(
+    attendee: Attendee,
+    participation_class: ParticipationClass
+) -> None:
     keycloak_client = KeycloakClient()
     try:
-        keycloak_client.handle_user_rsvp(attendee)
-    except Exception as e:
-        logger.error(f"Error handling user RSVP: {e}")
+        keycloak_client.handle_user_rsvp(attendee, participation_class)
+    except Exception as error:
+        logger.error(f"Error handling user RSVP: {error}")
+        subject, body = email.get_keycloak_account_error_template(
+            attendee.email, error
+        )
         send_mail(
-            "Error creating keycloak account",
-            email.get_keycloak_account_error_template(attendee.email, e),
+            subject,
+            body,
             "no-reply@realityhackinc.org",
-            [attendee.email, "apply@realityhackinc.org"],
+            [attendee.email, "tech@realityhackinc.org"],
             fail_silently=False,
         )
