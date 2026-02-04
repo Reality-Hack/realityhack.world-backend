@@ -16,6 +16,7 @@ class Command(BaseCommand):
     ROOM_COL = 'Room'
     TABLE_RANGE_COL = 'Table Number Range'
     NOTES_COL = 'Notes'
+    FLOOR_COL = 'Floor'
 
     def add_arguments(self, parser):
         parser.add_argument('csv_path', type=str, help='Path to the CSV file containing table data')
@@ -42,7 +43,9 @@ class Command(BaseCommand):
         building_map = {
             'WALKER': 'WK',
             'STATA': 'ST',
-            # Add more mappings as needed
+            'STUDENT CENTER (STRATON)': 'SC',
+            'STUDENT CENTER': 'SC',
+            'BARCELONA': 'BC',
         }
         return building_map.get(building, building)
 
@@ -57,7 +60,12 @@ class Command(BaseCommand):
             '32-155': '55',
             'ATLANTIS': 'AT',
             'NEPTUNE': 'NE',
-            # Add more mappings as needed
+            'MEZZANINE': 'MZ',
+            'TWENTY CHIMNEYS': 'TC',
+            'W20-301+302': '301',
+            'SALA DE PUERTO RICO': 'SP',
+            'W20-401': '401',
+            'REMOTE': 'RM',
         }
         return room_map.get(room, room)
 
@@ -146,7 +154,8 @@ class Command(BaseCommand):
                     'building': row[self.BUILDING_COL],
                     'room': row[self.ROOM_COL],
                     'table_range': table_range,
-                    'notes': row.get(self.NOTES_COL, ''),
+                    'notes': row.get(self.NOTES_COL, '') or None,
+                    'floor': row.get(self.FLOOR_COL, '').strip() or None,
                     'num_tables': num_tables
                 })
 
@@ -166,11 +175,15 @@ class Command(BaseCommand):
                 self.stdout.write("\nTables to be created:")
                 for row in rows_to_process:
                     start_num, end_num = row['table_range']
-                    self.stdout.write(
+                    output_parts = [
                         f"Building: {row['building']}, Room: {row['room']}, "
                         f"Tables: {start_num}-{end_num} ({row['num_tables']} tables)"
-                        + (f", Notes: {row['notes']}" if row['notes'] else "")
-                    )
+                    ]
+                    if row.get('floor'):
+                        output_parts.append(f"Floor: {row['floor']}")
+                    if row.get('notes'):
+                        output_parts.append(f"Notes: {row['notes']}")
+                    self.stdout.write(", ".join(output_parts))
                 self.stdout.write(f"\nTotal tables to be created: {total_tables}")
                 return
 
@@ -188,7 +201,9 @@ class Command(BaseCommand):
                         Table.objects.create(
                             number=table_num,
                             location=location,
-                            event=self.event
+                            event=self.event,
+                            notes=row.get('notes'),
+                            floor=row.get('floor')
                         )
 
             self.stdout.write(

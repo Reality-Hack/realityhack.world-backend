@@ -32,7 +32,7 @@ console_command = '/code/manage.py shell'
     versions = ["TLSv1.2", "TLSv1.3"]
 
 [[vm]]
-  memory = '1gb'
+  memory = '2gb'
   cpu_kind = 'shared'
   cpus = 1
 

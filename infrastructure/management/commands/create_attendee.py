@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 
 from infrastructure.keycloak import KeycloakClient
-from infrastructure.models import Attendee, Event, EventRsvp
+from infrastructure.models import Attendee, Event, EventRsvp, ShirtSize
 from datetime import datetime
 
 now_str = datetime.now().strftime("%Y%m%d%H%M%S")
@@ -52,6 +52,11 @@ class Command(BaseCommand):  # pragma: no cover
             default="No Reply",
             help="Emergency contact name",
         )
+        parser.add_argument(
+            "--communication_platform_username",
+            default="asdfasf",
+            help="Communication platform username",
+        )
 
     def create_attendee(self, **options):
         if existing_attendee := Attendee.objects.filter(email=options['email']).first():
@@ -64,6 +69,7 @@ class Command(BaseCommand):  # pragma: no cover
             last_name=options['last_name'],
             participation_class=options['role'],
             us_visa_support_is_required=False,
+            communications_platform_username=options['communication_platform_username'],
             emergency_contact_name=options['emergency_contact_name'],
             personal_phone_number=options['phone_number'],
             emergency_contact_phone_number=options['emergency_contact_phone_number'],
@@ -74,17 +80,21 @@ class Command(BaseCommand):  # pragma: no cover
 
     def handle(self, *args, **options):
         attendee = self.create_attendee(**options)
+        print(f"Attendee created: {attendee.email}")
+        print(f"Attendee name: {attendee.first_name} {attendee.last_name}")
         event_rsvp = EventRsvp.objects.create(
             attendee=attendee,
             event=self.current_event,
             status=EventRsvp.Status.RSVP,
             participation_class=options['role'],
+            shirt_size=ShirtSize.M,
+            communication_platform_username=options['communication_platform_username'],
             us_visa_support_is_required=False,
             emergency_contact_name=options['emergency_contact_name'],
             personal_phone_number=options['phone_number'],
             emergency_contact_phone_number=options['emergency_contact_phone_number'],
             emergency_contact_email=options['emergency_contact_email'],
-            emergency_contact_relationship="None"
+            emergency_contact_relationship="None",
         )
         attendee.save()
         event_rsvp.save()

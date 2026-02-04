@@ -116,8 +116,13 @@ def create_event_rsvp_from_request(
         request, str(event.id), application
     )
     if rsvp_create_serializer.is_valid():
-        rsvp_data = rsvp_create_serializer.data
-        rsvp_data.pop("event")
+        rsvp_data = dict(rsvp_create_serializer.validated_data)
+        rsvp_data.pop("event", None)
+
+        # Extract ManyToMany fields - they must be set after model creation
+        intended_event_tracks = rsvp_data.pop("intended_event_tracks", None)
+        prefers_hardware = rsvp_data.pop("prefers_event_destiny_hardware", None)
+
         attendee.save()
         event_rsvp = EventRsvp(
             attendee=attendee,
@@ -125,6 +130,14 @@ def create_event_rsvp_from_request(
             application=application,
             **rsvp_data
         )
+        event_rsvp.save()
+
+        # Set ManyToMany fields after saving
+        if intended_event_tracks:
+            event_rsvp.intended_event_tracks.set(intended_event_tracks)
+        if prefers_hardware:
+            event_rsvp.prefers_event_destiny_hardware.set(prefers_hardware)
+
         logger.info(f"Successfully created event rsvp for user: {attendee.email}")
         return event_rsvp
     else:

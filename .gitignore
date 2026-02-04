@@ -101,3 +101,5 @@ src/
 logs/
 keycloak_data/
 .env*
+
+exports/

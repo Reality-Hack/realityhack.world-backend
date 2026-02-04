@@ -30,6 +30,7 @@ from infrastructure.models import (Application, ApplicationQuestion,
                                    ApplicationQuestionChoice, ApplicationResponse,
                                    Attendee, AttendeePreference,
                                    DestinyTeam, DestinyTeamAttendeeVibe,
+                                   EventDestinyHardware, EventTrack,
                                    Hardware, HardwareDevice, HardwareRequest,
                                    LightHouse, Location,
                                    Project, Skill, SkillProficiency, Table,
@@ -85,6 +86,8 @@ router.register(r'attendeepreferences', views.AttendeePreferenceViewSet)
 router.register(r'destinyteams', views.DestinyTeamViewSet)
 router.register(r'destinyteamattendeevibes', views.DestinyTeamAttendeeVibeViewSet)
 router.register(r'eventrsvps', views.EventRsvpViewSet)
+router.register(r'eventtracks', views.EventTrackViewSet)
+router.register(r'eventdestinyhardware', views.EventDestinyHardwareViewSet)
 
 admin.site.register(Skill)
 admin.site.register(Attendee)
@@ -107,6 +110,8 @@ admin.site.register(WorkshopAttendee)
 admin.site.register(AttendeePreference)
 admin.site.register(DestinyTeam)
 admin.site.register(DestinyTeamAttendeeVibe)
+admin.site.register(EventTrack)
+admin.site.register(EventDestinyHardware)
 
 urlpatterns = [
     path('admin/', admin.site.urls),

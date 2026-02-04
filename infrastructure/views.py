@@ -17,6 +17,7 @@ from infrastructure.event_context import get_active_event
 from infrastructure.models import (Application,
                                    Attendee, AttendeePreference,
                                    DestinyTeam, DestinyTeamAttendeeVibe,
+                                   EventDestinyHardware, EventTrack,
                                    Hardware, HardwareDevice, HardwareRequest,
                                    LightHouse, Location, MentorHelpRequest,
                                    Project, Skill, SkillProficiency, Table,
@@ -64,7 +65,9 @@ from infrastructure.serializers import (ApplicationSerializer,
                                         TeamCreateSerializer, TeamUpdateSerializer,
                                         TeamDetailSerializer, TeamSerializer,
                                         WorkshopAttendeeSerializer,
-                                        WorkshopSerializer, EventSerializer)
+                                        WorkshopSerializer, EventSerializer,
+                                        EventTrackSerializer,
+                                        EventDestinyHardwareSerializer)
 from infrastructure.filters import (
     TeamFilter,
     MentorHelpRequestFilter,
@@ -122,6 +125,14 @@ def prepare_attendee_for_detail(attendee, event=None):
     # HardwareDevice.objects.for_event(event).filter(checked_out_to=attendee.id)
     attendee.workshops = []
     # WorkshopAttendee.objects.for_event(event).filter(attendee=attendee.id)
+    # Properly scope event-scoped ManyToMany fields to avoid EventScopingError
+    # Store in separate attributes since direct ManyToMany assignment is prohibited
+    attendee._cached_intended_event_tracks = list(
+        attendee.intended_event_tracks.all_events().filter(event=event)
+    )
+    attendee._cached_prefers_event_destiny_hardware = list(
+        attendee.prefers_event_destiny_hardware.all_events().filter(event=event)
+    )
     return attendee
 
 
@@ -293,12 +304,12 @@ class AttendeeRSVPViewSet(LoggingMixin, viewsets.ModelViewSet):
             )
 
         attendee.sponsor_handler = sponsor_handler
+        attendee.save()
         if guardian_of:
             attendee.guardian_of.set(
                 [guardian_of_attendee.id for guardian_of_attendee in guardian_of]
             )
 
-        event_rsvp.save()
         handle_keycloak_account_creation(attendee, event_rsvp.participation_class)
         serializer = AttendeeRSVPSerializer(attendee)
         return Response(serializer.data, status=201)
@@ -351,7 +362,8 @@ class TableViewSet(EventScopedLoggingViewSet):
         return Response(serializer.data)
 
     def list(self, request):
-        queryset = self.get_queryset()
+        event = self.get_event()
+        queryset = Table.objects.for_event(event).all()
         serializer = TableSerializer(queryset, many=True)
         return Response(serializer.data)
 
@@ -711,7 +723,7 @@ class HardwareDeviceViewSet(EventScopedLoggingViewSet):
     keycloak_roles = {
         'GET': [KeycloakRoles.ATTENDEE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER],
         'POST': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER],
-        'DELETE': [KeycloakRoles.ADMIN],
+        'DELETE': [KeycloakRoles.ADMIN, KeycloakRoles.VOLUNTEER],
         'PATCH': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER]
     }
 
@@ -731,7 +743,7 @@ class HardwareRequestsViewSet(EventScopedLoggingViewSet):
     keycloak_roles = {
         "GET": [KeycloakRoles.ATTENDEE, KeycloakRoles.MENTOR, KeycloakRoles.JUDGE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER],
         "POST": [KeycloakRoles.ATTENDEE, KeycloakRoles.MENTOR, KeycloakRoles.JUDGE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER],
-        "PATCH": [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.ATTENDEE],
+        "PATCH": [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.ATTENDEE, KeycloakRoles.VOLUNTEER],
         "DELETE": [KeycloakRoles.ATTENDEE, KeycloakRoles.MENTOR, KeycloakRoles.JUDGE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER, KeycloakRoles.VOLUNTEER]
     }
 
@@ -938,6 +950,36 @@ class EventViewSet(LoggingMixin, viewsets.ModelViewSet):
         'GET': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
         'PATCH': [KeycloakRoles.ADMIN],
     }
+
+
+class EventTrackViewSet(EventScopedLoggingViewSet):
+    """
+    API endpoint for viewing event-scoped track choices.
+    """
+    queryset = EventTrack.objects.none()
+    serializer_class = EventTrackSerializer
+    permission_classes = [permissions.AllowAny]
+    http_method_names = ['get', 'head', 'options']
+
+    def get_queryset(self):
+        """Filter tracks by the current active event."""
+        event = self.get_event()
+        return EventTrack.objects.for_event(event)
+
+
+class EventDestinyHardwareViewSet(EventScopedLoggingViewSet):
+    """
+    API endpoint for viewing event-scoped destiny hardware choices.
+    """
+    queryset = EventDestinyHardware.objects.none()
+    serializer_class = EventDestinyHardwareSerializer
+    permission_classes = [permissions.AllowAny]
+    http_method_names = ['get', 'head', 'options']
+
+    def get_queryset(self):
+        """Filter destiny hardware by the current active event."""
+        event = self.get_event()
+        return EventDestinyHardware.objects.for_event(event)
 
 
 @extend_schema(
