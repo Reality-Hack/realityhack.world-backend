@@ -67,7 +67,8 @@ from infrastructure.serializers import (ApplicationSerializer,
                                         WorkshopAttendeeSerializer,
                                         WorkshopSerializer, EventSerializer,
                                         EventTrackSerializer,
-                                        EventDestinyHardwareSerializer)
+                                        EventDestinyHardwareSerializer,
+                                        EventRsvpAttendeeOptionSerializer)
 from infrastructure.filters import (
     TeamFilter,
     MentorHelpRequestFilter,
@@ -997,6 +998,28 @@ def activate_event(request, event_id):
     event = get_object_or_404(Event, pk=event_id)
     event.activate()
     serializer = EventSerializer(event)
+    return Response(serializer.data)
+
+
+@extend_schema(
+    methods=['GET'],
+    responses={200: EventRsvpAttendeeOptionSerializer(many=True)},
+    description=(
+        "Returns a minimal list of attendees (id, first_name, last_name, checked_in_at) "
+        "from event RSVPs for the active event. Intended for team attendee picker dropdowns."
+    ),
+)
+@api_view(['GET'])
+@keycloak_roles([KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.VOLUNTEER])
+def event_rsvp_attendee_options(request):
+    event = get_active_event()
+    rsvps = (
+        EventRsvp.objects
+        .for_event(event)
+        .select_related('attendee')
+        .exclude(attendee__isnull=True)
+    )
+    serializer = EventRsvpAttendeeOptionSerializer(rsvps, many=True)
     return Response(serializer.data)
 
 

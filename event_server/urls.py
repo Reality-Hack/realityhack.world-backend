@@ -115,6 +115,7 @@ admin.site.register(EventDestinyHardware)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('eventrsvps/attendee-options/', views.event_rsvp_attendee_options, name='event_rsvp_attendee_options'),
     path('', include(router.urls)),
     path('auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),

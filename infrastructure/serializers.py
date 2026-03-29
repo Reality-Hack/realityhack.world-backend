@@ -610,6 +610,14 @@ class EventRsvpSummarySerializer(EventScopedSerializer):
         ]
 
 
+class EventRsvpAttendeeOptionSerializer(serializers.Serializer):
+    """Minimal attendee data needed for team attendee picker dropdowns."""
+    id = serializers.UUIDField(source='attendee.id')
+    first_name = serializers.CharField(source='attendee.first_name')
+    last_name = serializers.CharField(source='attendee.last_name')
+    checked_in_at = serializers.DateTimeField(allow_null=True)
+
+
 class TableNumberSerializer(serializers.ModelSerializer):
 
     class Meta:
@@ -621,18 +629,32 @@ class TeamProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
         fields = ['id', 'name', 'repository_location', 'submission_location',
-                  'census_location_override', 'census_taker_name', 'team_primary_contact',
-                  'description', 'created_at', 'updated_at']
+                  'census_location_override', 'census_taker_name', 
+                  'team_primary_contact', 'description', 'created_at', 'updated_at']
 
 
 class TeamSerializer(EventScopedSerializer):
     project = TeamProjectSerializer()
+    event_tracks = serializers.SerializerMethodField()
+    event_destiny_hardware = serializers.SerializerMethodField()
 
     class Meta:
         model = Team
         fields = ['id', 'number', 'name', 'attendees', 'table',
                   'tracks', 'destiny_hardware', 'team_description',
-                  'created_at', 'updated_at', 'project']
+                  'created_at', 'updated_at', 'project', 'startup_hack',
+                  'community_hack', 'hardware_hack', 'event_tracks',
+                  'event_destiny_hardware']
+
+    def get_event_tracks(self, obj):
+        """Properly scope EventTrack query to avoid EventScopingError."""
+        tracks = obj.event_tracks.all_events().all()
+        return EventTrackSerializer(tracks, many=True).data
+
+    def get_event_destiny_hardware(self, obj):
+        """Properly scope EventDestinyHardware query to avoid EventScopingError."""
+        hardware = obj.event_destiny_hardware.all_events().all()
+        return EventDestinyHardwareSerializer(hardware, many=True).data
 
 
 class TeamLightHouseSerializer(serializers.ModelSerializer):
