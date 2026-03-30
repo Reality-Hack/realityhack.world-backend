@@ -235,7 +235,9 @@ class EventDestinyHardwareSerializer(serializers.ModelSerializer):
 
 class AttendeeSerializer(serializers.ModelSerializer):
     intended_tracks = fields.MultipleChoiceField(choices=Track.choices)
-    prefers_destiny_hardware = fields.MultipleChoiceField(choices=DestinyHardware.choices)
+    prefers_destiny_hardware = fields.MultipleChoiceField(
+        choices=DestinyHardware.choices,
+    )
     intended_event_tracks = serializers.SerializerMethodField()
     prefers_event_destiny_hardware = serializers.SerializerMethodField()
 
@@ -251,12 +253,13 @@ class AttendeeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Attendee
-        fields = ['id', 'first_name', 'last_name', 'participation_role', 'checked_in_at',
-                  'profile_image', 'initial_setup', 'guardian_of', 'sponsor_handler', 'prefers_destiny_hardware',
-                  'communications_platform_username', 'email', 'intended_tracks', 'intended_hardware_hack',
-                  'sponsor_company',  'participation_class', 'initial_setup', 'profile_image',
+        fields = ['id', 'first_name', 'last_name', 'participation_role',
+                  'profile_image', 'initial_setup', 'guardian_of', 'sponsor_handler',
+                  'prefers_destiny_hardware', 'intended_hardware_hack',
+                  'communications_platform_username', 'email', 'intended_tracks',
+                  'participation_class', 'initial_setup', 'profile_image',
                   'intended_event_tracks', 'prefers_event_destiny_hardware',
-                  'created_at', 'updated_at']
+                  'created_at', 'updated_at', 'checked_in_at']
 
 
 class AttendeeListSerializer(serializers.ModelSerializer):
@@ -283,7 +286,7 @@ class AttendeeListSerializer(serializers.ModelSerializer):
                   'checked_in_at', 'profile_image', 'initial_setup',
                   'guardian_of', 'sponsor_handler', 'prefers_destiny_hardware',
                   'communications_platform_username', 'intended_tracks',
-                  'intended_hardware_hack', 'sponsor_company', 'participation_class',
+                  'intended_hardware_hack', 'participation_class',
                   'initial_setup', 'profile_image',
                   'intended_event_tracks', 'prefers_event_destiny_hardware',
                   'created_at', 'updated_at']
@@ -293,19 +296,27 @@ class DiscordUsernameRoleSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Attendee
-        fields = ['communications_platform_username', 'participation_role', 'participation_class']
+        fields = [
+            'communications_platform_username', 'participation_role',
+            'participation_class',
+        ]
 
 
 class AttendeeRSVPCreateSerializer(EventScopedSerializer):
-    dietary_restrictions = fields.MultipleChoiceField(choices=models.DietaryRestrictions.choices)
-    dietary_allergies = fields.MultipleChoiceField(choices=models.DietaryAllergies.choices)
+    dietary_restrictions = fields.MultipleChoiceField(
+        choices=models.DietaryRestrictions.choices,
+    )
+    dietary_allergies = fields.MultipleChoiceField(
+        choices=models.DietaryAllergies.choices,
+    )
 
     class Meta:
         model = Attendee
         fields = [
             "id", "first_name", "last_name", "participation_role",
             'profile_image', "authentication_id",
-            "application", "bio", "email", "shirt_size", "communications_platform_username",
+            "application", "bio", "email", "shirt_size",
+            "communications_platform_username",
             "dietary_restrictions", "dietary_restrictions_other",
             "dietary_allergies", "dietary_allergies_other",
             "additional_accommodations",
@@ -314,7 +325,8 @@ class AttendeeRSVPCreateSerializer(EventScopedSerializer):
             "us_visa_support_national_identification_document_type",
             "us_visa_support_citizenship", "us_visa_support_address",
             "under_18_by_date", "parental_consent_form_signed",
-            "agree_to_media_release", "agree_to_liability_release", "agree_to_rules_code_of_conduct",
+            "agree_to_media_release", "agree_to_liability_release",
+            "agree_to_rules_code_of_conduct",
             "emergency_contact_name", "personal_phone_number",
             "emergency_contact_phone_number", "emergency_contact_email",
             "emergency_contact_relationship",
@@ -323,7 +335,7 @@ class AttendeeRSVPCreateSerializer(EventScopedSerializer):
             "app_in_store", "currently_build_for_xr", "currently_use_xr",
             "non_xr_talents", "ar_vr_ap_in_store",
             "reality_hack_project_to_product",
-            "participation_class", "sponsor_company",
+            "participation_class",
             "breakthrough_hacks_interest", "device_preference_ranked",
             "loaner_headset_preference"
         ]
@@ -362,7 +374,7 @@ class AttendeeRSVPSerializer(EventScopedSerializer):
             "app_in_store", "currently_build_for_xr", "currently_use_xr",
             "non_xr_talents", "ar_vr_ap_in_store",
             "reality_hack_project_to_product",
-            "participation_class", "sponsor_company"
+            "participation_class"
         ]
 
 
@@ -829,7 +841,7 @@ class HardwareSerializer(EventScopedSerializer):
     image = FileUploadSerializer()
     tags = fields.MultipleChoiceField(choices=HardwareTags)
     relates_to_event_destiny_hardware = EventDestinyHardwareSerializer(read_only=True)
-    
+
     class Meta:
         model = Hardware
         fields = ['id', 'name', 'description', 'image', 'tags',
@@ -981,7 +993,7 @@ class AttendeeDetailSerializer(serializers.ModelSerializer):
         fields = ['id', 'first_name', 'last_name', 'skill_proficiencies',
                   'profile_image', 'bio', 'checked_in_at', 'team', 'event_rsvp',
                   'hardware_devices', 'communications_platform_username', 'email',
-                  'workshops', 'sponsor_company',  'participation_class',
+                  'workshops', 'participation_class',
                   'initial_setup', 'prefers_destiny_hardware', 'guardian_of',
                   'sponsor_handler', 'intended_tracks', 'intended_hardware_hack',
                   'intended_event_tracks', 'prefers_event_destiny_hardware',
@@ -1003,22 +1015,27 @@ class AttendeePatchSerializer(serializers.ModelSerializer):
 
     def get_prefers_event_destiny_hardware(self, obj: Attendee) -> list[int]:
         """Return IDs of preferred event destiny hardware with proper event scoping."""
-        return list(obj.prefers_event_destiny_hardware.all_events().values_list('id', flat=True))
+        return list(
+            obj.prefers_event_destiny_hardware.all_events().values_list('id', flat=True)
+        )
 
     class Meta:
         model = Attendee
         fields = ['id', 'first_name', 'last_name', 'authentication_id',
                   'profile_image', 'bio', 'checked_in_at', 'prefers_destiny_hardware',
-                  'communications_platform_username', 'email', 'prefers_destiny_hardware',
-                  'sponsor_company',  'participation_class', 'initial_setup',
-                  'guardian_of', 'sponsor_handler', 'intended_tracks', 'intended_hardware_hack',
+                  'communications_platform_username', 'email',
+                  'prefers_destiny_hardware', 'intended_hardware_hack',
+                  'participation_class', 'initial_setup',
+                  'guardian_of', 'sponsor_handler', 'intended_tracks',
                   'intended_event_tracks', 'prefers_event_destiny_hardware',
                   'created_at', 'updated_at']
 
 
 class AttendeeUpdateSerializer(serializers.ModelSerializer):
     intended_tracks = fields.MultipleChoiceField(choices=Track.choices)
-    prefers_destiny_hardware = fields.MultipleChoiceField(choices=DestinyHardware.choices)
+    prefers_destiny_hardware = fields.MultipleChoiceField(
+        choices=DestinyHardware.choices
+    )
     # Use SerializerMethodField to properly scope event-scoped ManyToMany queries
     intended_event_tracks = serializers.SerializerMethodField()
     prefers_event_destiny_hardware = serializers.SerializerMethodField()
@@ -1029,15 +1046,19 @@ class AttendeeUpdateSerializer(serializers.ModelSerializer):
 
     def get_prefers_event_destiny_hardware(self, obj: Attendee) -> list[int]:
         """Return IDs of preferred event destiny hardware with proper event scoping."""
-        return list(obj.prefers_event_destiny_hardware.all_events().values_list('id', flat=True))
+        return list(obj.prefers_event_destiny_hardware.all_events().values_list(
+            'id', flat=True)
+        )
 
     class Meta:
         model = Attendee
         fields = ['id', 'first_name', 'last_name',
                   'profile_image', 'bio', 'checked_in_at', 'prefers_destiny_hardware',
-                  'communications_platform_username', 'email', 'prefers_destiny_hardware',
-                  'sponsor_company',  'participation_class', 'initial_setup',
-                  'guardian_of', 'sponsor_handler', 'intended_tracks', 'intended_hardware_hack',
+                  'communications_platform_username', 'email',
+                  'prefers_destiny_hardware',
+                  'participation_class', 'initial_setup',
+                  'guardian_of', 'sponsor_handler', 'intended_tracks',
+                  'intended_hardware_hack',
                   'intended_event_tracks', 'prefers_event_destiny_hardware',
                   'created_at', 'updated_at', 'authentication_id']
 

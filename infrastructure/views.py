@@ -811,7 +811,7 @@ class ApplicationQuestionViewSet(EventScopedLoggingViewSet):
     queryset = ApplicationQuestion.objects.all()
     permission_classes = [permissions.AllowAny]
     serializer_class = ApplicationQuestionSerializer
-    filterset_fields = ['question_key', 'parent_question']
+    filterset_fields = ['question_key', 'parent_question', 'event']
     keycloak_roles = {
         'POST': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
         'DELETE': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
@@ -820,7 +820,10 @@ class ApplicationQuestionViewSet(EventScopedLoggingViewSet):
 
     def list(self, request):
         """Return all questions for the active event, ordered by order field"""
-        event = self.get_event()
+        if event_id := request.query_params.get('event'):
+            event = get_object_or_404(Event, pk=event_id)
+        else:
+            event = get_active_event()
         questions = ApplicationQuestion.objects.for_event(event).prefetch_related(
             'choices'
         ).order_by('order')
@@ -945,7 +948,7 @@ class EventViewSet(LoggingMixin, viewsets.ModelViewSet):
     queryset = Event.objects.all()
     permission_classes = [permissions.AllowAny]
     serializer_class = EventSerializer
-    filterset_fields = ['is_active']
+    filterset_fields = ['is_active', 'id']
     http_method_names = ['get', 'patch', 'head', 'options']
     keycloak_roles = {
         'GET': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
@@ -961,10 +964,14 @@ class EventTrackViewSet(EventScopedLoggingViewSet):
     serializer_class = EventTrackSerializer
     permission_classes = [permissions.AllowAny]
     http_method_names = ['get', 'head', 'options']
+    filterset_fields = ['event']
 
     def get_queryset(self):
         """Filter tracks by the current active event."""
-        event = self.get_event()
+        if event_id := self.request.query_params.get('event'):
+            event = get_object_or_404(Event, pk=event_id)
+        else:
+            event = get_active_event()
         return EventTrack.objects.for_event(event)
 
 
@@ -976,10 +983,14 @@ class EventDestinyHardwareViewSet(EventScopedLoggingViewSet):
     serializer_class = EventDestinyHardwareSerializer
     permission_classes = [permissions.AllowAny]
     http_method_names = ['get', 'head', 'options']
+    filterset_fields = ['event']
 
     def get_queryset(self):
         """Filter destiny hardware by the current active event."""
-        event = self.get_event()
+        if event_id := self.request.query_params.get('event'):
+            event = get_object_or_404(Event, pk=event_id)
+        else:
+            event = get_active_event()
         return EventDestinyHardware.objects.for_event(event)
 
 

@@ -832,6 +832,48 @@ class DestinyHardware(models.TextChoices):
     APPLE_VISION = 'V', _('Best use of Apple Vision Pro')
 
 
+class Sponsor(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class SponsorTier(models.TextChoices):
+    ECOSYSTEM = 'EC', _('Ecosystem')
+    TIER_1 = 'T1', _('Tier 1')
+    TIER_2 = 'T2', _('Tier 2')
+    TIER_3 = 'T3', _('Tier 3')
+    TIER_4 = 'T4', _('Tier 4')
+    TIER_5 = 'T5', _('Tier 5')
+
+
+class SponsorEventEngagement(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    sponsor = models.ForeignKey(
+        Sponsor,
+        on_delete=models.PROTECT,
+        related_name='sponsor_event_engagements',
+    )
+    event = models.ForeignKey(
+        Event,
+        on_delete=models.PROTECT,
+        related_name='sponsor_event_engagements',
+    )
+    tier = models.CharField(max_length=100, null=True, choices=SponsorTier.choices)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:
+        return f"{self.sponsor.name} - {self.event.name}"
+
+    class Meta:
+        unique_together = [['sponsor', 'event']]
+
+
 class EventTrack(models.Model):
     """Event-specific track choices."""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -841,6 +883,13 @@ class EventTrack(models.Model):
     code = models.CharField(max_length=6, help_text="Six char code")
     name = models.CharField(max_length=100)
     order = models.IntegerField(default=0)
+    sponsor_company = models.ForeignKey(
+        Sponsor,
+        on_delete=models.PROTECT,
+        related_name='event_tracks',
+        null=True,
+        blank=True,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -859,6 +908,13 @@ class EventDestinyHardware(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     event = models.ForeignKey(
         Event, on_delete=models.CASCADE, related_name='%(class)s_set'
+    )
+    sponsor_company = models.ForeignKey(
+        Sponsor,
+        on_delete=models.PROTECT,
+        related_name='event_destiny_hardware',
+        null=True,
+        blank=True,
     )
     code = models.CharField(max_length=6, help_text="Six char code")
     name = models.CharField(max_length=100)
@@ -1044,8 +1100,6 @@ class Attendee(AbstractUser):
         default=Status.RSVP
     )
     checked_in_at = models.DateTimeField(null=True)
-    # sponsor
-    sponsor_company = models.CharField(max_length=100, null=True, blank=False)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -1224,8 +1278,13 @@ class EventRsvp(models.Model):
         default=Status.RSVP
     )
     checked_in_at = models.DateTimeField(null=True)
-    # sponsor
-    sponsor_company = models.CharField(max_length=100, null=True, blank=False)
+    sponsor_company = models.ForeignKey(
+        Sponsor,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='sponsor_company',
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -1240,6 +1299,7 @@ class EventRsvp(models.Model):
         indexes = [
             models.Index(fields=['event', 'attendee']),
             models.Index(fields=['event', 'participation_role']),
+            models.Index(fields=['event', 'sponsor_company']),
         ]
 
 
@@ -1520,7 +1580,9 @@ class HardwareTags(models.TextChoices):
 
 class Hardware(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='%(class)s_set')
+    event = models.ForeignKey(
+        Event, on_delete=models.CASCADE, related_name='%(class)s_set'
+    )
     name = models.CharField(max_length=50)
     description = models.TextField(max_length=1000, blank=True)
     image = models.OneToOneField(
@@ -1530,10 +1592,22 @@ class Hardware(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    sponsor_company = models.ForeignKey(
+        Sponsor,
+        on_delete=models.PROTECT,
+        related_name='hardware_items',
+        null=True,
+        blank=True,
+    )
     tags = MultiSelectField(
-        choices=HardwareTags.choices, max_length=len(HardwareTags.choices) * 2 * 2 + 1, null=True)
+        choices=HardwareTags.choices,
+        max_length=len(HardwareTags.choices) * 2 * 2 + 1,
+        null=True
+    )
     # Deprecated: Use relates_to_event_destiny_hardware instead
-    relates_to_destiny_hardware = models.CharField(choices=DestinyHardware.choices, max_length=1, null=True)
+    relates_to_destiny_hardware = models.CharField(
+        choices=DestinyHardware.choices, max_length=1, null=True
+    )
     relates_to_event_destiny_hardware = models.ForeignKey(
         'EventDestinyHardware',
         on_delete=models.SET_NULL,
