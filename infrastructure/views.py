@@ -21,8 +21,8 @@ from infrastructure.models import (Application,
                                    Hardware, HardwareDevice, HardwareRequest,
                                    LightHouse, Location, MentorHelpRequest,
                                    Project, Skill, SkillProficiency, Table,
-                                   Team, UploadedFile, Workshop,
-                                   WorkshopAttendee, EventRsvp,
+                                   Team, UploadedFile, Workshop, SponsorEventEngagement,
+                                   WorkshopAttendee, EventRsvp, Sponsor,
                                    ApplicationQuestion, ApplicationResponse, Event)
 from infrastructure.serializers import (ApplicationSerializer,
                                         ApplicationDetailSerializer,
@@ -66,9 +66,10 @@ from infrastructure.serializers import (ApplicationSerializer,
                                         TeamDetailSerializer, TeamSerializer,
                                         WorkshopAttendeeSerializer,
                                         WorkshopSerializer, EventSerializer,
-                                        EventTrackSerializer,
+                                        EventTrackSerializer, SponsorSerializer,
                                         EventDestinyHardwareSerializer,
-                                        EventRsvpAttendeeOptionSerializer)
+                                        EventRsvpAttendeeOptionSerializer,
+                                        SponsorEventEngagementSerializer)
 from infrastructure.filters import (
     TeamFilter,
     MentorHelpRequestFilter,
@@ -1014,10 +1015,29 @@ def activate_event(request, event_id):
 
 @extend_schema(
     methods=['GET'],
+    responses={200: EventSerializer},
+    description="Get the active event"
+)
+@api_view(['GET'])
+@keycloak_roles([
+    KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.VOLUNTEER,
+    KeycloakRoles.ATTENDEE, KeycloakRoles.MENTOR, KeycloakRoles.JUDGE,
+    KeycloakRoles.VOLUNTEER, KeycloakRoles.GUARDIAN, KeycloakRoles.MEDIA,
+    KeycloakRoles.SPONSOR,
+])
+def get_active_event_endpoint(request):
+    event = get_active_event()
+    serializer = EventSerializer(event)
+    return Response(serializer.data)
+
+
+@extend_schema(
+    methods=['GET'],
     responses={200: EventRsvpAttendeeOptionSerializer(many=True)},
     description=(
-        "Returns a minimal list of attendees (id, first_name, last_name, checked_in_at) "
-        "from event RSVPs for the active event. Intended for team attendee picker dropdowns."
+        "Returns a minimal list of attendees (id, first_name, last_name, "
+        "checked_in_at) from event RSVPs for the active event. Intended for team"
+        " attendee picker dropdowns."
     ),
 )
 @api_view(['GET'])
@@ -1279,4 +1299,50 @@ def lighthouse(request):  # pragma: nocover
 
 
 def lighthouse_table(request, table_number):  # pragma: nocover
-    return render(request, "infrastructure/lighthouse_table.html", {"table_number": table_number})
+    return render(
+        request, "infrastructure/lighthouse_table.html", {"table_number": table_number}
+    )
+
+
+class SponsorViewSet(EventScopedLoggingViewSet):
+    """
+    API endpoint that allows sponsors to be viewed or edited.
+    """
+    queryset = Sponsor.objects.all()
+    permission_classes = [permissions.AllowAny]
+    serializer_class = SponsorSerializer
+    keycloak_roles = {
+        'GET': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER],
+        'POST': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER],
+        'PATCH': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER],
+        'DELETE': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER],
+    }
+
+
+class SponsorEventEngagementViewSet(EventScopedLoggingViewSet):
+    """
+    API endpoint that allows sponsor event engagements to be viewed or edited.
+    """
+    queryset = SponsorEventEngagement.objects.all()
+    permission_classes = [permissions.AllowAny]
+    serializer_class = SponsorEventEngagementSerializer
+    filterset_fields = ['sponsor', 'event']
+    keycloak_roles = {
+        'GET': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER],
+        'POST': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER],
+        'PATCH': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER],
+        'DELETE': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER],
+    }
+
+    def create(self, request, *args, **kwargs):
+        if event_id := request.data.get("event"):
+            event = get_object_or_404(Event, pk=event_id)
+        else:
+            event = get_active_event()
+        if not event:
+            return Response(
+                {"error": "No active event found"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        request.data["event"] = event.id
+        return super().create(request, *args, **kwargs)

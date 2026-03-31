@@ -9,12 +9,13 @@ from infrastructure.models import (INDUSTRIES, MENTOR_HELP_REQUEST_TOPICS,
                                    AttendeePreference, DestinyHardware,
                                    DestinyTeam, DestinyTeamAttendeeVibe,
                                    EventDestinyHardware, EventTrack,
+                                   SponsorEventEngagement,
                                    Hardware, HardwareDevice, HardwareRequest,
                                    HardwareTags, LightHouse, Location,
                                    MentorHelpRequest, ParticipationRole,
                                    Project, Skill, SkillProficiency, Table,
                                    Team, Track, UploadedFile, Workshop,
-                                   WorkshopAttendee, Event, EventRsvp)
+                                   WorkshopAttendee, Event, EventRsvp, Sponsor)
 
 
 class EventScopedSerializer(serializers.ModelSerializer):
@@ -810,7 +811,7 @@ class HardwareCountSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Hardware
-        fields = ['id', 'name', 'description', 'image',
+        fields = ['id', 'name', 'description', 'image', 'sponsor_company',
                   'available', 'checked_out', 'total',
                   'created_at', 'updated_at', 'tags']
 
@@ -844,7 +845,7 @@ class HardwareSerializer(EventScopedSerializer):
 
     class Meta:
         model = Hardware
-        fields = ['id', 'name', 'description', 'image', 'tags',
+        fields = ['id', 'name', 'description', 'image', 'tags', 'sponsor_company',
                   'relates_to_destiny_hardware', 'relates_to_event_destiny_hardware',
                   'created_at', 'updated_at']
 
@@ -857,14 +858,14 @@ class HardwareCreateSerializer(EventScopedSerializer):
 
     class Meta:
         model = Hardware
-        fields = ['id', 'name', 'description', 'image', 'tags',
+        fields = ['id', 'name', 'description', 'image', 'tags', 'sponsor_company',
                   'relates_to_destiny_hardware', 'relates_to_event_destiny_hardware']
 
 
 class HardwareDeviceHardwareSerializer(serializers.ModelSerializer):
     class Meta:
         model = Hardware
-        fields = ['id', 'name', 'tags']
+        fields = ['id', 'name', 'tags', 'sponsor_company']
 
 
 class HardwareDeviceSerializer(EventScopedSerializer):
@@ -1091,4 +1092,16 @@ class DestinyTeamAttendeeVibeSerializer(EventScopedSerializer):
 
     class Meta:
         model = DestinyTeamAttendeeVibe
+        fields = "__all__"
+
+
+class SponsorSerializer(EventScopedSerializer):
+    class Meta:
+        model = Sponsor
+        fields = "__all__"
+
+
+class SponsorEventEngagementSerializer(EventScopedSerializer):
+    class Meta:
+        model = SponsorEventEngagement
         fields = "__all__"
