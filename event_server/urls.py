@@ -17,7 +17,7 @@ Including another URLconf
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
-from django.urls import include, path, re_path
+from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView
 from drf_yasg import openapi
 from drf_yasg.views import get_schema_view
@@ -88,6 +88,8 @@ router.register(r'destinyteamattendeevibes', views.DestinyTeamAttendeeVibeViewSe
 router.register(r'eventrsvps', views.EventRsvpViewSet)
 router.register(r'eventtracks', views.EventTrackViewSet)
 router.register(r'eventdestinyhardware', views.EventDestinyHardwareViewSet)
+router.register(r'sponsors', views.SponsorViewSet)
+router.register(r'sponsoreventengagements', views.SponsorEventEngagementViewSet)
 
 admin.site.register(Skill)
 admin.site.register(Attendee)
@@ -115,7 +117,16 @@ admin.site.register(EventDestinyHardware)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('eventrsvps/attendee-options/', views.event_rsvp_attendee_options, name='event_rsvp_attendee_options'),
+    path(
+        'eventrsvps/attendee-options/',
+        views.event_rsvp_attendee_options,
+        name='event_rsvp_attendee_options'
+    ),
+    path(
+        'events/get-active/',
+        views.get_active_event_endpoint,
+        name='get_active_event_endpoint'
+    ),
     path('', include(router.urls)),
     path('auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
@@ -124,5 +135,9 @@ urlpatterns = [
     path('me/', views.me, name='me'),
     path('events/<str:event_id>/activate', views.activate_event, name='activate_event'),
     # path("lighthouse/", views.lighthouse, name="lighthouse"),
-    # path("lighthouse/<str:table_number>/", views.lighthouse_table, name="lighthouse_table"),
+    # path(
+    #     "lighthouse/<str:table_number>/",
+    #     views.lighthouse_table,
+    #     name="lighthouse_table"
+    # ),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

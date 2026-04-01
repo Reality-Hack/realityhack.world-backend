@@ -883,11 +883,9 @@ class EventTrack(models.Model):
     code = models.CharField(max_length=6, help_text="Six char code")
     name = models.CharField(max_length=100)
     order = models.IntegerField(default=0)
-    sponsor_company = models.ForeignKey(
+    sponsor_companies = models.ManyToManyField(
         Sponsor,
-        on_delete=models.PROTECT,
         related_name='event_tracks',
-        null=True,
         blank=True,
     )
     created_at = models.DateTimeField(auto_now_add=True)
@@ -909,11 +907,9 @@ class EventDestinyHardware(models.Model):
     event = models.ForeignKey(
         Event, on_delete=models.CASCADE, related_name='%(class)s_set'
     )
-    sponsor_company = models.ForeignKey(
+    sponsor_companies = models.ManyToManyField(
         Sponsor,
-        on_delete=models.PROTECT,
         related_name='event_destiny_hardware',
-        null=True,
         blank=True,
     )
     code = models.CharField(max_length=6, help_text="Six char code")
@@ -1608,12 +1604,10 @@ class Hardware(models.Model):
     relates_to_destiny_hardware = models.CharField(
         choices=DestinyHardware.choices, max_length=1, null=True
     )
-    relates_to_event_destiny_hardware = models.ForeignKey(
+    relates_to_event_destiny_hardware = models.ManyToManyField(
         'EventDestinyHardware',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
         related_name='hardware_items',
+        blank=True,
         help_text="Event-scoped destiny hardware association"
     )
 
