@@ -223,15 +223,57 @@ class EventSerializer(serializers.ModelSerializer):
 
 
 class EventTrackSerializer(serializers.ModelSerializer):
+    sponsor_companies = serializers.PrimaryKeyRelatedField(
+        queryset=Sponsor.objects.all(), many=True, required=False
+    )
+
     class Meta:
         model = EventTrack
-        fields = ['id', 'code', 'name', 'order']
+        fields = ['id', 'code', 'name', 'order', 'sponsor_companies']
+
+    def _set_sponsor_companies(self, instance, sponsor_companies):
+        instance.sponsor_companies.set(sponsor_companies)
+
+    def create(self, validated_data):
+        sponsor_companies = validated_data.pop('sponsor_companies', None)
+        instance = super().create(validated_data)
+        if sponsor_companies is not None:
+            self._set_sponsor_companies(instance, sponsor_companies)
+        return instance
+
+    def update(self, instance, validated_data):
+        sponsor_companies = validated_data.pop('sponsor_companies', None)
+        instance = super().update(instance, validated_data)
+        if sponsor_companies is not None:
+            self._set_sponsor_companies(instance, sponsor_companies)
+        return instance
 
 
 class EventDestinyHardwareSerializer(serializers.ModelSerializer):
+    sponsor_companies = serializers.PrimaryKeyRelatedField(
+        queryset=Sponsor.objects.all(), many=True, required=False
+    )
+
     class Meta:
         model = EventDestinyHardware
-        fields = ['id', 'code', 'name', 'order']
+        fields = ['id', 'code', 'name', 'order', 'sponsor_companies']
+
+    def _set_sponsor_companies(self, instance, sponsor_companies):
+        instance.sponsor_companies.set(sponsor_companies)
+
+    def create(self, validated_data):
+        sponsor_companies = validated_data.pop('sponsor_companies', None)
+        instance = super().create(validated_data)
+        if sponsor_companies is not None:
+            self._set_sponsor_companies(instance, sponsor_companies)
+        return instance
+
+    def update(self, instance, validated_data):
+        sponsor_companies = validated_data.pop('sponsor_companies', None)
+        instance = super().update(instance, validated_data)
+        if sponsor_companies is not None:
+            self._set_sponsor_companies(instance, sponsor_companies)
+        return instance
 
 
 class AttendeeSerializer(serializers.ModelSerializer):
@@ -808,10 +850,19 @@ class HardwareCountSerializer(serializers.ModelSerializer):
     total = serializers.IntegerField()
     image = FileUploadSerializer()
     tags = fields.MultipleChoiceField(choices=HardwareTags)
+    relates_to_event_destiny_hardware = serializers.SerializerMethodField()
+
+    def get_relates_to_event_destiny_hardware(self, obj):
+        """Scoped M2M read for list (same pattern as HardwareSerializer)."""
+        return [
+            str(hw.id)
+            for hw in obj.relates_to_event_destiny_hardware.all_events().all()
+        ]
 
     class Meta:
         model = Hardware
         fields = ['id', 'name', 'description', 'image', 'sponsor_company',
+                  'relates_to_destiny_hardware', 'relates_to_event_destiny_hardware',
                   'available', 'checked_out', 'total',
                   'created_at', 'updated_at', 'tags']
 
@@ -830,10 +881,19 @@ class HardwareCountDetailSerializer(serializers.ModelSerializer):
     hardware_devices = HardwareDeviceHardwareCountDetailSerializer(many=True)
     image = FileUploadSerializer()
     tags = fields.MultipleChoiceField(choices=HardwareTags)
+    relates_to_event_destiny_hardware = serializers.SerializerMethodField()
+
+    def get_relates_to_event_destiny_hardware(self, obj):
+        """Scoped M2M read for detail (same pattern as HardwareSerializer)."""
+        return [
+            str(hw.id)
+            for hw in obj.relates_to_event_destiny_hardware.all_events().all()
+        ]
 
     class Meta:
         model = Hardware
         fields = ['id', 'name', 'description', 'image',
+                  'relates_to_destiny_hardware', 'relates_to_event_destiny_hardware',
                   'available', 'checked_out', 'total',
                   'created_at', 'updated_at', 'hardware_devices', 'tags']
 
@@ -841,7 +901,12 @@ class HardwareCountDetailSerializer(serializers.ModelSerializer):
 class HardwareSerializer(EventScopedSerializer):
     image = FileUploadSerializer()
     tags = fields.MultipleChoiceField(choices=HardwareTags)
-    relates_to_event_destiny_hardware = EventDestinyHardwareSerializer(read_only=True)
+    relates_to_event_destiny_hardware = serializers.SerializerMethodField()
+
+    def get_relates_to_event_destiny_hardware(self, obj):
+        """Properly scope EventDestinyHardware query to avoid EventScopingError."""
+        hardware = obj.relates_to_event_destiny_hardware.all_events().all()
+        return EventDestinyHardwareSerializer(hardware, many=True).data
 
     class Meta:
         model = Hardware
@@ -852,14 +917,49 @@ class HardwareSerializer(EventScopedSerializer):
 
 class HardwareCreateSerializer(EventScopedSerializer):
     tags = fields.MultipleChoiceField(choices=HardwareTags)
+    # Write-only: read handled in to_representation (avoids PrimaryKeyRelatedField
+    # iterating an unscoped EventDestinyHardware M2M on create/update response).
     relates_to_event_destiny_hardware = serializers.PrimaryKeyRelatedField(
-        queryset=EventDestinyHardware.objects.all_events(), required=False, allow_null=True
+        queryset=EventDestinyHardware.objects.all_events(),
+        many=True,
+        required=False,
+        write_only=True,
     )
 
     class Meta:
         model = Hardware
         fields = ['id', 'name', 'description', 'image', 'tags', 'sponsor_company',
                   'relates_to_destiny_hardware', 'relates_to_event_destiny_hardware']
+
+    def to_representation(self, instance):
+        """Add relates_to_event_destiny_hardware with a properly scoped M2M read."""
+        ret = super().to_representation(instance)
+        ret['relates_to_event_destiny_hardware'] = [
+            str(hw.id)
+            for hw in instance.relates_to_event_destiny_hardware.all_events().all()
+        ]
+        return ret
+
+    def _set_relates_to_event_destiny_hardware(self, instance, items):
+        # clear()+add() avoids Django M2M set()'s old_ids scan on an unscoped
+        # EventScopedQuerySet (same pattern as TeamUpdateSerializer).
+        instance.relates_to_event_destiny_hardware.clear()
+        if items:
+            instance.relates_to_event_destiny_hardware.add(*items)
+
+    def create(self, validated_data):
+        destiny_hardware = validated_data.pop('relates_to_event_destiny_hardware', None)
+        instance = super().create(validated_data)
+        if destiny_hardware is not None:
+            self._set_relates_to_event_destiny_hardware(instance, destiny_hardware)
+        return instance
+
+    def update(self, instance, validated_data):
+        destiny_hardware = validated_data.pop('relates_to_event_destiny_hardware', None)
+        instance = super().update(instance, validated_data)
+        if destiny_hardware is not None:
+            self._set_relates_to_event_destiny_hardware(instance, destiny_hardware)
+        return instance
 
 
 class HardwareDeviceHardwareSerializer(serializers.ModelSerializer):
@@ -873,7 +973,7 @@ class HardwareDeviceSerializer(EventScopedSerializer):
         model = HardwareDevice
         fields = ['id', 'hardware', 'serial', 'checked_out_to',
                   'created_at', 'updated_at']
- 
+
 
 class HardwareDeviceHistorySerializer(serializers.ModelSerializer):
     class Meta:
