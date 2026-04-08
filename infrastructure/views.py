@@ -75,6 +75,7 @@ from infrastructure.filters import (
     MentorHelpRequestFilter,
     ProjectFilter,
     HardwareDeviceFilter,
+    HardwareDeviceHistoryFilter,
     HardwareRequestFilter,
     WorkshopFilter,
     WorkshopAttendeeFilter,
@@ -795,7 +796,7 @@ class HardwareDeviceHistoryViewSet(LoggingMixin, viewsets.ModelViewSet):
     queryset = HardwareDevice.history.model.objects.all()
     permission_classes = [permissions.AllowAny]
     serializer_class = HardwareDeviceHistorySerializer
-    filterset_fields = ['hardware', 'checked_out_to', 'serial']
+    filterset_class = HardwareDeviceHistoryFilter
 
     def get_queryset(self):
         event = get_active_event()

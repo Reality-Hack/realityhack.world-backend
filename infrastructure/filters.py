@@ -126,6 +126,37 @@ class HardwareDeviceFilter(filters.FilterSet):
         ]
 
 
+class HardwareDeviceHistoryFilter(filters.FilterSet):
+    """Filter for historical HardwareDevice rows with event-scoped FK querysets."""
+
+    hardware = filters.ModelChoiceFilter(
+        field_name='hardware',
+        queryset=None,
+    )
+    checked_out_to = filters.ModelChoiceFilter(
+        field_name='checked_out_to',
+        queryset=None,
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        event = event_context.get_current_event()
+        if event:
+            self.filters['hardware'].queryset = Hardware.objects.for_event(event)
+            self.filters['checked_out_to'].queryset = (
+                HardwareRequest.objects.for_event(event)
+            )
+        else:
+            self.filters['hardware'].queryset = Hardware.objects.all_events()
+            self.filters['checked_out_to'].queryset = (
+                HardwareRequest.objects.all_events()
+            )
+
+    class Meta:
+        model = HardwareDevice.history.model
+        fields = ['hardware', 'checked_out_to', 'serial', 'id']
+
+
 class HardwareRequestFilter(filters.FilterSet):
     """Filter for HardwareRequest with event-scoped querysets."""
 
@@ -146,17 +177,23 @@ class HardwareRequestFilter(filters.FilterSet):
                 Hardware.objects.for_event(event)
             )
             self.filters['team'].queryset = Team.objects.for_event(event)
+            self.filters['hardware_device'].queryset = (
+                HardwareDevice.objects.for_event(event)
+            )
         else:
             self.filters['hardware'].queryset = (
                 Hardware.objects.all_events()
             )
             self.filters['team'].queryset = Team.objects.all_events()
+            self.filters['hardware_device'].queryset = (
+                HardwareDevice.objects.all_events()
+            )
 
     class Meta:
         model = HardwareRequest
         fields = [
             "hardware", "requester__first_name", "requester__last_name",
-            "requester__id", "team"
+            "requester__id", "team", "hardware_device", "status"
         ]
 
 

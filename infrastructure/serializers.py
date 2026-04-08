@@ -979,7 +979,7 @@ class HardwareDeviceHistorySerializer(serializers.ModelSerializer):
     class Meta:
         model = HardwareDevice.history.model
         fields = ['history_id', 'id', 'hardware', 'serial', 'checked_out_to',
-                  'created_at', 'updated_at']
+                  'created_at', 'updated_at', 'history_type']
 
 
 class HardwareRequestSerializer(EventScopedSerializer):
