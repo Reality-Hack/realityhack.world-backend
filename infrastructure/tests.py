@@ -1626,3 +1626,72 @@ class EventIsolationTests(EventTestCase):
         event2_requests = models.HardwareRequest.objects.for_event(self.event2).all()
         self.assertEqual(event2_requests.count(), 1)
         self.assertEqual(event2_requests.first(), hr2)
+
+
+@keycloak_test
+class EventRsvpAttendeeOptionsTests(EventTestCase):
+    def setUp(self):
+        super().setUp()
+        self.client = APIClient()
+        self.attendee = factories.AttendeeFactory()
+        self.rsvp = models.EventRsvp.objects.create(
+            attendee=self.attendee,
+            event=self.active_event,
+            participation_class=models.ParticipationClass.HACKER,
+            shirt_size=models.ShirtSize.M,
+            us_visa_support_is_required=False,
+            emergency_contact_name="Emergency Contact",
+            personal_phone_number="+19048800020",
+            emergency_contact_phone_number="+14072394137",
+            emergency_contact_email=self.attendee.email,
+            emergency_contact_relationship="Parent",
+        )
+
+    def tearDown(self):
+        setup_test_data.delete_all()
+        super().tearDown()
+
+    def test_returns_200_with_correct_shape(self):
+        response = self.client.get('/eventrsvps/attendee-options/')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 1)
+        item = data[0]
+        self.assertIn('id', item)
+        self.assertIn('first_name', item)
+        self.assertIn('last_name', item)
+        self.assertIn('checked_in_at', item)
+        self.assertEqual(str(self.attendee.id), item['id'])
+        self.assertEqual(self.attendee.first_name, item['first_name'])
+        self.assertEqual(self.attendee.last_name, item['last_name'])
+        self.assertIsNone(item['checked_in_at'])
+
+    def test_does_not_include_pii_fields(self):
+        response = self.client.get('/eventrsvps/attendee-options/')
+        self.assertEqual(response.status_code, 200)
+        item = response.json()[0]
+        self.assertNotIn('email', item)
+        self.assertNotIn('profile_image', item)
+        self.assertNotIn('application', item)
+        self.assertNotIn('dietary_restrictions', item)
+
+    def test_event_isolation(self):
+        other_event = factories.EventFactory(is_active=False)
+        other_attendee = factories.AttendeeFactory()
+        models.EventRsvp.objects.create(
+            attendee=other_attendee,
+            event=other_event,
+            participation_class=models.ParticipationClass.HACKER,
+            shirt_size=models.ShirtSize.M,
+            us_visa_support_is_required=False,
+            emergency_contact_name="Contact",
+            personal_phone_number="+19048800020",
+            emergency_contact_phone_number="+14072394137",
+            emergency_contact_email=other_attendee.email,
+            emergency_contact_relationship="Friend",
+        )
+        response = self.client.get('/eventrsvps/attendee-options/')
+        self.assertEqual(response.status_code, 200)
+        # Should only return the RSVP for the active event, not the other event's RSVP
+        self.assertEqual(len(response.json()), 1)
+        self.assertEqual(str(self.attendee.id), response.json()[0]['id'])

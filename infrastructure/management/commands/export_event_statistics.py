@@ -1,4 +1,3 @@
-import csv
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -6,12 +5,18 @@ from pathlib import Path
 import pycountry
 from django.core.management.base import BaseCommand
 
+from infrastructure.utils.csv_export import (
+    choice_label,
+    parse_multiselect_values,
+    write_csv,
+)
 from infrastructure.models import (
     Application,
     Event,
     EventRsvp,
     ParticipationClass,
     ParticipationRole,
+    ParticipationCapacity,
     Team,
 )
 
@@ -44,8 +49,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         # Get the active event
-        # event = Event.get_active()
-        event = Event.objects.get(id="888a5508-ea40-4453-84bc-a0e4a03e491b")
+        event = Event.get_active()
         if not event:
             self.stderr.write(self.style.ERROR("No active event found"))
             return
@@ -100,6 +104,9 @@ class Command(BaseCommand):
             'international_travelers': 0,
             'us_domestic': 0,
             'us_participants': [],  # For CSV export
+            'career_stage': defaultdict(int),
+            'employer': defaultdict(int),
+            'industry': defaultdict(int),
             'gender_identity': defaultdict(int),
             'gender_identity_other': set(),
             'age_groups': defaultdict(int),
@@ -175,6 +182,8 @@ class Command(BaseCommand):
         self._process_previous_participation(application, stats)
         self._process_school(application, stats)
         self._process_outreach(application, stats)
+        self._process_career_stage(application, stats)
+        self._process_employer_industry(application, stats)
 
     def _process_nationality(
         self, application: Application, stats: dict
@@ -186,6 +195,26 @@ class Command(BaseCommand):
             )
             for country_code in nationalities:
                 stats['nationalities'][country_code] += 1
+
+    def _process_career_stage(
+        self, application: Application, stats: dict
+    ) -> None:
+        """Process participation capacity (career stage) field."""
+        if application.participation_capacity:
+            stats['career_stage'][application.participation_capacity] += 1
+
+    def _process_employer_industry(
+        self, application: Application, stats: dict
+    ) -> None:
+        """Process employer field."""
+        if application.employer:
+            stats['employer'][application.employer] += 1
+        if application.industry:
+            industries = self._parse_multiselect_field(
+                application.industry
+            )
+            for industry in industries:
+                stats['industry'][industry] += 1
 
     def _process_current_country(
         self, application: Application, rsvp: EventRsvp, stats: dict
@@ -321,9 +350,7 @@ class Command(BaseCommand):
                     'roles': dict(team_roles)
                 }
 
-    def _format_report(self, event: Event, stats: dict) -> str:
-        """Format all statistics into a readable text report."""
-        lines = []
+    def _append_report_header(self, lines: list[str], event: Event) -> None:
         lines.append("=" * 70)
         lines.append("EVENT STATISTICS REPORT")
         lines.append(f"Event: {event.name}")
@@ -331,7 +358,9 @@ class Command(BaseCommand):
         lines.append("=" * 70)
         lines.append("")
 
-        # 1. Applications Received
+    def _append_applications_received(
+        self, lines: list[str], stats: dict
+    ) -> None:
         lines.append("1. APPLICATIONS RECEIVED")
         lines.append(f"   Total Applications: {stats['applications']['total']:,}")
         lines.append("")
@@ -351,7 +380,9 @@ class Command(BaseCommand):
             lines.append(f"   - Judges: {j_count:,} ({j_pct})")
         lines.append("")
 
-        # 2. Check-In Statistics
+    def _append_check_in_statistics(
+        self, lines: list[str], stats: dict
+    ) -> None:
         lines.append("2. CHECK-IN STATISTICS")
         checked_in = stats['checked_in_participants']
         lines.append(f"   Hackers Checked In: {checked_in:,}")
@@ -379,33 +410,37 @@ class Command(BaseCommand):
         )
         lines.append("")
 
-        # 3. Attendees by Participation Class
+    def _append_attendees_by_participation_class(
+        self, lines: list[str], stats: dict
+    ) -> None:
         lines.append("3. ATTENDEES BY PARTICIPATION CLASS")
-        participation_class_labels = {
-            ParticipationClass.ORGANIZER: "Organizers",
-            ParticipationClass.VOLUNTEER: "Event Volunteers",
-            ParticipationClass.JUDGE: "Judges",
-            ParticipationClass.MENTOR: "Non-sponsor Mentors",
-            ParticipationClass.SPONSOR: "Sponsor Representatives",
-            ParticipationClass.PARTICIPANT: "Participants (checked-in only)",
-        }
-        for pc_code, label in participation_class_labels.items():
-            if pc_code == ParticipationClass.PARTICIPANT:
-                count = stats['checked_in_participants']
-            else:
-                count = stats['participation_class'].get(pc_code, 0)
+        ordered = [
+            (ParticipationClass.ORGANIZER, "Organizers"),
+            (ParticipationClass.VOLUNTEER, "Event Volunteers"),
+            (ParticipationClass.JUDGE, "Judges"),
+            (ParticipationClass.MENTOR, "Non-sponsor Mentors"),
+            (ParticipationClass.SPONSOR, "Sponsor Representatives"),
+        ]
+        for pc_code, label in ordered:
+            count = stats['participation_class'].get(pc_code, 0)
             lines.append(f"   - {label}: {count:,}")
+
+        participant_count = stats['checked_in_participants']
+        lines.append(
+            "   - Participants (checked-in only): "
+            f"{participant_count:,}"
+        )
         lines.append("")
 
-        # 4. Demographics - Nationality
-        lines.append("4. DEMOGRAPHICS (CHECKED-IN HACKERS ONLY)")
-        lines.append("")
+    def _append_nationality_distribution(
+        self, lines: list[str], stats: dict
+    ) -> None:
         lines.append("   Nationality Distribution:")
         if stats['nationalities']:
             sorted_nationalities = sorted(
                 stats['nationalities'].items(),
                 key=lambda x: x[1],
-                reverse=True
+                reverse=True,
             )
             for country_code, count in sorted_nationalities:
                 country = self._get_country_name(country_code)
@@ -414,28 +449,54 @@ class Command(BaseCommand):
             lines.append("   - No nationality data available")
         lines.append("")
 
-        # International vs Domestic
+    def _append_travel_origin_and_non_us_countries(
+        self, lines: list[str], stats: dict
+    ) -> None:
         lines.append("   Travel Origin:")
-        lines.append(f"   - International (traveling from outside US): {stats['international_travelers']:,}")
+        lines.append(
+            f"   - International (traveling from outside US): "
+            f"{stats['international_travelers']:,}"
+        )
         lines.append(f"   - Domestic US: {stats['us_domestic']:,}")
+        non_us_countries = [
+            (code, cnt) for code, cnt in stats['current_countries'].items()
+            if code != 'US'
+        ]
+        lines.append("")
+        if non_us_countries:
+            sorted_non_us = sorted(
+                non_us_countries,
+                key=lambda x: x[1],
+                reverse=True,
+            )
+            lines.append("   Countries outside US (current residence):")
+            for country_code, count in sorted_non_us:
+                country_name = self._get_country_name(country_code)
+                lines.append(f"     - {country_name}: {count:,}")
         lines.append("")
 
-        # US State breakdown note
+    def _append_us_state_breakdown_note(
+        self, lines: list[str], stats: dict
+    ) -> None:
         lines.append("   US State Breakdown:")
         us_count = len(stats['us_participants'])
-        lines.append(f"   - See separate CSV file for {us_count} US participants")
+        lines.append(
+            f"   - See separate CSV file for {us_count} US participants"
+        )
         lines.append(
             "     (requires manual state categorization from city field)"
         )
         lines.append("")
 
-        # Gender Distribution
+    def _append_gender_distribution(
+        self, lines: list[str], stats: dict
+    ) -> None:
         lines.append("   Gender Distribution:")
         if stats['gender_identity']:
             sorted_genders = sorted(
                 stats['gender_identity'].items(),
                 key=lambda x: x[1],
-                reverse=True
+                reverse=True,
             )
             for gender_code, count in sorted_genders:
                 label = self._get_choice_label(
@@ -443,19 +504,21 @@ class Command(BaseCommand):
                 )
                 lines.append(f"   - {label}: {count:,}")
             if stats['gender_identity_other']:
-                other_list = ', '.join(sorted(stats['gender_identity_other']))
+                other_list = ', '.join(
+                    sorted(stats['gender_identity_other'])
+                )
                 lines.append(f"   - Other responses: {other_list}")
         else:
             lines.append("   - No gender data available")
         lines.append("")
 
-        # Age Distribution
+    def _append_age_distribution(self, lines: list[str], stats: dict) -> None:
         lines.append("   Age Distribution:")
         if stats['age_groups']:
             sorted_ages = sorted(
                 stats['age_groups'].items(),
                 key=lambda x: x[1],
-                reverse=True
+                reverse=True,
             )
             for age_code, count in sorted_ages:
                 label = self._get_choice_label(
@@ -466,13 +529,15 @@ class Command(BaseCommand):
             lines.append("   - No age data available")
         lines.append("")
 
-        # Racial Distribution
+    def _append_racial_distribution(
+        self, lines: list[str], stats: dict
+    ) -> None:
         lines.append("   Racial/Ethnic Distribution:")
         if stats['race_ethnic_groups']:
             sorted_races = sorted(
                 stats['race_ethnic_groups'].items(),
                 key=lambda x: x[1],
-                reverse=True
+                reverse=True,
             )
             for race_code, count in sorted_races:
                 label = self._get_choice_label(
@@ -480,23 +545,35 @@ class Command(BaseCommand):
                 )
                 lines.append(f"   - {label}: {count:,}")
             if stats['race_ethnic_other']:
-                other_list = ', '.join(sorted(stats['race_ethnic_other']))
+                other_list = ', '.join(
+                    sorted(stats['race_ethnic_other'])
+                )
                 lines.append(f"   - Other responses: {other_list}")
         else:
             lines.append("   - No race/ethnicity data available")
         lines.append("")
 
-        # 5. Experience & Background
-        lines.append("5. EXPERIENCE & BACKGROUND")
+    def _append_demographics_section(
+        self, lines: list[str], stats: dict
+    ) -> None:
+        lines.append("4. DEMOGRAPHICS (CHECKED-IN HACKERS ONLY)")
         lines.append("")
+        self._append_nationality_distribution(lines, stats)
+        self._append_travel_origin_and_non_us_countries(lines, stats)
+        self._append_us_state_breakdown_note(lines, stats)
+        self._append_gender_distribution(lines, stats)
+        self._append_age_distribution(lines, stats)
+        self._append_racial_distribution(lines, stats)
 
-        # Team Role Distribution (Aggregate)
+    def _append_team_role_distribution_aggregate(
+        self, lines: list[str], stats: dict
+    ) -> None:
         lines.append("   Team Role Distribution (Aggregate):")
         if stats['participation_roles']:
             sorted_roles = sorted(
                 stats['participation_roles'].items(),
                 key=lambda x: x[1],
-                reverse=True
+                reverse=True,
             )
             total_roles = sum(stats['participation_roles'].values())
             for role_code, count in sorted_roles:
@@ -507,7 +584,31 @@ class Command(BaseCommand):
             lines.append("   - No role data available")
         lines.append("")
 
-        # Previous Participation
+    def _append_career_stage_distribution(
+        self, lines: list[str], stats: dict
+    ) -> None:
+        lines.append("   Career Stage:")
+        if stats['career_stage']:
+            sorted_career_stage = sorted(
+                stats['career_stage'].items(),
+                key=lambda x: x[1],
+                reverse=True,
+            )
+            total_career = sum(stats['career_stage'].values())
+            for career_stage_code, count in sorted_career_stage:
+                label = self._get_choice_label(
+                    ParticipationCapacity.choices,
+                    career_stage_code,
+                )
+                pct = self._format_percentage(count, total_career)
+                lines.append(f"   - {label}: {count:,} ({pct})")
+        else:
+            lines.append("   - No participation capacity data available")
+        lines.append("")
+
+    def _append_previous_participation(
+        self, lines: list[str], stats: dict
+    ) -> None:
         lines.append("   Previous Participation:")
         returning = stats['previously_participated']
         lines.append(f"   - Returning participants: {returning:,}")
@@ -518,7 +619,7 @@ class Command(BaseCommand):
             sorted_years = sorted(
                 stats['previous_years'].items(),
                 key=lambda x: x[1],
-                reverse=True
+                reverse=True,
             )
             for year_code, count in sorted_years:
                 label = self._get_choice_label(
@@ -527,23 +628,69 @@ class Command(BaseCommand):
                 lines.append(f"     - {label}: {count:,}")
         lines.append("")
 
-        # Schools
-        lines.append("   Schools (Top 20):")
+    def _append_school_distribution(
+        self, lines: list[str], stats: dict
+    ) -> None:
+        lines.append("   Schools (All):")
         if stats['schools']:
             sorted_schools = sorted(
                 stats['schools'].items(),
                 key=lambda x: x[1],
-                reverse=True
-            )[:20]
-            for school, count in sorted_schools:
+                reverse=True,
+            )
+            single_attendee_schools = [
+                name for name, cnt in sorted_schools if cnt == 1
+            ]
+            multi_attendee_schools = [
+                (name, cnt) for name, cnt in sorted_schools if cnt > 1
+            ]
+            for school, count in multi_attendee_schools:
                 lines.append(f"   - {school}: {count:,}")
-            if len(stats['schools']) > 20:
-                lines.append(f"   ... and {len(stats['schools']) - 20} more schools")
+            if single_attendee_schools:
+                schools_list = ", ".join(single_attendee_schools)
+                lines.append(
+                    "   The following schools have one participant: "
+                    f"{schools_list}."
+                )
         else:
             lines.append("   - No school data available")
         lines.append("")
 
-        # Outreach Methods
+    def _append_employer_distribution(
+        self, lines: list[str], stats: dict
+    ) -> None:
+        lines.append("   Employer:")
+        if stats['employer']:
+            sorted_employers = sorted(
+                stats['employer'].items(),
+                key=lambda x: x[1],
+                reverse=True,
+            )
+            for employer, count in sorted_employers:
+                lines.append(f"   - {employer}: {count:,}")
+        else:
+            lines.append("   - No employer data available")
+        lines.append("")
+
+    def _append_industry_distribution(
+        self, lines: list[str], stats: dict
+    ) -> None:
+        lines.append("   Industry:")
+        if stats['industry']:
+            sorted_industries = sorted(
+                stats['industry'].items(),
+                key=lambda x: x[1],
+                reverse=True,
+            )
+            for industry, count in sorted_industries:
+                lines.append(f"   - {industry}: {count:,}")
+        else:
+            lines.append("   - No industry data available")
+        lines.append("")
+
+    def _append_outreach_methods_section(
+        self, lines: list[str], stats: dict
+    ) -> None:
         lines.append(
             "   Outreach Methods "
             "(How did hackers hear about Reality Hack?):"
@@ -552,7 +699,7 @@ class Command(BaseCommand):
             sorted_methods = sorted(
                 stats['heard_about_us'].items(),
                 key=lambda x: x[1],
-                reverse=True
+                reverse=True,
             )
             for method_code, count in sorted_methods:
                 label = self._get_choice_label(
@@ -571,7 +718,22 @@ class Command(BaseCommand):
             lines.append("   - No other methods specified")
         lines.append("")
 
-        # 6. Team Role Distribution (Per-Team)
+    def _append_experience_background_section(
+        self, lines: list[str], stats: dict
+    ) -> None:
+        lines.append("5. EXPERIENCE & BACKGROUND")
+        lines.append("")
+        self._append_team_role_distribution_aggregate(lines, stats)
+        self._append_career_stage_distribution(lines, stats)
+        self._append_previous_participation(lines, stats)
+        self._append_school_distribution(lines, stats)
+        self._append_employer_distribution(lines, stats)
+        self._append_industry_distribution(lines, stats)
+        self._append_outreach_methods_section(lines, stats)
+
+    def _append_team_roles_per_team_section(
+        self, lines: list[str], stats: dict
+    ) -> None:
         lines.append("6. TEAM ROLE DISTRIBUTION (PER-TEAM)")
         lines.append("")
         if stats['team_roles']:
@@ -579,7 +741,7 @@ class Command(BaseCommand):
                 stats['team_roles'].items(),
                 key=lambda x: (
                     x[1]['team_number'] if x[1]['team_number'] else 9999
-                )
+                ),
             )
             for team_id, team_data in sorted_teams:
                 team_name = team_data['team_name']
@@ -588,7 +750,9 @@ class Command(BaseCommand):
 
                 lines.append(f"   Team #{team_number}: {team_name}")
                 sorted_roles = sorted(
-                    roles.items(), key=lambda x: x[1], reverse=True
+                    roles.items(),
+                    key=lambda x: x[1],
+                    reverse=True,
                 )
                 for role_code, count in sorted_roles:
                     label = self._get_choice_label(
@@ -600,26 +764,41 @@ class Command(BaseCommand):
             lines.append("   - No team role data available")
         lines.append("")
 
-        # Warnings
-        if stats['missing_application_warnings']:
-            lines.append("=" * 70)
-            lines.append("DATA QUALITY WARNINGS")
-            lines.append("=" * 70)
-            lines.append("")
-            warning_count = len(stats['missing_application_warnings'])
-            lines.append(
-                f"The following {warning_count} checked-in participants"
-            )
-            lines.append("are missing application data:")
-            lines.append("")
-            for warning in stats['missing_application_warnings']:
-                lines.append(f"   Attendee ID: {warning['attendee_id']}")
-                first = warning['first_name']
-                last = warning['last_name']
-                lines.append(f"   Name: {first} {last}")
-                lines.append(f"   Email: {warning['email']}")
-                lines.append("")
+    def _append_warnings_section(
+        self, lines: list[str], stats: dict
+    ) -> None:
+        if not stats['missing_application_warnings']:
+            return
 
+        lines.append("=" * 70)
+        lines.append("DATA QUALITY WARNINGS")
+        lines.append("=" * 70)
+        lines.append("")
+        warning_count = len(stats['missing_application_warnings'])
+        lines.append(
+            f"The following {warning_count} checked-in participants"
+        )
+        lines.append("are missing application data:")
+        lines.append("")
+        for warning in stats['missing_application_warnings']:
+            lines.append(f"   Attendee ID: {warning['attendee_id']}")
+            first = warning['first_name']
+            last = warning['last_name']
+            lines.append(f"   Name: {first} {last}")
+            lines.append(f"   Email: {warning['email']}")
+            lines.append("")
+
+    def _format_report(self, event: Event, stats: dict) -> str:
+        """Format all statistics into a readable text report."""
+        lines: list[str] = []
+        self._append_report_header(lines, event)
+        self._append_applications_received(lines, stats)
+        self._append_check_in_statistics(lines, stats)
+        self._append_attendees_by_participation_class(lines, stats)
+        self._append_demographics_section(lines, stats)
+        self._append_experience_background_section(lines, stats)
+        self._append_team_roles_per_team_section(lines, stats)
+        self._append_warnings_section(lines, stats)
         return "\n".join(lines)
 
     def _export_us_participants(
@@ -629,30 +808,14 @@ class Command(BaseCommand):
         if not stats['us_participants']:
             return
 
-        with open(csv_path, "w", newline="", encoding="utf-8") as f:
-            fieldnames = [
-                'attendee_id', 'first_name', 'last_name',
-                'email', 'current_city'
-            ]
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(stats['us_participants'])
+        fieldnames = ['attendee_id', 'first_name', 'last_name', 'email', 'current_city']
+        write_csv(csv_path, fieldnames, stats['us_participants'])
 
     def _parse_multiselect_field(self, value) -> list:
-        """Parse MultiSelectField into list of values."""
-        if not value:
-            return []
-        if isinstance(value, list):
-            return value
-        # MultiSelectField stores as comma-separated string
-        return [v.strip() for v in str(value).split(',') if v.strip()]
+        return parse_multiselect_values(value)
 
     def _get_choice_label(self, choices, key: str) -> str:
-        """Get human-readable label from choice key."""
-        for choice_key, choice_label in choices:
-            if choice_key == key:
-                return str(choice_label)
-        return key
+        return choice_label(choices, key)
 
     def _get_country_name(self, country_code: str) -> str:
         """Get country name from ISO country code."""
