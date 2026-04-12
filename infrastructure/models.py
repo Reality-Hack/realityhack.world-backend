@@ -583,6 +583,7 @@ class ConfigurableQuestion(models.Model):
     class FormType(models.TextChoices):
         APPLICATION = 'A', _('Application')
         RSVP = 'R', _('RSVP')
+
     """Event-specific Theme application questions"""
     class QuestionType(models.TextChoices):
         SINGLE_CHOICE = 'S', _('Single Choice')
