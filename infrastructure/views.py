@@ -813,7 +813,7 @@ class ApplicationQuestionViewSet(EventScopedLoggingViewSet):
     queryset = ConfigurableQuestion.objects.all()
     permission_classes = [permissions.AllowAny]
     serializer_class = ApplicationQuestionSerializer
-    filterset_fields = ['question_key', 'parent_question', 'event']
+    filterset_fields = ['question_key', 'parent_question', 'event', 'form_type']
     keycloak_roles = {
         'POST': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
         'DELETE': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
@@ -826,7 +826,9 @@ class ApplicationQuestionViewSet(EventScopedLoggingViewSet):
             event = get_object_or_404(Event, pk=event_id)
         else:
             event = get_active_event()
-        questions = ConfigurableQuestion.objects.for_event(event).prefetch_related(
+        questions = ConfigurableQuestion.objects.for_event(event).filter(
+            form_type=ConfigurableQuestion.FormType.APPLICATION
+        ).prefetch_related(
             'choices'
         ).order_by('order')
         serializer = ApplicationQuestionSerializer(questions, many=True)
@@ -885,7 +887,9 @@ class ApplicationViewSet(EventScopedLoggingViewSet):
             )
 
         dynamic_responses = {}
-        question_keys = ConfigurableQuestion.objects.for_event(event).values_list(
+        question_keys = ConfigurableQuestion.objects.for_event(event).filter(
+            form_type=ConfigurableQuestion.FormType.APPLICATION
+        ).values_list(
             'question_key', flat=True
         )
 
@@ -902,7 +906,9 @@ class ApplicationViewSet(EventScopedLoggingViewSet):
                 event
             ).get(id=response.data['id'])
 
-            questions = ConfigurableQuestion.objects.for_event(event)
+            questions = ConfigurableQuestion.objects.for_event(event).filter(
+                form_type=ConfigurableQuestion.FormType.APPLICATION
+            )
             questions_list = list(questions)
 
             for question in questions_list:
