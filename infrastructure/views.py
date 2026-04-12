@@ -22,8 +22,8 @@ from infrastructure.models import (Application,
                                    LightHouse, Location, MentorHelpRequest,
                                    Project, Skill, SkillProficiency, Table,
                                    Team, UploadedFile, Workshop, SponsorEventEngagement,
-                                   WorkshopAttendee, EventRsvp, Sponsor,
-                                   ApplicationQuestion, ApplicationResponse, Event)
+                                   WorkshopAttendee, EventRsvp, Sponsor, Event,
+                                   ConfigurableQuestion, ApplicationQuestionResponse)
 from infrastructure.serializers import (ApplicationSerializer,
                                         ApplicationDetailSerializer,
                                         ApplicationQuestionSerializer,
@@ -810,7 +810,7 @@ class ApplicationQuestionViewSet(EventScopedLoggingViewSet):
     API endpoint that allows application questions to be viewed or edited.
     Frontend uses this to load dynamic questions for the active event.
     """
-    queryset = ApplicationQuestion.objects.all()
+    queryset = ConfigurableQuestion.objects.all()
     permission_classes = [permissions.AllowAny]
     serializer_class = ApplicationQuestionSerializer
     filterset_fields = ['question_key', 'parent_question', 'event']
@@ -826,7 +826,7 @@ class ApplicationQuestionViewSet(EventScopedLoggingViewSet):
             event = get_object_or_404(Event, pk=event_id)
         else:
             event = get_active_event()
-        questions = ApplicationQuestion.objects.for_event(event).prefetch_related(
+        questions = ConfigurableQuestion.objects.for_event(event).prefetch_related(
             'choices'
         ).order_by('order')
         serializer = ApplicationQuestionSerializer(questions, many=True)
@@ -885,7 +885,7 @@ class ApplicationViewSet(EventScopedLoggingViewSet):
             )
 
         dynamic_responses = {}
-        question_keys = ApplicationQuestion.objects.for_event(event).values_list(
+        question_keys = ConfigurableQuestion.objects.for_event(event).values_list(
             'question_key', flat=True
         )
 
@@ -902,7 +902,7 @@ class ApplicationViewSet(EventScopedLoggingViewSet):
                 event
             ).get(id=response.data['id'])
 
-            questions = ApplicationQuestion.objects.for_event(event)
+            questions = ConfigurableQuestion.objects.for_event(event)
             questions_list = list(questions)
 
             for question in questions_list:
@@ -913,7 +913,7 @@ class ApplicationViewSet(EventScopedLoggingViewSet):
                             (isinstance(value, list) and len(value) == 0)):
                         continue
 
-                    app_response = ApplicationResponse.objects.create(
+                    app_response = ApplicationQuestionResponse.objects.create(
                         application=application,
                         question=question,
                         question_text_snapshot=question.question_text

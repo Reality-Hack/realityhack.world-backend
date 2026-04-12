@@ -579,8 +579,8 @@ class Application(models.Model):
         return f"Participation Class: {self.participation_class}, Name: {self.first_name} {self.last_name}"
 
 
-class ApplicationQuestion(models.Model):
-    """Event-specific application questions"""
+class ConfigurableQuestion(models.Model):
+    """Event-specific Theme application questions"""
     class QuestionType(models.TextChoices):
         SINGLE_CHOICE = 'S', _('Single Choice')
         MULTIPLE_CHOICE = 'M', _('Multiple Choice')
@@ -668,11 +668,11 @@ class ApplicationQuestion(models.Model):
         return any(choice in self.trigger_choices for choice in selected)
 
 
-class ApplicationQuestionChoice(models.Model):
+class ConfigurableQuestionChoice(models.Model):
     """Choices for single/multiple choice questions"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     question = models.ForeignKey(
-        ApplicationQuestion,
+        ConfigurableQuestion,
         on_delete=models.CASCADE,
         related_name='choices'
     )
@@ -697,7 +697,7 @@ class ApplicationQuestionChoice(models.Model):
         return f"{self.question.question_key} - {self.choice_key}: {self.choice_text}"
 
 
-class ApplicationResponse(models.Model):
+class ApplicationQuestionResponse(models.Model):
     """User responses to application questions"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     application = models.ForeignKey(
@@ -706,14 +706,14 @@ class ApplicationResponse(models.Model):
         related_name='question_responses'
     )
     question = models.ForeignKey(
-        ApplicationQuestion,
+        ConfigurableQuestion,
         on_delete=models.PROTECT,
         related_name='responses'
     )
 
     # Store selected choices
     selected_choices = models.ManyToManyField(
-        ApplicationQuestionChoice,
+        ConfigurableQuestionChoice,
         blank=True,
         related_name='responses'
     )

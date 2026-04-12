@@ -4,8 +4,9 @@ from rest_framework import fields, serializers
 from drf_spectacular.utils import extend_schema_field
 from infrastructure import models, event_context
 from infrastructure.models import (INDUSTRIES, MENTOR_HELP_REQUEST_TOPICS,
-                                   Application, Attendee, ApplicationQuestion,
-                                   ApplicationQuestionChoice, ApplicationResponse,
+                                   Application, Attendee, ConfigurableQuestion,
+                                   ConfigurableQuestionChoice,
+                                   ApplicationQuestionResponse,
                                    AttendeePreference, DestinyHardware,
                                    DestinyTeam, DestinyTeamAttendeeVibe,
                                    EventDestinyHardware, EventTrack,
@@ -52,7 +53,7 @@ class EventScopedSerializer(serializers.ModelSerializer):
                     if event:
                         field.queryset = queryset.for_event(event)
                     else:
-                        # Fallback: allow all events (for admin use or testing without event)
+                        # Fallback: allow all events
                         field.queryset = queryset.all_events()
 
 
@@ -122,7 +123,7 @@ class ApplicationSerializer(EventScopedSerializer):
 class ApplicationQuestionChoiceSerializer(serializers.ModelSerializer):
     """Serializer for question choices"""
     class Meta:
-        model = ApplicationQuestionChoice
+        model = ConfigurableQuestionChoice
         fields = ['id', 'choice_key', 'choice_text', 'order']
 
 
@@ -131,7 +132,7 @@ class ApplicationQuestionSerializer(EventScopedSerializer):
     choices = ApplicationQuestionChoiceSerializer(many=True, read_only=True)
 
     class Meta:
-        model = ApplicationQuestion
+        model = ConfigurableQuestion
         fields = [
             'id', 'question_key', 'question_text', 'question_type',
             'order', 'required', 'parent_question', 'trigger_choices',
@@ -145,7 +146,7 @@ class ApplicationResponseSerializer(serializers.ModelSerializer):
     selected_choice_keys = serializers.SerializerMethodField()
 
     class Meta:
-        model = ApplicationResponse
+        model = ApplicationQuestionResponse
         fields = [
             'id', 'question', 'question_text_snapshot',
             'choices_snapshot', 'selected_keys_snapshot',
