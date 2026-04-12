@@ -26,8 +26,9 @@ from rest_framework_simplejwt.views import (TokenObtainPairView,
                                             TokenRefreshView, TokenVerifyView)
 
 from infrastructure import views
-from infrastructure.models import (Application, ApplicationQuestion,
-                                   ApplicationQuestionChoice, ApplicationResponse,
+from infrastructure.models import (Application, ConfigurableQuestion,
+                                   ConfigurableQuestionChoice,
+                                   ApplicationQuestionResponse,
                                    Attendee, AttendeePreference,
                                    DestinyTeam, DestinyTeamAttendeeVibe,
                                    EventDestinyHardware, EventTrack,
@@ -103,9 +104,9 @@ admin.site.register(Hardware)
 admin.site.register(HardwareDevice)
 admin.site.register(HardwareRequest)
 admin.site.register(Application)
-admin.site.register(ApplicationQuestion)
-admin.site.register(ApplicationQuestionChoice)
-admin.site.register(ApplicationResponse)
+admin.site.register(ConfigurableQuestion)
+admin.site.register(ConfigurableQuestionChoice)
+admin.site.register(ApplicationQuestionResponse)
 admin.site.register(UploadedFile)
 admin.site.register(Workshop)
 admin.site.register(WorkshopAttendee)
