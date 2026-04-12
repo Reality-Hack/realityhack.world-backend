@@ -580,6 +580,10 @@ class Application(models.Model):
 
 
 class ConfigurableQuestion(models.Model):
+    class FormType(models.TextChoices):
+        APPLICATION = 'A', _('Application')
+        RSVP = 'R', _('RSVP')
+
     """Event-specific Theme application questions"""
     class QuestionType(models.TextChoices):
         SINGLE_CHOICE = 'S', _('Single Choice')
@@ -592,7 +596,9 @@ class ConfigurableQuestion(models.Model):
         Event,
         on_delete=models.CASCADE, related_name='%(class)s_set'
     )
-
+    form_type = models.CharField(
+        max_length=1, choices=FormType.choices, default=FormType.APPLICATION
+    )
     # Question metadata
     question_key = models.CharField(
         max_length=100,
@@ -650,7 +656,7 @@ class ConfigurableQuestion(models.Model):
             models.Index(fields=['event', 'order']),
             models.Index(fields=['parent_question']),
         ]
-        unique_together = [['event', 'question_key']]
+        unique_together = [['event', 'form_type', 'question_key']]
 
     def __str__(self) -> str:
         return f"{self.event.name} - {self.question_key}"
@@ -697,60 +703,18 @@ class ConfigurableQuestionChoice(models.Model):
         return f"{self.question.question_key} - {self.choice_key}: {self.choice_text}"
 
 
-class ApplicationQuestionResponse(models.Model):
-    """User responses to application questions"""
+class AbstractQuestionResponse(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    application = models.ForeignKey(
-        Application,
-        on_delete=models.CASCADE,
-        related_name='question_responses'
-    )
-    question = models.ForeignKey(
-        ConfigurableQuestion,
-        on_delete=models.PROTECT,
-        related_name='responses'
-    )
-
-    # Store selected choices
-    selected_choices = models.ManyToManyField(
-        ConfigurableQuestionChoice,
-        blank=True,
-        related_name='responses'
-    )
-
-    # Snapshot data - preserved even if question/choices are modified
-    question_text_snapshot = models.TextField(
-        help_text="Question text at time of response"
-    )
-    choices_snapshot = models.JSONField(
-        default=dict,
-        help_text="{'choice_key': 'choice_text'} at time of response"
-    )
-    selected_keys_snapshot = models.JSONField(
-        default=list,
-        help_text="List of choice_keys selected, preserved snapshot"
-    )
-    text_response = models.TextField(
-        blank=True,
-        help_text="Free-form text response for TEXT question types"
-    )
-    text_response_snapshot = models.TextField(
-        blank=True,
-        help_text="Snapshot of text response at time of submission"
-    )
-
+    question_text_snapshot = models.TextField()
+    choices_snapshot = models.JSONField(default=dict)
+    selected_keys_snapshot = models.JSONField(default=list)
+    text_response = models.TextField(blank=True)
+    text_response_snapshot = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = [['application', 'question']]
-        indexes = [
-            models.Index(fields=['application']),
-            models.Index(fields=['question']),
-        ]
-
-    def __str__(self) -> str:
-        return f"{self.application.email} - {self.question.question_key}"
+        abstract = True
 
     def save(self, *args, **kwargs):
         """Auto-populate snapshots on creation"""
@@ -805,6 +769,37 @@ class ApplicationQuestionResponse(models.Model):
         else:
             if self.text_response:
                 raise ValidationError("Text responses are only for TEXT question types")
+
+
+class ApplicationQuestionResponse(AbstractQuestionResponse):
+    """User responses to application questions"""
+    application = models.ForeignKey(
+        Application,
+        on_delete=models.CASCADE,
+        related_name='question_responses'
+    )
+    question = models.ForeignKey(
+        ConfigurableQuestion,
+        on_delete=models.PROTECT,
+        related_name='responses'
+    )
+
+    # Store selected choices
+    selected_choices = models.ManyToManyField(
+        ConfigurableQuestionChoice,
+        blank=True,
+        related_name='responses'
+    )
+
+    class Meta:
+        unique_together = [['application', 'question']]
+        indexes = [
+            models.Index(fields=['application']),
+            models.Index(fields=['question']),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.application.email} - {self.question.question_key}"
 
 
 class Track(models.TextChoices):
@@ -1298,6 +1293,27 @@ class EventRsvp(models.Model):
             models.Index(fields=['event', 'sponsor_company']),
         ]
 
+
+class RsvpQuestionResponse(AbstractQuestionResponse):
+    rsvp = models.ForeignKey(
+        EventRsvp, on_delete=models.CASCADE, related_name='question_responses'
+    )
+    question = models.ForeignKey(
+        ConfigurableQuestion, on_delete=models.PROTECT, related_name='rsvp_responses'
+    )
+    selected_choices = models.ManyToManyField(
+        ConfigurableQuestionChoice, blank=True, related_name='rsvp_responses'
+    )
+
+    class Meta:
+        unique_together = [['rsvp', 'question']]
+        indexes = [
+            models.Index(fields=['rsvp']),
+            models.Index(fields=['question']),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.rsvp.attendee.email} - {self.question.question_key}"
 
 class Location(models.Model):
     class Room(models.TextChoices):
