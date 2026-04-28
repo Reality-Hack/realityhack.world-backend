@@ -957,10 +957,12 @@ class EventViewSet(LoggingMixin, viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
     serializer_class = EventSerializer
     filterset_fields = ['is_active', 'id']
-    http_method_names = ['get', 'patch', 'head', 'options']
+    http_method_names = ['get', 'patch', 'post',
+                         'head', 'options']
     keycloak_roles = {
         'GET': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
         'PATCH': [KeycloakRoles.ADMIN],
+        'POST': [KeycloakRoles.ADMIN],
     }
 
 
