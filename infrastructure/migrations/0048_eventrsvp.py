@@ -3,7 +3,6 @@
 from django.conf import settings
 from django.db import migrations, models
 import django.db.models.deletion
-from django.core.management import call_command
 import multiselectfield.db.fields
 import phonenumber_field.modelfields
 import uuid
@@ -12,12 +11,11 @@ import logging
 
 def migrate_attendee_event_rsvp(apps, schema_editor):
     """Migrate attendee event rsvp data to EventRsvp model"""
-    logger = logging.getLogger(__name__)
-    try:
-        call_command('migrate_attendee_event_rsvp')
-    except Exception as e:
-        logger.error(f"Failed to migrate attendee event rsvp data: {e}")
-        raise
+    from infrastructure.management.commands.migrate_attendee_event_rsvp import (
+        run_attendee_event_rsvp_migration,
+    )
+
+    run_attendee_event_rsvp_migration(apps=apps)
     
 def reverse_migrate_attendee_event_rsvp(apps, schema_editor):
     """Reverse the migration of attendee event rsvp data to EventRsvp model"""

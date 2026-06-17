@@ -165,8 +165,6 @@ class AttendeeFactory(DjangoModelFactory):
         'random_element', 
         elements=[str(x[0]) for x in models.ParticipationClass.choices]
     )
-    # sponsor
-    sponsor_company = None
 
 
 # https://github.com/FactoryBoy/factory_boy/issues/305
