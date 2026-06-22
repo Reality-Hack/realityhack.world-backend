@@ -7,7 +7,7 @@ from datetime import datetime
 from django.conf import settings
 from django.contrib.auth.models import Group
 from django.http.response import JsonResponse
-from django.test import override_settings
+from django.test import TestCase, override_settings
 from django.test.client import BOUNDARY, MULTIPART_CONTENT, encode_multipart
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.test import APIClient, APITestCase
@@ -1695,3 +1695,216 @@ class EventRsvpAttendeeOptionsTests(EventTestCase):
         # Should only return the RSVP for the active event, not the other event's RSVP
         self.assertEqual(len(response.json()), 1)
         self.assertEqual(str(self.attendee.id), response.json()[0]['id'])
+
+
+class RsvpQuestionMigrationTests(TestCase):
+    """Tests for RSVP configurable question seeding and legacy data migration."""
+
+    def setUp(self):
+        from datetime import datetime, timezone
+
+        from infrastructure.rsvp_question_migration import (
+            EVENT_2025_UUID,
+            EVENT_2026_NAME,
+            RSVP_QUESTIONS_2025,
+            RSVP_QUESTIONS_2026,
+            migrate_rsvp_responses,
+            reverse_rsvp_question_migration,
+            seed_rsvp_questions,
+        )
+
+        self.EVENT_2025_UUID = EVENT_2025_UUID
+        self.EVENT_2026_NAME = EVENT_2026_NAME
+        self.RSVP_QUESTIONS_2025 = RSVP_QUESTIONS_2025
+        self.RSVP_QUESTIONS_2026 = RSVP_QUESTIONS_2026
+        self.seed_rsvp_questions = seed_rsvp_questions
+        self.migrate_rsvp_responses = migrate_rsvp_responses
+        self.reverse_rsvp_question_migration = reverse_rsvp_question_migration
+
+        self.event_2025 = models.Event.objects.get(id=EVENT_2025_UUID)
+        self.event_2026 = models.Event.objects.create(
+            name=EVENT_2026_NAME,
+            start_date=datetime(2026, 1, 22, tzinfo=timezone.utc),
+            end_date=datetime(2026, 1, 26, tzinfo=timezone.utc),
+            is_active=True,
+        )
+
+    def _create_rsvp(self, event: models.Event, **fields) -> models.EventRsvp:
+        attendee = factories.AttendeeFactory()
+        defaults = {
+            'attendee': attendee,
+            'event': event,
+            'participation_class': models.ParticipationClass.PARTICIPANT,
+            'shirt_size': models.ShirtSize.M,
+            'us_visa_support_is_required': False,
+            'emergency_contact_name': 'Emergency Contact',
+            'personal_phone_number': '+19048800020',
+            'emergency_contact_phone_number': '+14072394137',
+            'emergency_contact_email': attendee.email,
+            'emergency_contact_relationship': 'Parent',
+        }
+        defaults.update(fields)
+        return models.EventRsvp.objects.create(**defaults)
+
+    def test_seed_creates_expected_questions_per_event(self):
+        question_map_2025 = self.seed_rsvp_questions(
+            self.event_2025,
+            self.RSVP_QUESTIONS_2025,
+        )
+        question_map_2026 = self.seed_rsvp_questions(
+            self.event_2026,
+            self.RSVP_QUESTIONS_2026,
+        )
+
+        self.assertEqual(len(question_map_2025), 4)
+        self.assertEqual(len(question_map_2026), 4)
+        self.assertFalse(
+            models.ConfigurableQuestion.objects.for_event(self.event_2025).filter(
+                form_type=models.ConfigurableQuestion.FormType.RSVP,
+                question_key='device_preference_ranked',
+            ).exists()
+        )
+        self.assertFalse(
+            models.ConfigurableQuestion.objects.for_event(self.event_2026).filter(
+                form_type=models.ConfigurableQuestion.FormType.RSVP,
+                question_key='breakthrough_hacks_interest',
+            ).exists()
+        )
+
+    def test_migrate_2025_event_rsvp_responses(self):
+        rsvp = self._create_rsvp(
+            self.event_2025,
+            loaner_headset_preference='META',
+            breakthrough_hacks_interest='Interested in Galea',
+            special_interest_track_one='Y',
+            special_interest_track_two='N',
+        )
+        question_map = self.seed_rsvp_questions(
+            self.event_2025,
+            self.RSVP_QUESTIONS_2025,
+        )
+        migrated = self.migrate_rsvp_responses(
+            self.event_2025,
+            self.RSVP_QUESTIONS_2025,
+            question_map,
+        )
+
+        self.assertEqual(migrated, 4)
+        responses = models.RsvpQuestionResponse.objects.filter(rsvp=rsvp)
+        self.assertEqual(responses.count(), 4)
+
+        loaner_response = responses.get(question__question_key='loaner_headset_preference')
+        self.assertEqual(loaner_response.selected_keys_snapshot, ['META'])
+        self.assertIn('loaner headset', loaner_response.question_text_snapshot.lower())
+
+        breakthrough_response = responses.get(
+            question__question_key='breakthrough_hacks_interest'
+        )
+        self.assertEqual(breakthrough_response.text_response_snapshot, 'Interested in Galea')
+
+    def test_migrate_2026_event_rsvp_responses(self):
+        rsvp = self._create_rsvp(
+            self.event_2026,
+            loaner_headset_preference='APPLE_VISION_PRO',
+            device_preference_ranked='Meta Quest 3, Pico',
+            special_interest_track_one='Y',
+            special_interest_track_two='N',
+        )
+        question_map = self.seed_rsvp_questions(
+            self.event_2026,
+            self.RSVP_QUESTIONS_2026,
+        )
+        migrated = self.migrate_rsvp_responses(
+            self.event_2026,
+            self.RSVP_QUESTIONS_2026,
+            question_map,
+        )
+
+        self.assertEqual(migrated, 4)
+        device_response = models.RsvpQuestionResponse.objects.get(
+            rsvp=rsvp,
+            question__question_key='device_preference_ranked',
+        )
+        self.assertEqual(
+            device_response.text_response_snapshot,
+            'Meta Quest 3, Pico',
+        )
+
+    def test_migrate_is_idempotent(self):
+        rsvp = self._create_rsvp(
+            self.event_2026,
+            loaner_headset_preference='META',
+            special_interest_track_one='Y',
+        )
+        question_map = self.seed_rsvp_questions(
+            self.event_2026,
+            self.RSVP_QUESTIONS_2026,
+        )
+        first_run = self.migrate_rsvp_responses(
+            self.event_2026,
+            self.RSVP_QUESTIONS_2026,
+            question_map,
+        )
+        second_run = self.migrate_rsvp_responses(
+            self.event_2026,
+            self.RSVP_QUESTIONS_2026,
+            question_map,
+        )
+
+        self.assertEqual(first_run, 2)
+        self.assertEqual(second_run, 0)
+        self.assertEqual(
+            models.RsvpQuestionResponse.objects.filter(rsvp=rsvp).count(),
+            2,
+        )
+
+    def test_unknown_loaner_choice_stores_raw_key(self):
+        rsvp = self._create_rsvp(
+            self.event_2026,
+            loaner_headset_preference='BYOD',
+        )
+        question_map = self.seed_rsvp_questions(
+            self.event_2026,
+            self.RSVP_QUESTIONS_2026,
+        )
+        self.migrate_rsvp_responses(
+            self.event_2026,
+            self.RSVP_QUESTIONS_2026,
+            question_map,
+        )
+
+        response = models.RsvpQuestionResponse.objects.get(
+            rsvp=rsvp,
+            question__question_key='loaner_headset_preference',
+        )
+        self.assertEqual(response.selected_keys_snapshot, ['BYOD'])
+        self.assertEqual(response.selected_choices.count(), 0)
+
+    def test_reverse_removes_rsvp_questions_and_responses(self):
+        rsvp = self._create_rsvp(
+            self.event_2026,
+            loaner_headset_preference='META',
+        )
+        question_map = self.seed_rsvp_questions(
+            self.event_2026,
+            self.RSVP_QUESTIONS_2026,
+        )
+        self.migrate_rsvp_responses(
+            self.event_2026,
+            self.RSVP_QUESTIONS_2026,
+            question_map,
+        )
+
+        self.reverse_rsvp_question_migration(self.event_2026)
+
+        self.assertEqual(
+            models.RsvpQuestionResponse.objects.filter(rsvp=rsvp).count(),
+            0,
+        )
+        self.assertEqual(
+            models.ConfigurableQuestion.objects.for_event(self.event_2026).filter(
+                form_type=models.ConfigurableQuestion.FormType.RSVP,
+            ).count(),
+            0,
+        )
+

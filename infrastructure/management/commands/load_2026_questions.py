@@ -8,8 +8,9 @@ Usage:
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from infrastructure.models import (
-    Event, ApplicationQuestion, 
-    ApplicationQuestionChoice
+    ConfigurableQuestion,
+    ConfigurableQuestionChoice,
+    Event,
 )
 
 
@@ -72,9 +73,12 @@ class Command(BaseCommand):
                 ))
 
     def delete_existing(self, event):
-        """Delete existing questions for this event"""
+        """Delete existing application questions for this event"""
         self.stdout.write("\n=== Deleting Existing Questions ===")
-        questions = ApplicationQuestion.objects.filter(event=event)
+        questions = ConfigurableQuestion.objects.filter(
+            event=event,
+            form_type=ConfigurableQuestion.FormType.APPLICATION,
+        )
         count = questions.count()
         questions.delete()
         self.stdout.write(f"Deleted {count} existing questions")
@@ -84,7 +88,7 @@ class Command(BaseCommand):
         self.stdout.write("\n=== Creating Essay Questions ===")
 
         # Question 1: Original essay question
-        essay_q1 = ApplicationQuestion.objects.create(
+        essay_q1 = ConfigurableQuestion.objects.create(
             event=event,
             question_key='theme_essay',
             question_text=(
@@ -100,7 +104,7 @@ class Command(BaseCommand):
         self.stdout.write(f"Created question: {essay_q1.question_key}")
 
         # Question 2: New essay question for 2026
-        essay_q2 = ApplicationQuestion.objects.create(
+        essay_q2 = ConfigurableQuestion.objects.create(
             event=event,
             question_key='theme_essay_follow_up',
             question_text=(
@@ -120,7 +124,7 @@ class Command(BaseCommand):
         self.stdout.write("\n=== Creating Theme Questions ===")
 
         # Question 3: Startup/entrepreneurship interest
-        track_one_q = ApplicationQuestion.objects.create(
+        track_one_q = ConfigurableQuestion.objects.create(
             event=event,
             question_key='theme_interest_track_one',
             question_text=(
@@ -133,13 +137,13 @@ class Command(BaseCommand):
         )
         self.stdout.write(f"Created question: {track_one_q.question_key}")
 
-        ApplicationQuestionChoice.objects.create(
+        ConfigurableQuestionChoice.objects.create(
             question=track_one_q,
             choice_key='Y',
             choice_text='Yes',
             order=1,
         )
-        ApplicationQuestionChoice.objects.create(
+        ConfigurableQuestionChoice.objects.create(
             question=track_one_q,
             choice_key='N',
             choice_text='No',
@@ -148,7 +152,7 @@ class Command(BaseCommand):
         self.stdout.write(f"  Created {track_one_q.choices.count()} choices")
 
         # Question 4: Vision Pro / AI glasses interest (CHANGED TO MULTIPLE CHOICE)
-        track_two_q = ApplicationQuestion.objects.create(
+        track_two_q = ConfigurableQuestion.objects.create(
             event=event,
             question_key='theme_interest_track_two',
             question_text='Are you interested in hacking on Apple Vision Pro or AI glasses?',
@@ -158,13 +162,13 @@ class Command(BaseCommand):
         )
         self.stdout.write(f"Created question: {track_two_q.question_key}")
 
-        ApplicationQuestionChoice.objects.create(
+        ConfigurableQuestionChoice.objects.create(
             question=track_two_q,
             choice_key='VP',
             choice_text='Apple Vision Pro',
             order=1,
         )
-        ApplicationQuestionChoice.objects.create(
+        ConfigurableQuestionChoice.objects.create(
             question=track_two_q,
             choice_key='AI',
             choice_text='AI glasses',
@@ -173,7 +177,7 @@ class Command(BaseCommand):
         self.stdout.write(f"  Created {track_two_q.choices.count()} choices")
 
         # Question 5: Hardware platform interest (NEW - STANDALONE)
-        detail_one_q = ApplicationQuestion.objects.create(
+        detail_one_q = ConfigurableQuestion.objects.create(
             event=event,
             question_key='theme_detail_one',
             question_text=(
@@ -186,13 +190,13 @@ class Command(BaseCommand):
         )
         self.stdout.write(f"Created question: {detail_one_q.question_key}")
 
-        ApplicationQuestionChoice.objects.create(
+        ConfigurableQuestionChoice.objects.create(
             question=detail_one_q,
             choice_key='ARD',
             choice_text='Arduino: [Discover the New Arduino UNO Q: The All-In One Toolbox](https://www.arduino.cc/product-uno-q/)',
             order=1,
         )
-        ApplicationQuestionChoice.objects.create(
+        ConfigurableQuestionChoice.objects.create(
             question=detail_one_q,
             choice_key='RUB',
             choice_text='Rubik PI: [Edge AI Dev Kit](https://rubikpi.ai/)',
@@ -201,7 +205,7 @@ class Command(BaseCommand):
         self.stdout.write(f"  Created {detail_one_q.choices.count()} choices")
 
         # Question 6: Bringing previous project (NEW - STANDALONE)
-        detail_two_q = ApplicationQuestion.objects.create(
+        detail_two_q = ConfigurableQuestion.objects.create(
             event=event,
             question_key='theme_detail_two',
             question_text=(
@@ -218,13 +222,13 @@ class Command(BaseCommand):
         )
         self.stdout.write(f"Created question: {detail_two_q.question_key}")
 
-        ApplicationQuestionChoice.objects.create(
+        ConfigurableQuestionChoice.objects.create(
             question=detail_two_q,
             choice_key='Y',
             choice_text='Yes',
             order=1,
         )
-        ApplicationQuestionChoice.objects.create(
+        ConfigurableQuestionChoice.objects.create(
             question=detail_two_q,
             choice_key='N',
             choice_text='No',
@@ -233,7 +237,7 @@ class Command(BaseCommand):
         self.stdout.write(f"  Created {detail_two_q.choices.count()} choices")
 
         # Question 7: Immersive media production (NEW - STANDALONE)
-        detail_three_q = ApplicationQuestion.objects.create(
+        detail_three_q = ConfigurableQuestion.objects.create(
             event=event,
             question_key='theme_detail_three',
             question_text='Would you be interested in working with immersive media production equipment?',
@@ -243,13 +247,13 @@ class Command(BaseCommand):
         )
         self.stdout.write(f"Created question: {detail_three_q.question_key}")
 
-        ApplicationQuestionChoice.objects.create(
+        ConfigurableQuestionChoice.objects.create(
             question=detail_three_q,
             choice_key='Y',
             choice_text='Yes',
             order=1,
         )
-        ApplicationQuestionChoice.objects.create(
+        ConfigurableQuestionChoice.objects.create(
             question=detail_three_q,
             choice_key='N',
             choice_text='No',
@@ -262,7 +266,7 @@ class Command(BaseCommand):
         self.stdout.write("\n=== Creating Hardware Questions ===")
 
         # Question 8: Hardware hack interest
-        parent_q = ApplicationQuestion.objects.create(
+        parent_q = ConfigurableQuestion.objects.create(
             event=event,
             question_key='hardware_hack_interest',
             question_text=(
@@ -280,25 +284,25 @@ class Command(BaseCommand):
         )
         self.stdout.write(f"Created question: {parent_q.question_key}")
 
-        ApplicationQuestionChoice.objects.create(
+        ConfigurableQuestionChoice.objects.create(
             question=parent_q,
             choice_key='A',
             choice_text="Not at all interested, I'll pass",
             order=1,
         )
-        ApplicationQuestionChoice.objects.create(
+        ConfigurableQuestionChoice.objects.create(
             question=parent_q,
             choice_key='B',
             choice_text="Some mild interest",
             order=2,
         )
-        ApplicationQuestionChoice.objects.create(
+        ConfigurableQuestionChoice.objects.create(
             question=parent_q,
             choice_key='C',
             choice_text="Most likely",
             order=3,
         )
-        ApplicationQuestionChoice.objects.create(
+        ConfigurableQuestionChoice.objects.create(
             question=parent_q,
             choice_key='D',
             choice_text="100% I want to join",
@@ -307,7 +311,7 @@ class Command(BaseCommand):
         self.stdout.write(f"  Created {parent_q.choices.count()} choices")
 
         # Question 9: Hardware experience (CONDITIONAL on Q8)
-        detail_q = ApplicationQuestion.objects.create(
+        detail_q = ConfigurableQuestion.objects.create(
             event=event,
             question_key='hardware_hack_detail',
             question_text='Do you have any prior experience building custom hardware in these areas?',
@@ -319,37 +323,37 @@ class Command(BaseCommand):
         )
         self.stdout.write(f"Created question: {detail_q.question_key}")
 
-        ApplicationQuestionChoice.objects.create(
+        ConfigurableQuestionChoice.objects.create(
             question=detail_q, choice_key='A', choice_text='3D printing', order=1,
         )
-        ApplicationQuestionChoice.objects.create(
+        ConfigurableQuestionChoice.objects.create(
             question=detail_q, choice_key='B', choice_text='Soldering', order=2,
         )
-        ApplicationQuestionChoice.objects.create(
+        ConfigurableQuestionChoice.objects.create(
             question=detail_q, choice_key='C', choice_text='Circuits', order=3,
         )
-        ApplicationQuestionChoice.objects.create(
+        ConfigurableQuestionChoice.objects.create(
             question=detail_q, choice_key='D', choice_text='Arduino', order=4,
         )
-        ApplicationQuestionChoice.objects.create(
+        ConfigurableQuestionChoice.objects.create(
             question=detail_q, choice_key='E', choice_text='ESP32', order=5,
         )
-        ApplicationQuestionChoice.objects.create(
+        ConfigurableQuestionChoice.objects.create(
             question=detail_q, choice_key='F', choice_text='Unity', order=6,
         )
-        ApplicationQuestionChoice.objects.create(
+        ConfigurableQuestionChoice.objects.create(
             question=detail_q,
             choice_key='G',
             choice_text='Physical Prototyping',
             order=7,
         )
-        ApplicationQuestionChoice.objects.create(
+        ConfigurableQuestionChoice.objects.create(
             question=detail_q,
             choice_key='H',
             choice_text='I have no prior experience',
             order=8,
         )
-        ApplicationQuestionChoice.objects.create(
+        ConfigurableQuestionChoice.objects.create(
             question=detail_q, choice_key='O', choice_text='Other', order=9,
         )
         self.stdout.write(f"  Created {detail_q.choices.count()} choices")

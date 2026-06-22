@@ -684,8 +684,8 @@ class ConfigurableQuestionChoice(models.Model):
     )
 
     choice_key = models.CharField(
-        max_length=10,
-        help_text="Short code like 'A', 'B', 'Y', 'N'"
+        max_length=24,
+        help_text="Short code like 'A', 'B', 'Y', 'N', or device keys like 'APPLE_VISION_PRO'",
     )
     choice_text = models.CharField(max_length=500)
     order = models.IntegerField(default=0)
