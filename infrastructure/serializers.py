@@ -136,7 +136,7 @@ class ApplicationQuestionSerializer(EventScopedSerializer):
         fields = [
             'id', 'question_key', 'question_text', 'question_type',
             'order', 'required', 'parent_question', 'trigger_choices',
-            'choices', 'max_length', 'min_length',
+            'choices', 'max_length', 'min_length', 'form_type',
             'placeholder_text', 'created_at', 'updated_at'
         ]
 

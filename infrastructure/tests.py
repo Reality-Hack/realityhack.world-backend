@@ -1908,3 +1908,61 @@ class RsvpQuestionMigrationTests(TestCase):
             0,
         )
 
+
+@keycloak_test
+class ApplicationQuestionListTests(EventTestCase):
+    def setUp(self):
+        super().setUp()
+        self.client = APIClient()
+        self.application_question = models.ConfigurableQuestion.objects.create(
+            event=self.active_event,
+            form_type=models.ConfigurableQuestion.FormType.APPLICATION,
+            question_key='theme_interest',
+            question_text='Which theme interests you?',
+            question_type=models.ConfigurableQuestion.QuestionType.SINGLE_CHOICE,
+            order=1,
+        )
+        self.rsvp_question = models.ConfigurableQuestion.objects.create(
+            event=self.active_event,
+            form_type=models.ConfigurableQuestion.FormType.RSVP,
+            question_key='shirt_size',
+            question_text='What is your shirt size?',
+            question_type=models.ConfigurableQuestion.QuestionType.SINGLE_CHOICE,
+            order=1,
+        )
+
+    def test_list_defaults_to_application_questions(self):
+        response = self.client.get(
+            '/applicationquestions/',
+            {'event': str(self.active_event.id)},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        question_keys = [item['question_key'] for item in response.json()]
+        self.assertEqual(question_keys, ['theme_interest'])
+
+    def test_list_filters_by_form_type(self):
+        response = self.client.get(
+            '/applicationquestions/',
+            {
+                'event': str(self.active_event.id),
+                'form_type': models.ConfigurableQuestion.FormType.RSVP,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        question_keys = [item['question_key'] for item in response.json()]
+        self.assertEqual(question_keys, ['shirt_size'])
+
+    def test_list_rejects_invalid_form_type(self):
+        response = self.client.get(
+            '/applicationquestions/',
+            {
+                'event': str(self.active_event.id),
+                'form_type': 'X',
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('form_type', response.json())
+

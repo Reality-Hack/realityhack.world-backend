@@ -821,15 +821,26 @@ class ApplicationQuestionViewSet(EventScopedLoggingViewSet):
     }
 
     def list(self, request):
-        """Return all questions for the active event, ordered by order field"""
+        """Return questions for an event, ordered by order field."""
         if event_id := request.query_params.get('event'):
             event = get_object_or_404(Event, pk=event_id)
         else:
             event = get_active_event()
+
+        form_type = request.query_params.get(
+            'form_type',
+            ConfigurableQuestion.FormType.APPLICATION,
+        )
+        if form_type not in ConfigurableQuestion.FormType.values:
+            return Response(
+                {'form_type': 'Invalid form type.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         questions = ConfigurableQuestion.objects.for_event(event).filter(
-            form_type=ConfigurableQuestion.FormType.APPLICATION
+            form_type=form_type,
         ).prefetch_related(
-            'choices'
+            'choices',
         ).order_by('order')
         serializer = ApplicationQuestionSerializer(questions, many=True)
         return Response(serializer.data)
