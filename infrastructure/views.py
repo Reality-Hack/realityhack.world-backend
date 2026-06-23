@@ -23,10 +23,12 @@ from infrastructure.models import (Application,
                                    Project, Skill, SkillProficiency, Table,
                                    Team, UploadedFile, Workshop, SponsorEventEngagement,
                                    WorkshopAttendee, EventRsvp, Sponsor, Event,
-                                   ConfigurableQuestion, ApplicationQuestionResponse)
+                                   ConfigurableQuestion, ConfigurableQuestionChoice,
+                                   ApplicationQuestionResponse)
 from infrastructure.serializers import (ApplicationSerializer,
                                         ApplicationDetailSerializer,
                                         ApplicationQuestionSerializer,
+                                        ApplicationQuestionChoiceSerializer,
                                         AttendeeDetailSerializer,
                                         AttendeeListSerializer,
                                         AttendeePatchSerializer,
@@ -846,6 +848,32 @@ class ApplicationQuestionViewSet(EventScopedLoggingViewSet):
         return Response(serializer.data)
 
 
+class ApplicationQuestionChoiceViewSet(EventScopedLoggingViewSet):
+    """
+    API endpoint for managing choices for single/multiple choice questions.
+    """
+    queryset = ConfigurableQuestionChoice.objects.all()
+    serializer_class = ApplicationQuestionChoiceSerializer
+    permission_classes = [permissions.AllowAny]
+    filterset_fields = ['question']
+    keycloak_roles = {
+        'GET': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        'HEAD': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        'OPTIONS': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
+        'POST': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER],
+        'PUT': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER],
+        'PATCH': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER],
+        'DELETE': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER],
+    }
+
+    def get_queryset(self):
+        if question_id := self.request.query_params.get('question'):
+            return ConfigurableQuestionChoice.objects.filter(
+                question=question_id,
+            ).order_by('order')
+        return ConfigurableQuestionChoice.objects.none()
+
+
 class ApplicationViewSet(EventScopedLoggingViewSet):
     """
     API endpoint that allows applications to be viewed or edited.
@@ -979,40 +1007,62 @@ class EventViewSet(LoggingMixin, viewsets.ModelViewSet):
 
 class EventTrackViewSet(EventScopedLoggingViewSet):
     """
-    API endpoint for viewing event-scoped track choices.
+    API endpoint for event-scoped prize track choices.
     """
-    queryset = EventTrack.objects.none()
+    queryset = EventTrack.objects.all()
     serializer_class = EventTrackSerializer
     permission_classes = [permissions.AllowAny]
-    http_method_names = ['get', 'head', 'options']
     filterset_fields = ['event']
+    all_roles = [KeycloakRoles.ATTENDEE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER,
+                 KeycloakRoles.VOLUNTEER, KeycloakRoles.MENTOR, KeycloakRoles.JUDGE,
+                 KeycloakRoles.SPONSOR]
+    keycloak_roles = {
+        'GET': all_roles,
+        'HEAD': all_roles,
+        'OPTIONS': all_roles,
+        'POST': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER],
+        'PUT': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER],
+        'PATCH': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER],
+        'DELETE': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER],
+    }
+
+    def get_event(self):
+        if event_id := self.request.query_params.get('event'):
+            return get_object_or_404(Event, pk=event_id)
+        return super().get_event()
 
     def get_queryset(self):
-        """Filter tracks by the current active event."""
-        if event_id := self.request.query_params.get('event'):
-            event = get_object_or_404(Event, pk=event_id)
-        else:
-            event = get_active_event()
-        return EventTrack.objects.for_event(event)
+        return EventTrack.objects.for_event(self.get_event())
 
 
 class EventDestinyHardwareViewSet(EventScopedLoggingViewSet):
     """
-    API endpoint for viewing event-scoped destiny hardware choices.
+    API endpoint for event-scoped hardware track choices.
     """
-    queryset = EventDestinyHardware.objects.none()
+    queryset = EventDestinyHardware.objects.all()
     serializer_class = EventDestinyHardwareSerializer
     permission_classes = [permissions.AllowAny]
-    http_method_names = ['get', 'head', 'options']
     filterset_fields = ['event']
+    all_roles = [KeycloakRoles.ATTENDEE, KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER,
+                 KeycloakRoles.VOLUNTEER, KeycloakRoles.MENTOR, KeycloakRoles.JUDGE,
+                 KeycloakRoles.SPONSOR]
+    keycloak_roles = {
+        'GET': all_roles,
+        'HEAD': all_roles,
+        'OPTIONS': all_roles,
+        'POST': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER],
+        'PUT': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER],
+        'PATCH': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER],
+        'DELETE': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER],
+    }
+
+    def get_event(self):
+        if event_id := self.request.query_params.get('event'):
+            return get_object_or_404(Event, pk=event_id)
+        return super().get_event()
 
     def get_queryset(self):
-        """Filter destiny hardware by the current active event."""
-        if event_id := self.request.query_params.get('event'):
-            event = get_object_or_404(Event, pk=event_id)
-        else:
-            event = get_active_event()
-        return EventDestinyHardware.objects.for_event(event)
+        return EventDestinyHardware.objects.for_event(self.get_event())
 
 
 @extend_schema(

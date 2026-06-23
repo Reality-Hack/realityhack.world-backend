@@ -122,9 +122,13 @@ class ApplicationSerializer(EventScopedSerializer):
 
 class ApplicationQuestionChoiceSerializer(serializers.ModelSerializer):
     """Serializer for question choices"""
+    question = serializers.PrimaryKeyRelatedField(
+        queryset=ConfigurableQuestion.objects.all_events(),
+    )
+
     class Meta:
         model = ConfigurableQuestionChoice
-        fields = ['id', 'choice_key', 'choice_text', 'order']
+        fields = ['id', 'question', 'choice_key', 'choice_text', 'order']
 
 
 class ApplicationQuestionSerializer(EventScopedSerializer):
