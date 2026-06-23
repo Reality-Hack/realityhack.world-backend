@@ -9,6 +9,7 @@ from django.views.decorators.vary import vary_on_headers
 from django_keycloak_auth.decorators import keycloak_roles
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import api_view
+from rest_framework.views import APIView
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 from infrastructure.keycloak import KeycloakRoles
@@ -71,6 +72,7 @@ from infrastructure.serializers import (ApplicationSerializer,
                                         EventTrackSerializer, SponsorSerializer,
                                         EventDestinyHardwareSerializer,
                                         EventRsvpAttendeeOptionSerializer,
+                                        PublicEventSerializer,
                                         SponsorEventEngagementSerializer)
 from infrastructure.filters import (
     TeamFilter,
@@ -1083,22 +1085,17 @@ def activate_event(request, event_id):
     return Response(serializer.data)
 
 
-@extend_schema(
-    methods=['GET'],
-    responses={200: EventSerializer},
-    description="Get the active event"
-)
-@api_view(['GET'])
-@keycloak_roles([
-    KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN, KeycloakRoles.VOLUNTEER,
-    KeycloakRoles.ATTENDEE, KeycloakRoles.MENTOR, KeycloakRoles.JUDGE,
-    KeycloakRoles.VOLUNTEER, KeycloakRoles.GUARDIAN, KeycloakRoles.MEDIA,
-    KeycloakRoles.SPONSOR,
-])
-def get_active_event_endpoint(request):
-    event = get_active_event()
-    serializer = EventSerializer(event)
-    return Response(serializer.data)
+class ActiveEventAPIView(LoggingMixin, APIView):
+    permission_classes = [permissions.AllowAny]
+    keycloak_roles = {}  # no method requires a role → middleware exemption fires
+
+    @extend_schema(
+        responses={200: PublicEventSerializer},
+        description="Get the active event. Public endpoint.",
+    )
+    def get(self, request):
+        event = get_active_event()
+        return Response(PublicEventSerializer(event).data)
 
 
 @extend_schema(
@@ -1404,15 +1401,21 @@ class SponsorEventEngagementViewSet(EventScopedLoggingViewSet):
         'DELETE': [KeycloakRoles.ADMIN, KeycloakRoles.ORGANIZER],
     }
 
+    def get_event(self):
+        if event_id := self.request.query_params.get('event'):
+            return get_object_or_404(Event, pk=event_id)
+        if self.request.method in ('POST', 'PUT', 'PATCH'):
+            if event_id := self.request.data.get('event'):
+                return get_object_or_404(Event, pk=event_id)
+        return super().get_event()
+
+    def get_queryset(self):
+        queryset = SponsorEventEngagement.objects.all()
+        if self.action == 'list':
+            return queryset.filter(event=self.get_event())
+        return queryset
+
     def create(self, request, *args, **kwargs):
-        if event_id := request.data.get("event"):
-            event = get_object_or_404(Event, pk=event_id)
-        else:
-            event = get_active_event()
-        if not event:
-            return Response(
-                {"error": "No active event found"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        request.data["event"] = event.id
+        if not request.data.get('event'):
+            request.data['event'] = str(self.get_event().id)
         return super().create(request, *args, **kwargs)

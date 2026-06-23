@@ -1966,3 +1966,91 @@ class ApplicationQuestionListTests(EventTestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn('form_type', response.json())
 
+
+@keycloak_test
+class SponsorEventEngagementTests(EventTestCase):
+    def setUp(self):
+        super().setUp()
+        self.client = APIClient()
+        models.Event.objects.exclude(id=self.active_event.id).update(is_active=False)
+        self.inactive_event = factories.EventFactory(is_active=False)
+        self.sponsor = models.Sponsor.objects.create(name='Test Sponsor')
+
+    def test_create_for_non_active_event_in_body(self):
+        response = self.client.post(
+            '/sponsoreventengagements/',
+            {
+                'sponsor': str(self.sponsor.id),
+                'event': str(self.inactive_event.id),
+                'tier': models.SponsorTier.TIER_1,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 201)
+        engagement = models.SponsorEventEngagement.objects.get(id=response.json()['id'])
+        self.assertEqual(engagement.event_id, self.inactive_event.id)
+        self.assertEqual(engagement.sponsor_id, self.sponsor.id)
+
+    def test_create_for_non_active_event_in_query_param(self):
+        response = self.client.post(
+            f'/sponsoreventengagements/?event={self.inactive_event.id}',
+            {
+                'sponsor': str(self.sponsor.id),
+                'tier': models.SponsorTier.TIER_2,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 201)
+        engagement = models.SponsorEventEngagement.objects.get(id=response.json()['id'])
+        self.assertEqual(engagement.event_id, self.inactive_event.id)
+
+    def test_create_without_event_defaults_to_active(self):
+        response = self.client.post(
+            '/sponsoreventengagements/',
+            {
+                'sponsor': str(self.sponsor.id),
+                'tier': models.SponsorTier.TIER_3,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 201)
+        engagement = models.SponsorEventEngagement.objects.get(id=response.json()['id'])
+        self.assertEqual(engagement.event_id, self.active_event.id)
+
+    def test_list_for_non_active_event(self):
+        engagement = models.SponsorEventEngagement.objects.create(
+            sponsor=self.sponsor,
+            event=self.inactive_event,
+            tier=models.SponsorTier.TIER_1,
+        )
+
+        response = self.client.get(
+            '/sponsoreventengagements/',
+            {'event': str(self.inactive_event.id)},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        ids = [item['id'] for item in response.json()]
+        self.assertEqual(ids, [str(engagement.id)])
+
+    def test_patch_engagement_on_non_active_event_without_event_param(self):
+        engagement = models.SponsorEventEngagement.objects.create(
+            sponsor=self.sponsor,
+            event=self.inactive_event,
+            tier=models.SponsorTier.TIER_1,
+        )
+
+        response = self.client.patch(
+            f'/sponsoreventengagements/{engagement.id}/',
+            {'tier': models.SponsorTier.TIER_4},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        engagement.refresh_from_db()
+        self.assertEqual(engagement.tier, models.SponsorTier.TIER_4)
+        self.assertEqual(engagement.event_id, self.inactive_event.id)
+

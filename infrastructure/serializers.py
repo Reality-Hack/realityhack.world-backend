@@ -227,6 +227,13 @@ class EventSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
+class PublicEventSerializer(serializers.ModelSerializer):
+    """Slim read-only event serializer safe for unauthenticated responses."""
+    class Meta:
+        model = Event
+        fields = ['id', 'name', 'start_date', 'end_date']
+
+
 class EventTrackSerializer(serializers.ModelSerializer):
     sponsor_companies = serializers.PrimaryKeyRelatedField(
         queryset=Sponsor.objects.all(), many=True, required=False

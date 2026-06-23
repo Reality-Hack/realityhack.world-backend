@@ -126,8 +126,8 @@ urlpatterns = [
     ),
     path(
         'events/get-active/',
-        views.get_active_event_endpoint,
-        name='get_active_event_endpoint'
+        views.ActiveEventAPIView.as_view(),
+        name='get_active_event'
     ),
     path('', include(router.urls)),
     path('auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
