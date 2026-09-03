@@ -327,8 +327,10 @@ if "test" not in sys.argv and "setup_test_data" not in sys.argv:
     EMAIL_USE_SSL = os.getenv("EMAIL_USE_SSL", "")
 
 KEYCLOAK_EXEMPT_URIS = [
-    'schema/swagger', 'schema/redoc', 'schema/spectacular', 'applicationquestions/',
-    'applications/', 'uploaded_files/', 'attendees/', 'rsvps/', 'discord/'
+    'schema/swagger', 'schema/redoc', 'schema/spectacular',
+    'events/get-active/',
+    'applicationquestions/',
+    'applications/', 'uploaded_files/', 'attendees/', 'rsvps/', 'discord/',
 ]
 KEYCLOAK_CONFIG = {
     'KEYCLOAK_SERVER_URL': os.getenv("KEYCLOAK_SERVER_URL", ""),

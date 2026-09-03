@@ -80,6 +80,7 @@ router.register(r'hardwarerequests', views.HardwareRequestsViewSet)
 router.register(r'hardwaredevicehistory', views.HardwareDeviceHistoryViewSet)
 router.register(r'applications', views.ApplicationViewSet)
 router.register(r'applicationquestions', views.ApplicationQuestionViewSet)
+router.register(r'applicationquestionchoices', views.ApplicationQuestionChoiceViewSet)
 router.register(r'uploaded_files', views.UploadedFileViewSet)
 router.register(r'workshops', views.WorkshopViewSet)
 router.register(r'workshopattendees', views.WorkshopAttendeeViewSet)
@@ -125,8 +126,8 @@ urlpatterns = [
     ),
     path(
         'events/get-active/',
-        views.get_active_event_endpoint,
-        name='get_active_event_endpoint'
+        views.ActiveEventAPIView.as_view(),
+        name='get_active_event'
     ),
     path('', include(router.urls)),
     path('auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

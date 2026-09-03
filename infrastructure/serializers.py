@@ -122,9 +122,13 @@ class ApplicationSerializer(EventScopedSerializer):
 
 class ApplicationQuestionChoiceSerializer(serializers.ModelSerializer):
     """Serializer for question choices"""
+    question = serializers.PrimaryKeyRelatedField(
+        queryset=ConfigurableQuestion.objects.all_events(),
+    )
+
     class Meta:
         model = ConfigurableQuestionChoice
-        fields = ['id', 'choice_key', 'choice_text', 'order']
+        fields = ['id', 'question', 'choice_key', 'choice_text', 'order']
 
 
 class ApplicationQuestionSerializer(EventScopedSerializer):
@@ -136,7 +140,7 @@ class ApplicationQuestionSerializer(EventScopedSerializer):
         fields = [
             'id', 'question_key', 'question_text', 'question_type',
             'order', 'required', 'parent_question', 'trigger_choices',
-            'choices', 'max_length', 'min_length',
+            'choices', 'max_length', 'min_length', 'form_type',
             'placeholder_text', 'created_at', 'updated_at'
         ]
 
@@ -221,6 +225,13 @@ class EventSerializer(serializers.ModelSerializer):
     class Meta:
         model = Event
         fields = "__all__"
+
+
+class PublicEventSerializer(serializers.ModelSerializer):
+    """Slim read-only event serializer safe for unauthenticated responses."""
+    class Meta:
+        model = Event
+        fields = ['id', 'name', 'start_date', 'end_date']
 
 
 class EventTrackSerializer(serializers.ModelSerializer):
