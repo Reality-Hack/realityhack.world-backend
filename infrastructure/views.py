@@ -901,6 +901,36 @@ class ApplicationViewSet(EventScopedLoggingViewSet):
 
         return queryset
 
+    def update(self, request, *args, **kwargs):
+        from rest_framework.exceptions import ValidationError as DRFValidationError
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        try:
+            instance = self.get_object()
+            serializer = self.get_serializer(instance, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            self.perform_update(serializer)
+            return Response(serializer.data)
+        except DRFValidationError:
+            # DRF ValidationError - let DRF handle it naturally
+            raise
+        except ValidationError as e:
+            # Django ValidationError - convert to DRF format
+            logger.warning(f"Django ValidationError in application update: {e}")
+            error_detail = e.message_dict if hasattr(e, 'message_dict') else {"detail": str(e)}
+            return Response(error_detail, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            # Log the full error for debugging
+            logger.exception("Unexpected error updating application")
+
+            # Return user-friendly error
+            return Response(
+                {"detail": f"Error updating application: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
     def get_serializer_class(self):
         if self.action in ['retrieve', 'list']:
             return ApplicationDetailSerializer

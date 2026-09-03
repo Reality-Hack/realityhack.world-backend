@@ -13,3 +13,6 @@ run-image.sh
 keycloak_data/
 !keycloak_data/.gitkeep
 .env*
+.git/
+.venv/
+exports/

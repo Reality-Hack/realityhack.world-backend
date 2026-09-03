@@ -1,9 +1,6 @@
 ARG PYTHON_VERSION=3.10-slim-bullseye
 
-
 FROM python:${PYTHON_VERSION} as django-builder
-
-# COPY --from=keycloak-builder /opt/keycloak/ /opt/keycloak/
 
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1

@@ -257,10 +257,8 @@ class Application(models.Model):
     HeardAboutUs = HeardAboutUs
 
     class Status(models.TextChoices):
-        ACCEPTED_IN_PERSON = 'AI', _('Accepted, In-Person')
-        ACCEPTED_ONLINE = 'AO', _('Accepted, Online')
-        WAITLIST_IN_PERSON = 'WI', _('Wait-list, In-Person')
-        WAITLIST_ONLINE = 'WO', _('Wait-list, Online')
+        ACCEPTED = 'A', _('Accepted')
+        WAITLISTED = 'W', _('Waitlist')
         DECLINED = 'D', _('Declined')
 
     class ThemeInterestTrackChoice(models.TextChoices):
@@ -569,7 +567,14 @@ class Application(models.Model):
     objects = EventScopedManager()
 
     class Meta:
-        unique_together = [('email', 'event')]
+        unique_together = [('email', 'event', 'participation_class')]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['email', 'event'],
+                condition=models.Q(status='A'),
+                name='unique_accepted_in_person_per_email_event'
+            )
+        ]
         indexes = [
             models.Index(fields=['event', 'email']),
             models.Index(fields=['event', 'status']),
@@ -1448,7 +1453,7 @@ class Team(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover
         return f"Name: {self.name}, Table: {self.table}, Number: {self.number}"
-    
+
     @classmethod
     def post_save(cls, sender, instance, created, **kwargs):
         if created:
@@ -1834,5 +1839,5 @@ post_save.connect(
 )
 
 post_save.connect(
-    Team.post_save, sender=Team, dispatch_uid='new_team_registered'   
+    Team.post_save, sender=Team, dispatch_uid='new_team_registered'
 )
