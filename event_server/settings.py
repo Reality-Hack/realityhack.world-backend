@@ -344,7 +344,7 @@ KEYCLOAK_CONFIG = {
     "LOCAL_DECODE": LOCAL_DECODE
 }
 
-if REDIS_URL := os.getenv("REDIS_URL"):
+if REDIS_URL:
     HUEY = {
         'huey_class': 'huey.RedisHuey',  # Huey implementation to use.
         'name': 'production-email-tasks',
