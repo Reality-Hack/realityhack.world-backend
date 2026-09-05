@@ -4,9 +4,11 @@ import urllib
 import secrets
 import uuid
 import json
-from django.core.mail import send_mail
-from infrastructure import email
 from infrastructure.models import Attendee, ParticipationClass
+from infrastructure.services.email_queue import (
+    send_multiple_users_found_email,
+    send_rsvp_confirmation_email,
+)
 
 
 CLIENT_ID = os.environ['KEYCLOAK_CLIENT_ID']
@@ -251,14 +253,7 @@ class KeycloakClient:
             return None
         elif existing_users := self.find_user_by_email(attendee.email):
             if len(existing_users) > 1:
-                subject, body = email.get_multiple_users_found_template(attendee.email),
-                send_mail(
-                    subject,
-                    body,
-                    "no-reply@realityhackinc.org",
-                    [attendee.email, "apply@realityhackinc.org"],
-                    fail_silently=False,
-                )
+                send_multiple_users_found_email(attendee.email)
                 raise Exception(f"Multiple users found for email: {attendee.email}")
             else:
                 attendee.authentication_id = existing_users[0]['id']
@@ -276,20 +271,10 @@ class KeycloakClient:
             attendee, participation_class
         )
         self.assign_authentication_roles(attendee, participation_class)
-        if participation_class == ParticipationClass.PARTICIPANT:
-            subject, body = email.get_hacker_rsvp_confirmation_template(
-                attendee.first_name, temp_password
-            )
-        else:
-            subject, body = email.get_non_hacker_rsvp_confirmation_template(
-                attendee.first_name, temp_password
-            )
-        send_mail(
-            subject,
-            body,
-            "no-reply@realityhackinc.org",
-            [attendee.email],
-            fail_silently=False,
+        send_rsvp_confirmation_email(
+            str(attendee.id),
+            participation_class,
+            temp_password,
         )
 
     def get_all_users(self, max_users=None):

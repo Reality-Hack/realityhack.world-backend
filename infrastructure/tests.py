@@ -3,6 +3,7 @@ import os
 import random
 import uuid
 from datetime import datetime
+from unittest.mock import patch
 
 from django.conf import settings
 from django.contrib.auth.models import Group
@@ -12,7 +13,7 @@ from django.test.client import BOUNDARY, MULTIPART_CONTENT, encode_multipart
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.test import APIClient, APITestCase
 
-from infrastructure import factories, models, serializers
+from infrastructure import factories, keycloak, models, serializers
 from infrastructure.management.commands import setup_test_data
 from infrastructure.keycloak import KeycloakRoles
 from infrastructure import event_context
@@ -952,6 +953,21 @@ class ApplicationTests(EventTestCase):
         self.assertEqual(self.mock_application["last_name"], response.json()["last_name"])
         self.assertNotEqual(self.mock_application["id"], response.json()["id"])
 
+    def test_create_application_queues_confirmation_email(self):
+        models.Application.objects.for_event(self.active_event).delete()
+        mock_resume = factories.UploadedFileFactory()
+        mock_application = copy.deepcopy(self.mock_application)
+        del mock_application["id"]
+        mock_application["resume"] = mock_resume.id
+
+        with patch("infrastructure.models.sys.argv", ["manage.py"]), patch(
+            "infrastructure.services.email_queue.send_application_confirmation_email"
+        ) as mock_task:
+            response = self.client.post('/applications/', mock_application)
+
+        self.assertEqual(response.status_code, 201)
+        mock_task.assert_called_once_with(response.json()["id"])
+
     def test_create_duplicate_application_email_duplicate_forms(self):
         mock_resume = factories.UploadedFileFactory()
         mock_application = copy.deepcopy(self.mock_application)
@@ -1520,6 +1536,33 @@ class AttendeeRSVPTests(EventTestCase):
         self.assertNotEqual(
             self.mock_attendee["last_name"],
             response.json()["last_name"]
+        )
+
+    def test_handle_user_rsvp_queues_confirmation_email(self):
+        with patch(
+            "infrastructure.keycloak.KeycloakClient._get_authentication_token"
+        ), patch(
+            "infrastructure.keycloak.KeycloakClient._ensure_authentication_account",
+            return_value="temp-password",
+        ), patch(
+            "infrastructure.keycloak.KeycloakClient.assign_authentication_roles"
+        ) as mock_assign_roles, patch(
+            "infrastructure.keycloak.send_rsvp_confirmation_email"
+        ) as mock_task:
+            client = keycloak.KeycloakClient()
+            client.handle_user_rsvp(
+                self.mock_attendee_model,
+                self.mock_attendee_model.participation_class,
+            )
+
+        mock_assign_roles.assert_called_once_with(
+            self.mock_attendee_model,
+            self.mock_attendee_model.participation_class,
+        )
+        mock_task.assert_called_once_with(
+            str(self.mock_attendee_model.id),
+            self.mock_attendee_model.participation_class,
+            "temp-password",
         )
 
 

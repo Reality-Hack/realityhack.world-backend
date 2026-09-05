@@ -1,14 +1,11 @@
 import re
 import sys
 import uuid
-import time
 import logging
-import threading
 
 import language_tags
 import pycountry
 from django.contrib.auth.models import AbstractUser
-from django.core.mail import send_mail
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -18,26 +15,9 @@ from multiselectfield import MultiSelectField
 from phonenumber_field.modelfields import PhoneNumberField
 from simple_history.models import HistoricalRecords
 from infrastructure.constants import MENTOR_HELP_REQUEST_TOPICS
-from infrastructure import email
 from infrastructure.managers import EventScopedManager
 
 logger = logging.getLogger(__name__)
-
-
-def send_email_background(subject, body, from_email, recipient_list):
-    """Send email in background thread to avoid blocking HTTP response."""
-    send_start = time.time()
-    try:
-        send_mail(subject, body, from_email, recipient_list, fail_silently=False)
-        logger.info(
-            f"[EMAIL_BACKGROUND] Email to {recipient_list} sent successfully in "
-            f"{time.time() - send_start:.3f}s"
-        )
-    except Exception as e:
-        logger.error(
-            f"[EMAIL_BACKGROUND] Failed to send email to {recipient_list}: {e} "
-            f"(after {time.time() - send_start:.3f}s)"
-        )
 
 
 # settings.AUTH_USER_MODEL
@@ -353,47 +333,13 @@ class Application(models.Model):
                 "test" in sys.argv
             )
             if not skip_email:
-                subject, body = None, None
-                cls_mentor = ParticipationClass.MENTOR
-                cls_judge = ParticipationClass.JUDGE
-                if instance.participation_class == cls_mentor:
-                    subject, body = (
-                        email.get_mentor_application_confirmation_template(
-                            instance.first_name,
-                            response_email_address=(
-                                "Mentors <mentors@realityhackinc.org>"
-                            )
-                        )
-                    )
-                elif instance.participation_class == cls_judge:
-                    subject, body = (
-                        email.get_judge_application_confirmation_template(
-                            instance.first_name,
-                            response_email_address=(
-                                "Catherine Dumas <catherine@realityhackinc.org>"
-                            )
-                        )
-                    )
-                else:
-                    subject, body = (
-                        email.get_hacker_application_confirmation_template(
-                            instance.first_name
-                        )
-                    )
-
-                thread = threading.Thread(
-                    target=send_email_background,
-                    args=(
-                        subject,
-                        body,
-                        "no-reply@realityhackinc.org",
-                        [instance.email]
-                    )
+                from infrastructure.services.email_queue import (
+                    send_application_confirmation_email,
                 )
-                thread.daemon = False
-                thread.start()
+
+                send_application_confirmation_email(str(instance.id))
                 logger.info(
-                    "[APPLICATION_POST_SAVE] Email queued in background thread"
+                    "[APPLICATION_POST_SAVE] Application confirmation queued"
                 )
 
     @classmethod

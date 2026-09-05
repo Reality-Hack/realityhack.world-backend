@@ -26,20 +26,27 @@ SECRET_KEY = env.str("DJANGO_SECRET_KEY", default="django-insecure-1234qwerty$#"
 DEBUG = env.bool('DEBUG', default=False)
 DEPLOYED = env('DEPLOYED', default=False)
 # FRONTEND_URL = env("FRONTEND_URL", default="http://127.0.0.1:3000")
+FRONTEND_DOMAIN = env("FRONTEND_DOMAIN", default="http://127.0.0.1:3000")
+KEYCLOAK_DOMAIN = env("KEYCLOAK_DOMAIN", default="http://127.0.0.1:8080")
+
+ALLOW_LOCALHOST = env.bool("ALLOW_LOCALHOST", default=False)
+
+REDIS_URL = env("REDIS_URL", default=None)
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    env("FRONTEND_DOMAIN", default="http://127.0.0.1:3000"),
-    env("KEYCLOAK_DOMAIN", default="http://127.0.0.1:8080")
+    FRONTEND_DOMAIN,
+    KEYCLOAK_DOMAIN
 ]
 
+if ALLOW_LOCALHOST:
+    CORS_ALLOWED_ORIGINS.append("http://localhost:3000")
+
 CSRF_TRUSTED_ORIGINS = [
-    env("FRONTEND_DOMAIN", default="http://127.0.0.1:3000"),
-    env("KEYCLOAK_DOMAIN", default="http://127.0.0.1:8080")
+    FRONTEND_DOMAIN,
+    KEYCLOAK_DOMAIN
 ]
 
 CORS_ALLOW_CREDENTIALS = True
-
 
 CORS_ALLOW_METHODS = [
     'DELETE',
@@ -92,6 +99,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'huey.contrib.djhuey',
     'rest_framework',
     'infrastructure',
     'channels',
@@ -136,10 +144,6 @@ TEMPLATES = [
         },
     },
 ]
-
-
-# Database
-# https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
 DATABASES = {
     'default': {
@@ -216,14 +220,14 @@ if not DEBUG:
 
 # ASGI_APPLICATION = "infrastructure.routing.application"
 
-if strtobool(os.getenv("DEPLOYED", "False")):
+if DEPLOYED and REDIS_URL:
     CHANNEL_LAYERS = {
         "default": {
             "BACKEND": "channels_redis.core.RedisChannelLayer",
             "CONFIG": {
-                "hosts": [(env.str("REDIS_URL", default="redis://0.0.0.0:6379"))],
+                "hosts": [REDIS_URL],
             },
-        },
+        }
     }
 else:
     CHANNEL_LAYERS = {
@@ -315,8 +319,8 @@ CSP_IMG_SRC = ("'self'", "data:", "cdn.redoc.ly")
 CSP_STYLE_SRC = ("'self'", "'unsafe-inline'", "fonts.googleapis.com")
 CSP_FONT_SRC = ("'self'", "fonts.gstatic.com")
 
-CSP_DEFAULT_SRC = ("'self'", "http://localhost:3000", env("FRONTEND_DOMAIN", default="http://127.0.0.1:3000"))
-CSP_CONNECT_SRC = ("'self'", "http://localhost:3000", env("FRONTEND_DOMAIN", default="http://127.0.0.1:3000"))
+CSP_DEFAULT_SRC = ("'self'", "http://localhost:3000", FRONTEND_DOMAIN)
+CSP_CONNECT_SRC = ("'self'", "http://localhost:3000", FRONTEND_DOMAIN)
 
 # Do not send emails during testing
 if "test" not in sys.argv and "setup_test_data" not in sys.argv:
@@ -339,6 +343,39 @@ KEYCLOAK_CONFIG = {
     'KEYCLOAK_CLIENT_SECRET_KEY': os.getenv("KEYCLOAK_CLIENT_SECRET_KEY", ""),
     "LOCAL_DECODE": LOCAL_DECODE
 }
+
+if REDIS_URL:
+    HUEY = {
+        'huey_class': 'huey.RedisHuey',  # Huey implementation to use.
+        'name': 'production-email-tasks',
+        'utc': True,
+        'blocking': True,  # Perform blocking pop rather than poll Redis.
+        'connection': {
+            'url': REDIS_URL,
+        },
+        'immediate': False,
+        'consumer': {
+            'workers': 1,
+            'worker_type': 'thread',
+            'initial_delay': 0.1,  # Smallest polling interval, same as -d.
+            'backoff': 1.15,  # Exponential backoff using this rate, -b.
+            'max_delay': 10.0,  # Max possible polling interval, -m.
+            'scheduler_interval': 1,  # Check schedule every second, -s.
+            'periodic': True,  # Enable crontab feature.
+            'check_worker_health': True,  # Enable worker health checks.
+            'health_check_interval': 1,  # Check worker health every second.
+        },
+    }
+else:
+    HUEY = {
+        'huey_class': 'huey.SqliteHuey',  # required.
+        'name': 'local-email-tasks',
+        'immediate': False,
+        'connection': {'filename': 'huey.db'},
+
+        # Options to pass into the consumer when running ``manage.py run_huey``
+        'consumer': {'workers': 41},
+    }
 
 
 if "test" not in sys.argv:
