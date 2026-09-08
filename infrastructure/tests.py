@@ -9,6 +9,7 @@ from django.conf import settings
 from django.contrib.auth.models import Group
 from django.http.response import JsonResponse
 from django.test import TestCase, override_settings
+from django.utils import timezone
 from django.test.client import BOUNDARY, MULTIPART_CONTENT, encode_multipart
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.test import APIClient, APITestCase
@@ -914,6 +915,7 @@ class ApplicationTests(EventTestCase):
                 self.mock_application['participation_capacity'], choices)))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()), 0)
+
         choices = [x[0] for x in models.ParticipationRole.choices]
         response = self.client.get(self.get_applications_with_filter(
             "participation_role", self.mock_application["participation_role"]))
@@ -924,6 +926,18 @@ class ApplicationTests(EventTestCase):
                 self.mock_application['participation_role'], choices)))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()), 0)
+
+        choices = [x[0] for x in models.ParticipationClass.choices]
+        response = self.client.get(self.get_applications_with_filter(
+            "participation_class", self.mock_application["participation_class"]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()), 1)
+        response = self.client.get(self.get_applications_with_filter(
+            "participation_class", self.get_application_alternate_choice(
+                self.mock_application['participation_class'], choices)))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()), 0)
+
         response = self.client.get(self.get_applications_with_filter(
             "email", self.mock_application["email"]))
         self.assertEqual(response.status_code, 200)
@@ -932,6 +946,57 @@ class ApplicationTests(EventTestCase):
             "email", f"fake{self.mock_application['email']}"))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()), 0)
+
+    def test_get_applications_rsvp_filters(self):
+        sent_application = factories.ApplicationFactory(
+            resume=factories.UploadedFileFactory(),
+            rsvp_email_sent_at=timezone.now(),
+        )
+        rsvp_application = factories.ApplicationFactory(
+            resume=factories.UploadedFileFactory(),
+        )
+        attendee = factories.AttendeeFactory(application=rsvp_application)
+        models.EventRsvp.objects.create(
+            attendee=attendee,
+            event=self.active_event,
+            application=rsvp_application,
+            participation_class=rsvp_application.participation_class,
+            shirt_size=models.ShirtSize.M,
+            us_visa_support_is_required=False,
+            emergency_contact_name="Emergency Contact",
+            personal_phone_number="+19048800020",
+            emergency_contact_phone_number="+14072394137",
+            emergency_contact_email=attendee.email,
+            emergency_contact_relationship="Parent",
+        )
+
+        unsent_response = self.client.get('/applications/?rsvp_unsent=true')
+        self.assertEqual(unsent_response.status_code, 200)
+        unsent_ids = {application['id'] for application in unsent_response.json()}
+        self.assertIn(self.mock_application['id'], unsent_ids)
+        self.assertIn(str(rsvp_application.id), unsent_ids)
+        self.assertNotIn(str(sent_application.id), unsent_ids)
+
+        sent_response = self.client.get('/applications/?rsvp_unsent=false')
+        self.assertEqual(sent_response.status_code, 200)
+        sent_ids = {application['id'] for application in sent_response.json()}
+        self.assertIn(str(sent_application.id), sent_ids)
+        self.assertNotIn(self.mock_application['id'], sent_ids)
+        self.assertNotIn(str(rsvp_application.id), sent_ids)
+
+        has_rsvp_response = self.client.get('/applications/?has_rsvp=true')
+        self.assertEqual(has_rsvp_response.status_code, 200)
+        has_rsvp_ids = {application['id'] for application in has_rsvp_response.json()}
+        self.assertIn(str(rsvp_application.id), has_rsvp_ids)
+        self.assertNotIn(self.mock_application['id'], has_rsvp_ids)
+        self.assertNotIn(str(sent_application.id), has_rsvp_ids)
+
+        no_rsvp_response = self.client.get('/applications/?has_rsvp=false')
+        self.assertEqual(no_rsvp_response.status_code, 200)
+        no_rsvp_ids = {application['id'] for application in no_rsvp_response.json()}
+        self.assertIn(self.mock_application['id'], no_rsvp_ids)
+        self.assertIn(str(sent_application.id), no_rsvp_ids)
+        self.assertNotIn(str(rsvp_application.id), no_rsvp_ids)
 
     def test_get_application(self):
         response = self.client.get(f"/applications/{self.mock_application['id']}/")

@@ -1217,3 +1217,11 @@ class SponsorEventEngagementSerializer(EventScopedSerializer):
     class Meta:
         model = SponsorEventEngagement
         fields = "__all__"
+
+
+class QueueRsvpEmailsSerializer(serializers.Serializer):
+    application_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        allow_empty=False,
+    )
+    resend = serializers.BooleanField(default=False)

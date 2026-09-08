@@ -129,6 +129,11 @@ urlpatterns = [
         views.ActiveEventAPIView.as_view(),
         name='get_active_event'
     ),
+    path(
+        'applications/queue-rsvp-emails/',
+        views.admin_queue_rsvp_emails,
+        name='admin_queue_rsvp_emails',
+    ),
     path('', include(router.urls)),
     path('auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),

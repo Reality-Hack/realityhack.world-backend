@@ -8,11 +8,15 @@ for Django Filter integration with DRF ViewSets.
 from django_filters import rest_framework as filters
 from infrastructure import event_context
 from infrastructure.models import (
+    Application,
     Hardware,
     HardwareDevice,
     HardwareRequest,
     Location,
     MentorHelpRequest,
+    ParticipationCapacity,
+    ParticipationClass,
+    ParticipationRole,
     Project,
     Table,
     Team,
@@ -230,6 +234,75 @@ class WorkshopFilter(filters.FilterSet):
     class Meta:
         model = Workshop
         fields = ['datetime', 'location', 'recommended_for', 'hardware']
+
+
+class ApplicationFilterSet(filters.FilterSet):
+    """Filter for Application with choice, multi-choice, and boolean filters."""
+
+    participation_capacity = filters.ChoiceFilter(
+        field_name='participation_capacity',
+        choices=ParticipationCapacity.choices,
+    )
+    participation_role = filters.ChoiceFilter(
+        field_name='participation_role',
+        choices=ParticipationRole.choices,
+    )
+    email = filters.CharFilter(field_name='email', lookup_expr='exact')
+    participation_class = filters.ChoiceFilter(
+        field_name='participation_class',
+        choices=ParticipationClass.choices,
+    )
+    participation_classes = filters.MultipleChoiceFilter(
+        field_name='participation_class',
+        choices=ParticipationClass.choices,
+        method='filter_participation_classes',
+    )
+    status = filters.ChoiceFilter(
+        field_name='status',
+        choices=Application.Status.choices,
+    )
+    statuses = filters.MultipleChoiceFilter(
+        field_name='status',
+        choices=Application.Status.choices,
+        method='filter_statuses',
+    )
+    rsvp_unsent = filters.BooleanFilter(method='filter_rsvp_unsent')
+    has_rsvp = filters.BooleanFilter(method='filter_has_rsvp')
+
+    class Meta:
+        model = Application
+        fields = [
+            'participation_capacity',
+            'participation_role',
+            'email',
+            'participation_class',
+            'participation_classes',
+            'status',
+            'statuses',
+            'rsvp_unsent',
+            'has_rsvp',
+        ]
+
+    def filter_participation_classes(self, queryset, name, value):
+        # Empty list means no filter — return all
+        if not value:
+            return queryset
+        return queryset.filter(participation_class__in=value)
+
+    def filter_statuses(self, queryset, name, value):
+        if not value:
+            return queryset
+        return queryset.filter(status__in=value)
+
+    def filter_rsvp_unsent(self, queryset, name, value):
+        if value is None:
+            return queryset
+        return queryset.filter(rsvp_email_sent_at__isnull=value)
+
+    def filter_has_rsvp(self, queryset, name, value):
+        if value is None:
+            return queryset
+        return queryset.filter(eventrsvp__isnull=not value)
 
 
 class WorkshopAttendeeFilter(filters.FilterSet):

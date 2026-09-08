@@ -7,6 +7,7 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page, never_cache
 from django.views.decorators.vary import vary_on_headers
 from django_keycloak_auth.decorators import keycloak_roles
+from django_filters import rest_framework as filters
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import api_view
 from rest_framework.views import APIView
@@ -15,14 +16,16 @@ from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 from infrastructure.keycloak import KeycloakRoles
 from infrastructure.mixins import LoggingMixin, EventScopedLoggingViewSet
 from infrastructure.event_context import get_active_event
+from infrastructure.services.email_queue import send_rsvp_email
 from infrastructure.models import (Application,
                                    Attendee, AttendeePreference,
                                    DestinyTeam, DestinyTeamAttendeeVibe,
                                    EventDestinyHardware, EventTrack,
                                    Hardware, HardwareDevice, HardwareRequest,
                                    LightHouse, Location, MentorHelpRequest,
-                                   Project, Skill, SkillProficiency, Table,
-                                   Team, UploadedFile, Workshop, SponsorEventEngagement,
+                                   Project, Skill,
+                                   SkillProficiency, Table, Team, UploadedFile,
+                                   Workshop, SponsorEventEngagement,
                                    WorkshopAttendee, EventRsvp, Sponsor, Event,
                                    ConfigurableQuestion, ConfigurableQuestionChoice,
                                    ApplicationQuestionResponse)
@@ -73,8 +76,10 @@ from infrastructure.serializers import (ApplicationSerializer,
                                         EventDestinyHardwareSerializer,
                                         EventRsvpAttendeeOptionSerializer,
                                         PublicEventSerializer,
-                                        SponsorEventEngagementSerializer)
+                                        SponsorEventEngagementSerializer,
+                                        QueueRsvpEmailsSerializer)
 from infrastructure.filters import (
+    ApplicationFilterSet,
     TeamFilter,
     MentorHelpRequestFilter,
     ProjectFilter,
@@ -876,6 +881,7 @@ class ApplicationQuestionChoiceViewSet(EventScopedLoggingViewSet):
         return ConfigurableQuestionChoice.objects.none()
 
 
+
 class ApplicationViewSet(EventScopedLoggingViewSet):
     """
     API endpoint that allows applications to be viewed or edited.
@@ -883,9 +889,7 @@ class ApplicationViewSet(EventScopedLoggingViewSet):
     queryset = Application.objects.all()
     permission_classes = [permissions.AllowAny]
     serializer_class = ApplicationSerializer
-    filterset_fields = [
-        'participation_capacity', 'participation_role', 'email', 'participation_class'
-    ]
+    filterset_class = ApplicationFilterSet
     keycloak_roles = {
         'GET': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
         'DELETE': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
@@ -1018,6 +1022,38 @@ class ApplicationViewSet(EventScopedLoggingViewSet):
                         app_response.save()
 
         return response
+
+@extend_schema(
+    methods=['POST'],
+    request=QueueRsvpEmailsSerializer,
+    responses={202: None},
+    description="Queue RSVP emails for the given list of application IDs."
+)
+@api_view(['POST'])
+@keycloak_roles([KeycloakRoles.ADMIN])
+def admin_queue_rsvp_emails(request):
+    serializer = QueueRsvpEmailsSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    event = get_active_event()
+    if not event:
+        return Response(
+            {'error': 'No active event found'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    application_ids: list = serializer.validated_data['application_ids']
+    resend: bool = serializer.validated_data['resend']
+
+    for application_id in application_ids:
+        send_rsvp_email(str(event.id), str(application_id), resend=resend)
+
+    return Response(
+        {'queued': len(application_ids), 'application_ids': [str(i) for i in application_ids]},
+        status=status.HTTP_202_ACCEPTED,
+    )
+
 
 
 class EventViewSet(LoggingMixin, viewsets.ModelViewSet):
