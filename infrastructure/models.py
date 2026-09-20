@@ -1266,6 +1266,50 @@ class RsvpQuestionResponse(AbstractQuestionResponse):
     def __str__(self) -> str:
         return f"{self.rsvp.attendee.email} - {self.question.question_key}"
 
+
+class EmailRecord(models.Model):
+    class EmailType(models.TextChoices):
+        APPLICATION_CONFIRMATION = 'application_confirmation', _('Application Confirmation')
+        RSVP_REQUEST             = 'rsvp_request',             _('RSVP Request')
+        RSVP_CONFIRMATION        = 'rsvp_confirmation',        _('RSVP Confirmation')
+        MULTIPLE_USERS_FOUND     = 'multiple_users_found',     _('Multiple Users Found')
+        KEYCLOAK_ACCOUNT_ERROR   = 'keycloak_account_error',   _('Keycloak Account Error')
+
+    class Status(models.TextChoices):
+        SENT   = 'sent',   _('Sent')
+        FAILED = 'failed', _('Failed')
+
+    email_type       = models.CharField(max_length=50, choices=EmailType.choices)
+    recipient_email  = models.EmailField()
+    status           = models.CharField(max_length=20, choices=Status.choices)
+    error            = models.TextField(null=True, blank=True)
+    sent_at          = models.DateTimeField(null=True, blank=True)
+    created_at       = models.DateTimeField(auto_now_add=True)
+
+    # All nullable; SET_NULL preserves audit history when the related object is deleted.
+    # At most one should be set — enforce that in the service layer, not the DB.
+    application = models.ForeignKey(
+        'Application', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='email_records',
+    )
+    event_rsvp = models.ForeignKey(
+        'EventRsvp', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='email_records',
+    )
+    attendee = models.ForeignKey(
+        'Attendee', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='email_records',
+    )
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['application', 'email_type']),
+            models.Index(fields=['event_rsvp', 'email_type']),
+            models.Index(fields=['attendee', 'email_type']),
+            models.Index(fields=['recipient_email']),
+        ]
+
+
 class Location(models.Model):
     class Room(models.TextChoices):
         MAIN_HALL = 'MH', _('Morss Hall')
