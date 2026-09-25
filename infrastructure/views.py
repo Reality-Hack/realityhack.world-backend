@@ -1,6 +1,7 @@
 from django.contrib.auth.models import Group
 from django.core.cache import cache
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import IntegrityError
 from django.http import Http404
 from django.shortcuts import get_object_or_404, render
 from django.utils.decorators import method_decorator
@@ -97,6 +98,13 @@ from infrastructure.utils.rsvp_helpers import (
     get_or_create_attendee_from_request,
     handle_keycloak_account_creation,
 )
+
+# Friendly messages for DB constraint violations, keyed by constraint name
+APPLICATION_INTEGRITY_ERROR_MESSAGES = {
+    "unique_accepted_in_person_per_email_event": (
+        "Another application with this email is already accepted for this event."
+    ),
+}
 
 
 def attendee_from_userinfo(request):  # pragma: nocover
@@ -906,7 +914,7 @@ class ApplicationViewSet(EventScopedLoggingViewSet):
         return queryset
 
     def update(self, request, *args, **kwargs):
-        from rest_framework.exceptions import ValidationError as DRFValidationError
+        from rest_framework.exceptions import APIException
         import logging
 
         logger = logging.getLogger(__name__)
@@ -917,22 +925,39 @@ class ApplicationViewSet(EventScopedLoggingViewSet):
             serializer.is_valid(raise_exception=True)
             self.perform_update(serializer)
             return Response(serializer.data)
-        except DRFValidationError:
-            # DRF ValidationError - let DRF handle it naturally
+        except (APIException, Http404, PermissionDenied):
+            # DRF validation/auth/permission errors and 404s - let DRF handle them naturally
             raise
         except ValidationError as e:
             # Django ValidationError - convert to DRF format
             logger.warning(f"Django ValidationError in application update: {e}")
             error_detail = e.message_dict if hasattr(e, 'message_dict') else {"detail": str(e)}
             return Response(error_detail, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            # Log the full error for debugging
+        except IntegrityError as e:
+            # DB constraint violation - map the constraint name to a friendly message
+            diag = getattr(e.__cause__, "diag", None)
+            constraint = getattr(diag, "constraint_name", None)
+            logger.warning(
+                "IntegrityError updating application: constraint=%s detail=%s",
+                constraint,
+                getattr(diag, "message_detail", None),
+            )
+            return Response(
+                {
+                    "detail": APPLICATION_INTEGRITY_ERROR_MESSAGES.get(
+                        constraint, "This update conflicts with an existing application."
+                    ),
+                    "code": constraint,
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        except Exception:
+            # Log the full error for debugging; don't leak internals to the client
             logger.exception("Unexpected error updating application")
 
-            # Return user-friendly error
             return Response(
-                {"detail": f"Error updating application: {str(e)}"},
-                status=status.HTTP_400_BAD_REQUEST
+                {"detail": "An unexpected error occurred while updating the application."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
     def get_serializer_class(self):

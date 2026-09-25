@@ -290,6 +290,7 @@ class Application(models.Model):
         YEAR_2023 = 'G', _('2023')
         YEAR_2024 = 'H', _('2024')
         YEAR_2025 = 'I', _('2025')
+        YEAR_2026 = 'J', _('2026')
 
     class HardwareHackDetail(models.TextChoices):
         A = 'A', _("3D Printing")
