@@ -17,6 +17,7 @@ from pathlib import Path
 import dotenv
 from environ import Env
 import pycountry
+import redis.exceptions
 dotenv.load_dotenv()
 env = Env()
 env.read_env()
@@ -225,7 +226,26 @@ if DEPLOYED and REDIS_URL:
         "default": {
             "BACKEND": "channels_redis.core.RedisChannelLayer",
             "CONFIG": {
-                "hosts": [REDIS_URL],
+                # Pass the URL as a dict so extra connection kwargs are forwarded
+                # to redis.asyncio.ConnectionPool.from_url() via channels_redis's
+                # decode_hosts / create_pool helpers.
+                "hosts": [{
+                    "address": REDIS_URL,
+                    # Ping idle connections before use; evicts stale sockets that
+                    # Upstash closed without notice (the "connection reset" on first
+                    # request symptom).
+                    "health_check_interval": 30,
+                    # OS-level TCP keepalives keep NAT state alive between Fly & Upstash.
+                    "socket_keepalive": True,
+                    # Fail fast when opening a brand-new socket so the pool can
+                    # immediately try another connection instead of hanging.
+                    "socket_connect_timeout": 5,
+                    "retry_on_timeout": True,
+                    "retry_on_error": [
+                        redis.exceptions.ConnectionError,
+                        redis.exceptions.TimeoutError,
+                    ],
+                }],
             },
         }
     }
@@ -345,13 +365,32 @@ KEYCLOAK_CONFIG = {
 }
 
 if REDIS_URL:
+    # Build the pool explicitly so we can pass hardening options to ensure
+    # first time connections are retried immediately and stale sockets are
+    # evicted before use. This is a known bug with Upstash on Fly
+    _huey_redis_pool = redis.ConnectionPool.from_url(
+        REDIS_URL,
+        # Ping idle connections before use; evicts stale sockets that Upstash
+        # closed without notice (the "connection reset on first use" symptom).
+        health_check_interval=30,
+        # OS-level TCP keepalives keep NAT state alive between Fly & Upstash.
+        socket_keepalive=True,
+        # Fail fast on new socket open so the pool retries immediately.
+        socket_connect_timeout=5,
+        retry_on_timeout=True,
+        retry_on_error=[
+            redis.exceptions.ConnectionError,
+            redis.exceptions.TimeoutError,
+        ],
+    )
+
     HUEY = {
         'huey_class': 'huey.RedisHuey',  # Huey implementation to use.
         'name': 'production-email-tasks',
         'utc': True,
         'blocking': True,  # Perform blocking pop rather than poll Redis.
         'connection': {
-            'url': REDIS_URL,
+            'connection_pool': _huey_redis_pool,
         },
         'immediate': False,
         'consumer': {
