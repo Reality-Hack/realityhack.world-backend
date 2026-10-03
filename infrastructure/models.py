@@ -15,6 +15,7 @@ from multiselectfield import MultiSelectField
 from phonenumber_field.modelfields import PhoneNumberField
 from simple_history.models import HistoricalRecords
 from infrastructure.constants import MENTOR_HELP_REQUEST_TOPICS
+from infrastructure.utils.event_dates import validate_iana_timezone
 from infrastructure.managers import EventScopedManager
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,20 @@ class Event(models.Model):
     name = models.CharField(max_length=100, null=False)
     start_date = models.DateTimeField(null=False)
     end_date = models.DateTimeField(null=False)
+    timezone = models.CharField(
+        max_length=64,
+        validators=[validate_iana_timezone],
+        help_text="IANA timezone the event takes place in, e.g. America/New_York"
+    )
+    mentor_start_date = models.DateTimeField(null=True, blank=True)
+    mentor_end_date = models.DateTimeField(null=True, blank=True)
+    judging_start_date = models.DateTimeField(null=True, blank=True)
+    judging_end_date = models.DateTimeField(null=True, blank=True)
+    rsvp_deadline = models.DateTimeField(null=True, blank=True)
+    discord_url = models.URLField(null=True, blank=True)
+    special_tracks_url = models.URLField(null=True, blank=True)
+    parent_consent_form_url = models.URLField(max_length=500, null=True, blank=True)
+    discounts_page_url = models.URLField(max_length=500, null=True, blank=True)
     is_active = models.BooleanField(
         default=False,
         help_text="Only one event should be active at a time"

@@ -17,14 +17,19 @@ def _get_application_confirmation_template(application: Application):
     if application.participation_class == ParticipationClass.MENTOR:
         return email.get_mentor_application_confirmation_template(
             application.first_name,
+            application.event,
             response_email_address="Mentors <mentors@realityhackinc.org>",
         )
     if application.participation_class == ParticipationClass.JUDGE:
         return email.get_judge_application_confirmation_template(
             application.first_name,
+            application.event,
             response_email_address="Catherine Dumas <catherine@realityhackinc.org>",
         )
-    return email.get_hacker_application_confirmation_template(application.first_name)
+    return email.get_hacker_application_confirmation_template(
+        application.first_name,
+        application.event,
+    )
 
 
 def _get_rsvp_confirmation_template(
@@ -79,15 +84,15 @@ def send_rsvp_email(event_id: str, application_id: str, resend: bool = False):
         subject = body = None
         if application.participation_class == ParticipationClass.PARTICIPANT:
             subject, body = email.get_hacker_rsvp_request_template(
-                application.first_name, application.id
+                application.first_name, application.id, application.event
             )
         elif application.participation_class == ParticipationClass.MENTOR:
             subject, body = email.get_mentor_rsvp_request_template(
-                application.first_name, application.id
+                application.first_name, application.id, application.event
             )
         elif application.participation_class == ParticipationClass.JUDGE:
             subject, body = email.get_judge_rsvp_request_template(
-                application.first_name, application.id
+                application.first_name, application.id, application.event
             )
 
         if not subject or not body:

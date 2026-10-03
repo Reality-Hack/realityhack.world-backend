@@ -462,4 +462,5 @@ class EventFactory(DjangoModelFactory):
         end_date="+60d",
         tzinfo=timezone.utc
     )
+    timezone = "America/New_York"
     is_active = False

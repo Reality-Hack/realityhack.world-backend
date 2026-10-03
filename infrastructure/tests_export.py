@@ -2,6 +2,7 @@
 import csv
 import tempfile
 import unittest
+from datetime import datetime, timezone as dt_timezone
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -160,7 +161,8 @@ def _make_rsvp_with_application(**app_kwargs) -> MagicMock:
     rsvp.application = application
     rsvp.get_participation_class_display.return_value = "Participant"
     rsvp.event.name = "Reality Hack 2025"
-    rsvp.event.start_date.year = 2025
+    rsvp.event.start_date = datetime(2025, 1, 23, 13, 0, tzinfo=dt_timezone.utc)
+    rsvp.event.timezone = "America/New_York"
     return rsvp
 
 
@@ -176,7 +178,8 @@ def _make_rsvp_without_application() -> MagicMock:
     rsvp.attendee = attendee
     rsvp.get_participation_class_display.return_value = "Mentor"
     rsvp.event.name = "Reality Hack 2024"
-    rsvp.event.start_date.year = 2024
+    rsvp.event.start_date = datetime(2024, 1, 25, 13, 0, tzinfo=dt_timezone.utc)
+    rsvp.event.timezone = "America/New_York"
     return rsvp
 
 

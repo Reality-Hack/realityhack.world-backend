@@ -222,16 +222,42 @@ class ApplicationDetailSerializer(EventScopedSerializer):
 
 
 class EventSerializer(serializers.ModelSerializer):
+    # (start field, end field) pairs where the end must come after the start.
+    # Mentor/judging windows are intentionally not bound to the event window.
+    DATE_RANGES = [
+        ('start_date', 'end_date'),
+        ('mentor_start_date', 'mentor_end_date'),
+        ('judging_start_date', 'judging_end_date'),
+    ]
+
     class Meta:
         model = Event
         fields = "__all__"
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        errors = {}
+        for start_field, end_field in self.DATE_RANGES:
+            start = attrs.get(start_field, getattr(self.instance, start_field, None))
+            end = attrs.get(end_field, getattr(self.instance, end_field, None))
+            if start and end and end <= start:
+                errors[end_field] = f"Must be after {start_field}."
+        if errors:
+            raise serializers.ValidationError(errors)
+        return attrs
 
 
 class PublicEventSerializer(serializers.ModelSerializer):
     """Slim read-only event serializer safe for unauthenticated responses."""
     class Meta:
         model = Event
-        fields = ['id', 'name', 'start_date', 'end_date']
+        fields = [
+            'id', 'name', 'start_date', 'end_date', 'timezone',
+            'mentor_start_date', 'mentor_end_date',
+            'judging_start_date', 'judging_end_date',
+            'rsvp_deadline', 'discord_url', 'special_tracks_url',
+            'parent_consent_form_url', 'discounts_page_url',
+        ]
 
 
 class EventTrackSerializer(serializers.ModelSerializer):

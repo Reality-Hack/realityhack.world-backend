@@ -8,9 +8,18 @@ logger = logging.getLogger(__name__)
 
 
 def seed_and_migrate_rsvp_questions(apps, schema_editor):
-    from infrastructure.rsvp_question_migration import run_rsvp_question_migration
+    # from infrastructure.rsvp_question_migration import run_rsvp_question_migration
+    # run_rsvp_question_migration()
+    """
+    Intentionally a no-op.
 
-    run_rsvp_question_migration()
+    This originally called run_rsvp_question_migration(), which uses live models
+    from infrastructure.models rather than historical ones. That broke fresh
+    databases (e.g. the test DB) whenever a later migration added a column to a
+    model it touches. It has already been applied to all existing environments,
+    and fresh databases have no legacy RSVP data to convert. To run the
+    conversion manually, use: manage.py migrate_rsvp_to_dynamic_questions
+    """
 
 
 def reverse_seed_and_migrate_rsvp_questions(apps, schema_editor):
