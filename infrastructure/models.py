@@ -1,14 +1,11 @@
 import re
 import sys
 import uuid
-import time
 import logging
-import threading
 
 import language_tags
 import pycountry
 from django.contrib.auth.models import AbstractUser
-from django.core.mail import send_mail
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -18,26 +15,10 @@ from multiselectfield import MultiSelectField
 from phonenumber_field.modelfields import PhoneNumberField
 from simple_history.models import HistoricalRecords
 from infrastructure.constants import MENTOR_HELP_REQUEST_TOPICS
-from infrastructure import email
+from infrastructure.utils.event_dates import validate_iana_timezone
 from infrastructure.managers import EventScopedManager
 
 logger = logging.getLogger(__name__)
-
-
-def send_email_background(subject, body, from_email, recipient_list):
-    """Send email in background thread to avoid blocking HTTP response."""
-    send_start = time.time()
-    try:
-        send_mail(subject, body, from_email, recipient_list, fail_silently=False)
-        logger.info(
-            f"[EMAIL_BACKGROUND] Email to {recipient_list} sent successfully in "
-            f"{time.time() - send_start:.3f}s"
-        )
-    except Exception as e:
-        logger.error(
-            f"[EMAIL_BACKGROUND] Failed to send email to {recipient_list}: {e} "
-            f"(after {time.time() - send_start:.3f}s)"
-        )
 
 
 # settings.AUTH_USER_MODEL
@@ -52,6 +33,20 @@ class Event(models.Model):
     name = models.CharField(max_length=100, null=False)
     start_date = models.DateTimeField(null=False)
     end_date = models.DateTimeField(null=False)
+    timezone = models.CharField(
+        max_length=64,
+        validators=[validate_iana_timezone],
+        help_text="IANA timezone the event takes place in, e.g. America/New_York"
+    )
+    mentor_start_date = models.DateTimeField(null=True, blank=True)
+    mentor_end_date = models.DateTimeField(null=True, blank=True)
+    judging_start_date = models.DateTimeField(null=True, blank=True)
+    judging_end_date = models.DateTimeField(null=True, blank=True)
+    rsvp_deadline = models.DateTimeField(null=True, blank=True)
+    discord_url = models.URLField(null=True, blank=True)
+    special_tracks_url = models.URLField(null=True, blank=True)
+    parent_consent_form_url = models.URLField(max_length=500, null=True, blank=True)
+    discounts_page_url = models.URLField(max_length=500, null=True, blank=True)
     is_active = models.BooleanField(
         default=False,
         help_text="Only one event should be active at a time"
@@ -257,10 +252,8 @@ class Application(models.Model):
     HeardAboutUs = HeardAboutUs
 
     class Status(models.TextChoices):
-        ACCEPTED_IN_PERSON = 'AI', _('Accepted, In-Person')
-        ACCEPTED_ONLINE = 'AO', _('Accepted, Online')
-        WAITLIST_IN_PERSON = 'WI', _('Wait-list, In-Person')
-        WAITLIST_ONLINE = 'WO', _('Wait-list, Online')
+        ACCEPTED = 'A', _('Accepted')
+        WAITLISTED = 'W', _('Waitlist')
         DECLINED = 'D', _('Declined')
 
     class ThemeInterestTrackChoice(models.TextChoices):
@@ -312,6 +305,7 @@ class Application(models.Model):
         YEAR_2023 = 'G', _('2023')
         YEAR_2024 = 'H', _('2024')
         YEAR_2025 = 'I', _('2025')
+        YEAR_2026 = 'J', _('2026')
 
     class HardwareHackDetail(models.TextChoices):
         A = 'A', _("3D Printing")
@@ -355,47 +349,13 @@ class Application(models.Model):
                 "test" in sys.argv
             )
             if not skip_email:
-                subject, body = None, None
-                cls_mentor = ParticipationClass.MENTOR
-                cls_judge = ParticipationClass.JUDGE
-                if instance.participation_class == cls_mentor:
-                    subject, body = (
-                        email.get_mentor_application_confirmation_template(
-                            instance.first_name,
-                            response_email_address=(
-                                "Mentors <mentors@realityhackinc.org>"
-                            )
-                        )
-                    )
-                elif instance.participation_class == cls_judge:
-                    subject, body = (
-                        email.get_judge_application_confirmation_template(
-                            instance.first_name,
-                            response_email_address=(
-                                "Catherine Dumas <catherine@realityhackinc.org>"
-                            )
-                        )
-                    )
-                else:
-                    subject, body = (
-                        email.get_hacker_application_confirmation_template(
-                            instance.first_name
-                        )
-                    )
-
-                thread = threading.Thread(
-                    target=send_email_background,
-                    args=(
-                        subject,
-                        body,
-                        "no-reply@realityhackinc.org",
-                        [instance.email]
-                    )
+                from infrastructure.services.email_queue import (
+                    send_application_confirmation_email,
                 )
-                thread.daemon = False
-                thread.start()
+
+                send_application_confirmation_email(str(instance.id))
                 logger.info(
-                    "[APPLICATION_POST_SAVE] Email queued in background thread"
+                    "[APPLICATION_POST_SAVE] Application confirmation queued"
                 )
 
     @classmethod
@@ -569,7 +529,14 @@ class Application(models.Model):
     objects = EventScopedManager()
 
     class Meta:
-        unique_together = [('email', 'event')]
+        unique_together = [('email', 'event', 'participation_class')]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['email', 'event'],
+                condition=models.Q(status='A'),
+                name='unique_accepted_in_person_per_email_event'
+            )
+        ]
         indexes = [
             models.Index(fields=['event', 'email']),
             models.Index(fields=['event', 'status']),
@@ -1448,7 +1415,7 @@ class Team(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover
         return f"Name: {self.name}, Table: {self.table}, Number: {self.number}"
-    
+
     @classmethod
     def post_save(cls, sender, instance, created, **kwargs):
         if created:
@@ -1834,5 +1801,5 @@ post_save.connect(
 )
 
 post_save.connect(
-    Team.post_save, sender=Team, dispatch_uid='new_team_registered'   
+    Team.post_save, sender=Team, dispatch_uid='new_team_registered'
 )

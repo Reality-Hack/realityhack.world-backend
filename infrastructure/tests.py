@@ -1,18 +1,24 @@
 import copy
+import importlib
 import os
 import random
 import uuid
 from datetime import datetime
+from unittest.mock import patch
 
+from django.apps import apps as django_apps
 from django.conf import settings
 from django.contrib.auth.models import Group
+from django.core.exceptions import ValidationError
 from django.http.response import JsonResponse
 from django.test import TestCase, override_settings
+from django.utils import timezone
 from django.test.client import BOUNDARY, MULTIPART_CONTENT, encode_multipart
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.test import APIClient, APITestCase
 
-from infrastructure import factories, models, serializers
+from infrastructure import email, factories, keycloak, models, serializers
+from infrastructure.utils import event_dates
 from infrastructure.management.commands import setup_test_data
 from infrastructure.keycloak import KeycloakRoles
 from infrastructure import event_context
@@ -39,7 +45,7 @@ class KeycloakTestMiddleware(object):
             is_api_view = False
 
         # Read if View has attribute 'keycloak_roles' (for APIView, ViewSet or ModelViewSet)
-        # Whether View hasn't this attribute, it means all request method routes will be permitted.        
+        # Whether View hasn't this attribute, it means all request method routes will be permitted.
         try:
             view_roles = view_func.cls.keycloak_roles if not is_api_view else []
         except AttributeError as e:
@@ -755,7 +761,7 @@ class SkillProficiencyTests(EventTestCase):
     def tearDown(self):
         setup_test_data.delete_all()
         super().tearDown()
-    
+
     def test_get_skill_proficiencies(self):
         response = self.client.get('/skillproficiencies/')
         self.assertEqual(response.status_code, 200)
@@ -913,6 +919,7 @@ class ApplicationTests(EventTestCase):
                 self.mock_application['participation_capacity'], choices)))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()), 0)
+
         choices = [x[0] for x in models.ParticipationRole.choices]
         response = self.client.get(self.get_applications_with_filter(
             "participation_role", self.mock_application["participation_role"]))
@@ -923,6 +930,18 @@ class ApplicationTests(EventTestCase):
                 self.mock_application['participation_role'], choices)))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()), 0)
+
+        choices = [x[0] for x in models.ParticipationClass.choices]
+        response = self.client.get(self.get_applications_with_filter(
+            "participation_class", self.mock_application["participation_class"]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()), 1)
+        response = self.client.get(self.get_applications_with_filter(
+            "participation_class", self.get_application_alternate_choice(
+                self.mock_application['participation_class'], choices)))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()), 0)
+
         response = self.client.get(self.get_applications_with_filter(
             "email", self.mock_application["email"]))
         self.assertEqual(response.status_code, 200)
@@ -931,6 +950,57 @@ class ApplicationTests(EventTestCase):
             "email", f"fake{self.mock_application['email']}"))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()), 0)
+
+    def test_get_applications_rsvp_filters(self):
+        sent_application = factories.ApplicationFactory(
+            resume=factories.UploadedFileFactory(),
+            rsvp_email_sent_at=timezone.now(),
+        )
+        rsvp_application = factories.ApplicationFactory(
+            resume=factories.UploadedFileFactory(),
+        )
+        attendee = factories.AttendeeFactory(application=rsvp_application)
+        models.EventRsvp.objects.create(
+            attendee=attendee,
+            event=self.active_event,
+            application=rsvp_application,
+            participation_class=rsvp_application.participation_class,
+            shirt_size=models.ShirtSize.M,
+            us_visa_support_is_required=False,
+            emergency_contact_name="Emergency Contact",
+            personal_phone_number="+19048800020",
+            emergency_contact_phone_number="+14072394137",
+            emergency_contact_email=attendee.email,
+            emergency_contact_relationship="Parent",
+        )
+
+        unsent_response = self.client.get('/applications/?rsvp_unsent=true')
+        self.assertEqual(unsent_response.status_code, 200)
+        unsent_ids = {application['id'] for application in unsent_response.json()}
+        self.assertIn(self.mock_application['id'], unsent_ids)
+        self.assertIn(str(rsvp_application.id), unsent_ids)
+        self.assertNotIn(str(sent_application.id), unsent_ids)
+
+        sent_response = self.client.get('/applications/?rsvp_unsent=false')
+        self.assertEqual(sent_response.status_code, 200)
+        sent_ids = {application['id'] for application in sent_response.json()}
+        self.assertIn(str(sent_application.id), sent_ids)
+        self.assertNotIn(self.mock_application['id'], sent_ids)
+        self.assertNotIn(str(rsvp_application.id), sent_ids)
+
+        has_rsvp_response = self.client.get('/applications/?has_rsvp=true')
+        self.assertEqual(has_rsvp_response.status_code, 200)
+        has_rsvp_ids = {application['id'] for application in has_rsvp_response.json()}
+        self.assertIn(str(rsvp_application.id), has_rsvp_ids)
+        self.assertNotIn(self.mock_application['id'], has_rsvp_ids)
+        self.assertNotIn(str(sent_application.id), has_rsvp_ids)
+
+        no_rsvp_response = self.client.get('/applications/?has_rsvp=false')
+        self.assertEqual(no_rsvp_response.status_code, 200)
+        no_rsvp_ids = {application['id'] for application in no_rsvp_response.json()}
+        self.assertIn(self.mock_application['id'], no_rsvp_ids)
+        self.assertIn(str(sent_application.id), no_rsvp_ids)
+        self.assertNotIn(str(rsvp_application.id), no_rsvp_ids)
 
     def test_get_application(self):
         response = self.client.get(f"/applications/{self.mock_application['id']}/")
@@ -951,6 +1021,21 @@ class ApplicationTests(EventTestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(self.mock_application["last_name"], response.json()["last_name"])
         self.assertNotEqual(self.mock_application["id"], response.json()["id"])
+
+    def test_create_application_queues_confirmation_email(self):
+        models.Application.objects.for_event(self.active_event).delete()
+        mock_resume = factories.UploadedFileFactory()
+        mock_application = copy.deepcopy(self.mock_application)
+        del mock_application["id"]
+        mock_application["resume"] = mock_resume.id
+
+        with patch("infrastructure.models.sys.argv", ["manage.py"]), patch(
+            "infrastructure.services.email_queue.send_application_confirmation_email"
+        ) as mock_task:
+            response = self.client.post('/applications/', mock_application)
+
+        self.assertEqual(response.status_code, 201)
+        mock_task.assert_called_once_with(response.json()["id"])
 
     def test_create_duplicate_application_email_duplicate_forms(self):
         mock_resume = factories.UploadedFileFactory()
@@ -1522,6 +1607,33 @@ class AttendeeRSVPTests(EventTestCase):
             response.json()["last_name"]
         )
 
+    def test_handle_user_rsvp_queues_confirmation_email(self):
+        with patch(
+            "infrastructure.keycloak.KeycloakClient._get_authentication_token"
+        ), patch(
+            "infrastructure.keycloak.KeycloakClient._ensure_authentication_account",
+            return_value="temp-password",
+        ), patch(
+            "infrastructure.keycloak.KeycloakClient.assign_authentication_roles"
+        ) as mock_assign_roles, patch(
+            "infrastructure.keycloak.send_rsvp_confirmation_email"
+        ) as mock_task:
+            client = keycloak.KeycloakClient()
+            client.handle_user_rsvp(
+                self.mock_attendee_model,
+                self.mock_attendee_model.participation_class,
+            )
+
+        mock_assign_roles.assert_called_once_with(
+            self.mock_attendee_model,
+            self.mock_attendee_model.participation_class,
+        )
+        mock_task.assert_called_once_with(
+            str(self.mock_attendee_model.id),
+            self.mock_attendee_model.participation_class,
+            "temp-password",
+        )
+
 
 class LightHouseTests(EventTestCase):
     pass
@@ -1726,6 +1838,7 @@ class RsvpQuestionMigrationTests(TestCase):
             name=EVENT_2026_NAME,
             start_date=datetime(2026, 1, 22, tzinfo=timezone.utc),
             end_date=datetime(2026, 1, 26, tzinfo=timezone.utc),
+            timezone='America/New_York',
             is_active=True,
         )
 
@@ -2054,3 +2167,185 @@ class SponsorEventEngagementTests(EventTestCase):
         self.assertEqual(engagement.tier, models.SponsorTier.TIER_4)
         self.assertEqual(engagement.event_id, self.inactive_event.id)
 
+
+
+class EventDatesTests(TestCase):
+    TZ = 'America/New_York'
+
+    def test_format_event_date_uses_event_timezone(self):
+        # 03:00 UTC on Jan 22 is still Jan 21 in Boston.
+        dt = datetime(2026, 1, 22, 3, 0, tzinfo=timezone.utc)
+        self.assertEqual(event_dates.format_event_date(dt, self.TZ), 'January 21, 2026')
+        self.assertEqual(event_dates.format_event_month(dt, self.TZ), 'January')
+
+    def test_validate_iana_timezone(self):
+        event_dates.validate_iana_timezone(self.TZ)
+        with self.assertRaises(ValidationError):
+            event_dates.validate_iana_timezone('Mars/Olympus_Mons')
+
+    def test_default_mentor_window_keeps_wall_clock_across_dst(self):
+        # DST starts Mar 8, 2026: event ends 5pm EDT, mentors leave 5pm EST the day before.
+        start = datetime(2026, 3, 6, 14, 0, tzinfo=timezone.utc)  # 9am EST
+        end = datetime(2026, 3, 8, 21, 0, tzinfo=timezone.utc)  # 5pm EDT
+        mentor_start, mentor_end = event_dates.default_mentor_window(start, end, self.TZ)
+        self.assertEqual(mentor_start, start)
+        self.assertEqual(mentor_end, datetime(2026, 3, 7, 22, 0, tzinfo=timezone.utc))
+
+    def test_default_judging_window_is_last_day(self):
+        start = datetime(2026, 3, 6, 14, 0, tzinfo=timezone.utc)  # 9am EST
+        end = datetime(2026, 3, 8, 21, 0, tzinfo=timezone.utc)  # 5pm EDT
+        judging_start, judging_end = event_dates.default_judging_window(start, end, self.TZ)
+        self.assertEqual(judging_start, datetime(2026, 3, 8, 13, 0, tzinfo=timezone.utc))  # 9am EDT
+        self.assertEqual(judging_end, end)
+
+    def test_default_judging_window_falls_back_to_midnight(self):
+        start = datetime(2026, 1, 22, 23, 0, tzinfo=timezone.utc)  # 6pm EST
+        end = datetime(2026, 1, 26, 22, 0, tzinfo=timezone.utc)  # 5pm EST
+        judging_start, _ = event_dates.default_judging_window(start, end, self.TZ)
+        self.assertEqual(judging_start, datetime(2026, 1, 26, 5, 0, tzinfo=timezone.utc))
+
+
+@keycloak_test
+class EventApiTests(EventTestCase):
+    def setUp(self):
+        super().setUp()
+        self.client = APIClient()
+        self.event = self.active_event
+        self.event.start_date = datetime(2026, 1, 22, 13, 0, tzinfo=timezone.utc)
+        self.event.end_date = datetime(2026, 1, 26, 22, 0, tzinfo=timezone.utc)
+        self.event.save()
+
+    def test_create_requires_timezone(self):
+        response = self.client.post('/events/', {
+            'name': 'No TZ',
+            'start_date': '2026-01-22T13:00:00Z',
+            'end_date': '2026-01-26T22:00:00Z',
+        }, format='json')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('timezone', response.json())
+
+    def test_rejects_invalid_timezone(self):
+        response = self.client.patch(
+            f'/events/{self.event.id}/', {'timezone': 'Mars/Olympus_Mons'}, format='json'
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('timezone', response.json())
+
+    def test_rejects_end_before_start_using_existing_values(self):
+        response = self.client.patch(
+            f'/events/{self.event.id}/', {'end_date': '2026-01-21T00:00:00Z'}, format='json'
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('end_date', response.json())
+
+    def test_rejects_judging_end_before_start(self):
+        response = self.client.patch(f'/events/{self.event.id}/', {
+            'judging_start_date': '2026-01-26T17:00:00Z',
+            'judging_end_date': '2026-01-26T16:00:00Z',
+        }, format='json')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('judging_end_date', response.json())
+
+    def test_phase_windows_may_fall_outside_event(self):
+        response = self.client.patch(f'/events/{self.event.id}/', {
+            'mentor_start_date': '2026-01-21T13:00:00Z',
+            'mentor_end_date': '2026-01-25T22:00:00Z',
+            'judging_start_date': '2026-01-26T17:00:00Z',
+            'judging_end_date': '2026-01-26T23:00:00Z',
+        }, format='json')
+        self.assertEqual(response.status_code, 200)
+        self.event.refresh_from_db()
+        self.assertEqual(
+            self.event.mentor_start_date, datetime(2026, 1, 21, 13, 0, tzinfo=timezone.utc)
+        )
+
+    def test_active_event_exposes_schedule_fields(self):
+        self.event.discord_url = 'https://discord.gg/example'
+        self.event.save()
+        response = self.client.get('/events/get-active/')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data['timezone'], 'America/New_York')
+        self.assertEqual(data['discord_url'], 'https://discord.gg/example')
+        for field in ('mentor_start_date', 'mentor_end_date', 'judging_start_date',
+                      'judging_end_date', 'rsvp_deadline', 'special_tracks_url',
+                      'parent_consent_form_url', 'discounts_page_url'):
+            self.assertIn(field, data)
+
+
+class EventEmailTemplateTests(TestCase):
+    def setUp(self):
+        self.event = factories.EventFactory(
+            name='Reality Hack at MIT 2027',
+            start_date=datetime(2027, 1, 21, 13, 0, tzinfo=timezone.utc),  # 8am EST
+            end_date=datetime(2027, 1, 25, 22, 0, tzinfo=timezone.utc),  # 5pm EST
+        )
+
+    @patch.dict(os.environ, {'FRONTEND_DOMAIN': 'http://localhost:3000'})
+    def test_hacker_rsvp_request_uses_event_fields(self):
+        self.event.discord_url = 'https://discord.gg/example'
+        self.event.special_tracks_url = 'https://example.com/tracks'
+        # 03:00 UTC Jan 11 is Jan 10 in Boston.
+        self.event.rsvp_deadline = datetime(2027, 1, 11, 3, 0, tzinfo=timezone.utc)
+        subject, body = email.get_hacker_rsvp_request_template('Ada', 'abc', self.event)
+        self.assertEqual(subject, 'RSVP to Reality Hack at MIT 2027 and Secure Your Spot')
+        self.assertIn('hacker at Reality Hack at MIT 2027', body)
+        self.assertIn('welcoming you in January', body)
+        self.assertIn('https://discord.gg/example', body)
+        self.assertIn('https://example.com/tracks', body)
+        self.assertIn('Please submit your RSVP by January 10, 2027', body)
+        self.assertNotIn('2026', body)
+
+    @patch.dict(os.environ, {'FRONTEND_DOMAIN': 'http://localhost:3000'})
+    def test_hacker_rsvp_request_omits_unset_fields(self):
+        _, body = email.get_hacker_rsvp_request_template('Ada', 'abc', self.event)
+        self.assertNotIn('join our Discord here', body)
+        self.assertNotIn('special tracks', body)
+        self.assertNotIn('Please submit your RSVP by', body)
+
+    @patch.dict(os.environ, {'FRONTEND_DOMAIN': 'http://localhost:3000'})
+    def test_judge_rsvp_request_defaults_to_last_day(self):
+        _, body = email.get_judge_rsvp_request_template('Ada', 'abc', self.event)
+        self.assertIn('judging day, January 25, 2027', body)
+
+        self.event.judging_start_date = datetime(2027, 1, 24, 17, 0, tzinfo=timezone.utc)
+        _, body = email.get_judge_rsvp_request_template('Ada', 'abc', self.event)
+        self.assertIn('judging day, January 24, 2027', body)
+
+    def test_application_confirmation_uses_event_name(self):
+        subject, body = email.get_mentor_application_confirmation_template('Ada', self.event)
+        self.assertEqual(subject, 'Mentor Interest Confirmation for Reality Hack at MIT 2027')
+        self.assertIn('Mentor Interest Form for Reality Hack at MIT 2027', body)
+
+
+class EventScheduleBackfillTests(TestCase):
+    def setUp(self):
+        self.migration = importlib.import_module(
+            'infrastructure.migrations.0066_event_timezone_and_schedule'
+        )
+
+    def test_backfills_phase_windows_and_2026_values(self):
+        event = factories.EventFactory(
+            name='Reality Hack at MIT 2026',
+            start_date=datetime(2026, 1, 22, 13, 0, tzinfo=timezone.utc),  # 8am EST
+            end_date=datetime(2026, 1, 26, 22, 0, tzinfo=timezone.utc),  # 5pm EST
+        )
+        self.migration.backfill_event_schedule(django_apps, None)
+        event.refresh_from_db()
+
+        self.assertEqual(event.mentor_start_date, event.start_date)
+        self.assertEqual(event.mentor_end_date, datetime(2026, 1, 25, 22, 0, tzinfo=timezone.utc))
+        self.assertEqual(event.judging_start_date, datetime(2026, 1, 26, 13, 0, tzinfo=timezone.utc))
+        self.assertEqual(event.judging_end_date, event.end_date)
+        self.assertEqual(event.discord_url, 'https://discord.gg/XfDXqwTPfv')
+        self.assertEqual(
+            event_dates.format_event_date(event.rsvp_deadline, event.timezone), 'January 11, 2026'
+        )
+
+    def test_backfill_preserves_existing_values(self):
+        judging_start = datetime(2026, 1, 26, 17, 0, tzinfo=timezone.utc)
+        event = factories.EventFactory(judging_start_date=judging_start)
+        self.migration.backfill_event_schedule(django_apps, None)
+        event.refresh_from_db()
+        self.assertEqual(event.judging_start_date, judging_start)
+        self.assertIsNone(event.discord_url)

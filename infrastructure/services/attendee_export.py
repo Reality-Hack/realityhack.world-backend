@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
+from infrastructure.utils.event_dates import localize
 from infrastructure.models import (
     Application,
     Attendee,
@@ -205,7 +206,7 @@ def employment_skills_csv_row_from_rsvp(
 
     return {
         "event_name": rsvp.event.name,
-        "event_year": str(rsvp.event.start_date.year),
+        "event_year": str(localize(rsvp.event.start_date, rsvp.event.timezone).year),
         "participation_class": rsvp.get_participation_class_display(),
         "name": f"{identity.first_name} {identity.last_name}",
         "email": identity.email,

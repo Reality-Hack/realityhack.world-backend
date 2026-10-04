@@ -1,12 +1,14 @@
 from django.contrib.auth.models import Group
 from django.core.cache import cache
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import IntegrityError
 from django.http import Http404
 from django.shortcuts import get_object_or_404, render
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page, never_cache
 from django.views.decorators.vary import vary_on_headers
 from django_keycloak_auth.decorators import keycloak_roles
+from django_filters import rest_framework as filters
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import api_view
 from rest_framework.views import APIView
@@ -15,14 +17,16 @@ from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 from infrastructure.keycloak import KeycloakRoles
 from infrastructure.mixins import LoggingMixin, EventScopedLoggingViewSet
 from infrastructure.event_context import get_active_event
+from infrastructure.services.email_queue import send_rsvp_email
 from infrastructure.models import (Application,
                                    Attendee, AttendeePreference,
                                    DestinyTeam, DestinyTeamAttendeeVibe,
                                    EventDestinyHardware, EventTrack,
                                    Hardware, HardwareDevice, HardwareRequest,
                                    LightHouse, Location, MentorHelpRequest,
-                                   Project, Skill, SkillProficiency, Table,
-                                   Team, UploadedFile, Workshop, SponsorEventEngagement,
+                                   Project, Skill,
+                                   SkillProficiency, Table, Team, UploadedFile,
+                                   Workshop, SponsorEventEngagement,
                                    WorkshopAttendee, EventRsvp, Sponsor, Event,
                                    ConfigurableQuestion, ConfigurableQuestionChoice,
                                    ApplicationQuestionResponse)
@@ -73,8 +77,10 @@ from infrastructure.serializers import (ApplicationSerializer,
                                         EventDestinyHardwareSerializer,
                                         EventRsvpAttendeeOptionSerializer,
                                         PublicEventSerializer,
-                                        SponsorEventEngagementSerializer)
+                                        SponsorEventEngagementSerializer,
+                                        QueueRsvpEmailsSerializer)
 from infrastructure.filters import (
+    ApplicationFilterSet,
     TeamFilter,
     MentorHelpRequestFilter,
     ProjectFilter,
@@ -92,6 +98,13 @@ from infrastructure.utils.rsvp_helpers import (
     get_or_create_attendee_from_request,
     handle_keycloak_account_creation,
 )
+
+# Friendly messages for DB constraint violations, keyed by constraint name
+APPLICATION_INTEGRITY_ERROR_MESSAGES = {
+    "unique_accepted_in_person_per_email_event": (
+        "Another application with this email is already accepted for this event."
+    ),
+}
 
 
 def attendee_from_userinfo(request):  # pragma: nocover
@@ -876,6 +889,7 @@ class ApplicationQuestionChoiceViewSet(EventScopedLoggingViewSet):
         return ConfigurableQuestionChoice.objects.none()
 
 
+
 class ApplicationViewSet(EventScopedLoggingViewSet):
     """
     API endpoint that allows applications to be viewed or edited.
@@ -883,9 +897,7 @@ class ApplicationViewSet(EventScopedLoggingViewSet):
     queryset = Application.objects.all()
     permission_classes = [permissions.AllowAny]
     serializer_class = ApplicationSerializer
-    filterset_fields = [
-        'participation_capacity', 'participation_role', 'email', 'participation_class'
-    ]
+    filterset_class = ApplicationFilterSet
     keycloak_roles = {
         'GET': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
         'DELETE': [KeycloakRoles.ORGANIZER, KeycloakRoles.ADMIN],
@@ -900,6 +912,53 @@ class ApplicationViewSet(EventScopedLoggingViewSet):
             queryset = queryset.prefetch_related('question_responses__selected_choices')
 
         return queryset
+
+    def update(self, request, *args, **kwargs):
+        from rest_framework.exceptions import APIException
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        try:
+            instance = self.get_object()
+            serializer = self.get_serializer(instance, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            self.perform_update(serializer)
+            return Response(serializer.data)
+        except (APIException, Http404, PermissionDenied):
+            # DRF validation/auth/permission errors and 404s - let DRF handle them naturally
+            raise
+        except ValidationError as e:
+            # Django ValidationError - convert to DRF format
+            logger.warning(f"Django ValidationError in application update: {e}")
+            error_detail = e.message_dict if hasattr(e, 'message_dict') else {"detail": str(e)}
+            return Response(error_detail, status=status.HTTP_400_BAD_REQUEST)
+        except IntegrityError as e:
+            # DB constraint violation - map the constraint name to a friendly message
+            diag = getattr(e.__cause__, "diag", None)
+            constraint = getattr(diag, "constraint_name", None)
+            logger.warning(
+                "IntegrityError updating application: constraint=%s detail=%s",
+                constraint,
+                getattr(diag, "message_detail", None),
+            )
+            return Response(
+                {
+                    "detail": APPLICATION_INTEGRITY_ERROR_MESSAGES.get(
+                        constraint, "This update conflicts with an existing application."
+                    ),
+                    "code": constraint,
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        except Exception:
+            # Log the full error for debugging; don't leak internals to the client
+            logger.exception("Unexpected error updating application")
+
+            return Response(
+                {"detail": "An unexpected error occurred while updating the application."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def get_serializer_class(self):
         if self.action in ['retrieve', 'list']:
@@ -988,6 +1047,38 @@ class ApplicationViewSet(EventScopedLoggingViewSet):
                         app_response.save()
 
         return response
+
+@extend_schema(
+    methods=['POST'],
+    request=QueueRsvpEmailsSerializer,
+    responses={202: None},
+    description="Queue RSVP emails for the given list of application IDs."
+)
+@api_view(['POST'])
+@keycloak_roles([KeycloakRoles.ADMIN])
+def admin_queue_rsvp_emails(request):
+    serializer = QueueRsvpEmailsSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    event = get_active_event()
+    if not event:
+        return Response(
+            {'error': 'No active event found'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    application_ids: list = serializer.validated_data['application_ids']
+    resend: bool = serializer.validated_data['resend']
+
+    for application_id in application_ids:
+        send_rsvp_email(str(event.id), str(application_id), resend=resend)
+
+    return Response(
+        {'queued': len(application_ids), 'application_ids': [str(i) for i in application_ids]},
+        status=status.HTTP_202_ACCEPTED,
+    )
+
 
 
 class EventViewSet(LoggingMixin, viewsets.ModelViewSet):

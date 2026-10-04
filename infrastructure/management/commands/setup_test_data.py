@@ -1,13 +1,15 @@
 # TODO: add event rsvps
 import random
 import uuid
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from django.contrib.auth.models import Group
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.utils import timezone
 
 from infrastructure import event_context
+from infrastructure.utils.event_dates import DEFAULT_EVENT_TIMEZONE
 from infrastructure import factories
 from infrastructure.models import (Application, Attendee, AttendeePreference,
                                    DestinyTeam, DestinyTeamAttendeeVibe,
@@ -224,8 +226,9 @@ class Command(BaseCommand):  # pragma: no cover
         if not active_event:
             active_event = Event.objects.create(
                 name="Test Event",
-                start_date=datetime.now(),
-                end_date=datetime.now() + timedelta(days=3),
+                start_date=timezone.now(),
+                end_date=timezone.now() + timedelta(days=3),
+                timezone=DEFAULT_EVENT_TIMEZONE,
                 is_active=True
             )
 
