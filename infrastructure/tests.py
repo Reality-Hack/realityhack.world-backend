@@ -2081,6 +2081,161 @@ class ApplicationQuestionListTests(EventTestCase):
 
 
 @keycloak_test
+class ConfigurableQuestionKeyValidationTests(EventTestCase):
+    """
+    Question keys that match a built-in field on the create endpoint are
+    removed from the payload before saving, so they must be rejected.
+    """
+
+    APPLICATION = models.ConfigurableQuestion.FormType.APPLICATION
+    RSVP = models.ConfigurableQuestion.FormType.RSVP
+
+    def setUp(self):
+        super().setUp()
+        self.client = APIClient()
+
+    def _post_question(self, question_key, form_type):
+        return self.client.post(
+            '/applicationquestions/',
+            {
+                'question_key': question_key,
+                'question_text': 'Some question?',
+                'question_type': models.ConfigurableQuestion.QuestionType.TEXT,
+                'form_type': form_type,
+            },
+            format='json',
+        )
+
+    def _create_question(self, question_key, form_type):
+        # ORM creation bypasses validation, like questions that predate it.
+        return models.ConfigurableQuestion.objects.create(
+            event=self.active_event,
+            form_type=form_type,
+            question_key=question_key,
+            question_text='Some question?',
+            question_type=models.ConfigurableQuestion.QuestionType.TEXT,
+        )
+
+    # RSVP flow
+
+    def test_rsvp_rejects_event_rsvp_field_key(self):
+        response = self._post_question('shirt_size', self.RSVP)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('question_key', response.json())
+
+    def test_rsvp_rejects_attendee_field_key(self):
+        response = self._post_question('email', self.RSVP)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('question_key', response.json())
+
+    def test_rsvp_rejects_keys_read_directly_by_the_view(self):
+        for key in ('sponsor_handler', 'guardian_of'):
+            with self.subTest(key=key):
+                response = self._post_question(key, self.RSVP)
+
+                self.assertEqual(response.status_code, 400)
+                self.assertIn('question_key', response.json())
+
+    def test_rsvp_allows_migrated_legacy_keys(self):
+        for key in (
+            'loaner_headset_preference',
+            'breakthrough_hacks_interest',
+            'special_interest_track_one',
+            'special_interest_track_two',
+            'device_preference_ranked',
+        ):
+            with self.subTest(key=key):
+                response = self._post_question(key, self.RSVP)
+
+                self.assertEqual(response.status_code, 201)
+
+    def test_rsvp_allows_new_key(self):
+        response = self._post_question('favorite_color', self.RSVP)
+
+        self.assertEqual(response.status_code, 201)
+
+    # Application flow
+
+    def test_application_rejects_application_field_key(self):
+        for key in ('first_name', 'email', 'portfolio'):
+            with self.subTest(key=key):
+                response = self._post_question(key, self.APPLICATION)
+
+                self.assertEqual(response.status_code, 400)
+                self.assertIn('question_key', response.json())
+
+    def test_application_allows_migrated_keys(self):
+        for key in (
+            'theme_essay',
+            'theme_interest_track_one',
+            'hardware_hack_interest',
+            'hardware_hack_detail',
+        ):
+            with self.subTest(key=key):
+                response = self._post_question(key, self.APPLICATION)
+
+                self.assertEqual(response.status_code, 201)
+
+    def test_application_allows_new_key(self):
+        response = self._post_question('favorite_color', self.APPLICATION)
+
+        self.assertEqual(response.status_code, 201)
+
+    # Both flows
+
+    def test_reserved_keys_are_scoped_to_the_form_type(self):
+        # shirt_size is a built-in RSVP field but not an Application field.
+        response = self._post_question('shirt_size', self.APPLICATION)
+
+        self.assertEqual(response.status_code, 201)
+
+    def test_editing_existing_question_with_reserved_key_is_allowed(self):
+        for form_type, key in (
+            (self.RSVP, 'shirt_size'),
+            (self.APPLICATION, 'portfolio'),
+        ):
+            with self.subTest(form_type=form_type):
+                question = self._create_question(key, form_type)
+
+                response = self.client.patch(
+                    f'/applicationquestions/{question.id}/',
+                    {'question_text': 'Reworded?'},
+                    format='json',
+                )
+
+                self.assertEqual(response.status_code, 200)
+
+    def test_renaming_to_reserved_key_is_rejected(self):
+        for form_type in (self.RSVP, self.APPLICATION):
+            with self.subTest(form_type=form_type):
+                question = self._create_question('favorite_color', form_type)
+
+                response = self.client.patch(
+                    f'/applicationquestions/{question.id}/',
+                    {'question_key': 'email'},
+                    format='json',
+                )
+
+                self.assertEqual(response.status_code, 400)
+                self.assertIn('question_key', response.json())
+
+    def test_changing_form_type_revalidates_the_key(self):
+        # Valid as an application question, reserved once it's an RSVP one.
+        question = self._create_question('shirt_size', self.APPLICATION)
+
+        response = self.client.patch(
+            f'/applicationquestions/{question.id}/',
+            {'form_type': self.RSVP},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('question_key', response.json())
+
+
+@keycloak_test
 class SponsorEventEngagementTests(EventTestCase):
     def setUp(self):
         super().setUp()

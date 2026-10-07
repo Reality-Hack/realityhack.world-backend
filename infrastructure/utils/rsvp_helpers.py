@@ -3,11 +3,19 @@ import logging
 
 from django.core.exceptions import ValidationError
 
-from infrastructure.models import Attendee, Application, EventRsvp, ParticipationClass
+from infrastructure.models import (
+    Attendee,
+    Application,
+    ConfigurableQuestion,
+    EventRsvp,
+    ParticipationClass,
+    RsvpQuestionResponse,
+)
 from infrastructure.event_context import get_active_event
 from infrastructure.serializers import AttendeeRSVPCreateSerializer, EventRsvpSerializer
 from infrastructure.keycloak import KeycloakClient
 from infrastructure.services.email_queue import send_keycloak_account_error_email
+from infrastructure.utils.question_responses import save_question_responses
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +117,7 @@ def create_event_rsvp_from_request(
     request: dict,
     attendee: Attendee,
     application: Application,
+    dynamic_responses: dict | None = None,
 ) -> EventRsvp:
     event = get_active_event()
     rsvp_create_serializer = _get_event_rsvp_create_serializer_from_request(
@@ -136,6 +145,15 @@ def create_event_rsvp_from_request(
             event_rsvp.intended_event_tracks.set(intended_event_tracks)
         if prefers_hardware:
             event_rsvp.prefers_event_destiny_hardware.set(prefers_hardware)
+
+        save_question_responses(
+            response_model=RsvpQuestionResponse,
+            parent_field='rsvp',
+            parent=event_rsvp,
+            event=event,
+            form_type=ConfigurableQuestion.FormType.RSVP,
+            responses=dynamic_responses or {},
+        )
 
         logger.info(f"Successfully created event rsvp for user: {attendee.email}")
         return event_rsvp
