@@ -18,6 +18,7 @@ console_command = '/code/manage.py shell'
 
 [processes]
   app = 'daphne -b 0.0.0.0 -p 8000 event_server.asgi:application'
+  worker = "python manage.py run_huey"
 
 [http_service]
   internal_port = 8000

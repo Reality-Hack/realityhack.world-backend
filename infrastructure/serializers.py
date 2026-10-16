@@ -3,6 +3,7 @@ from django.contrib.auth.models import Group
 from rest_framework import fields, serializers
 from drf_spectacular.utils import extend_schema_field
 from infrastructure import models, event_context
+from infrastructure.utils.reserved_question_keys import get_reserved_question_keys
 from infrastructure.models import (INDUSTRIES, MENTOR_HELP_REQUEST_TOPICS,
                                    Application, Attendee, ConfigurableQuestion,
                                    ConfigurableQuestionChoice,
@@ -88,6 +89,25 @@ class FileUploadSerializer(serializers.ModelSerializer):
     #     return data
 
 
+# TEMPORARY: Application columns that were migrated to configurable questions
+# (see APPLICATION_LEGACY_FIELDS in migrate_to_dynamic_questions.py and the
+# seeded questions in load_2026_questions.py). They stay on the model only to
+# defer the destructive migration, so they're hidden from the API. Serializers
+# using "__all__" can't comment fields out one by one, so they use `exclude`
+# with this list instead. Remove with the legacy columns.
+MIGRATED_APPLICATION_FIELDS = [
+    "theme_essay",
+    "theme_essay_follow_up",
+    "theme_interest_track_one",
+    "theme_interest_track_two",
+    "theme_detail_one",
+    "theme_detail_two",
+    "theme_detail_three",
+    "hardware_hack_interest",
+    "hardware_hack_detail",
+]
+
+
 class ApplicationSerializer(EventScopedSerializer):
     gender_identity = fields.MultipleChoiceField(
         choices=Application.GenderIdentities.choices,
@@ -117,7 +137,7 @@ class ApplicationSerializer(EventScopedSerializer):
 
     class Meta:
         model = Application
-        fields = "__all__"
+        exclude = MIGRATED_APPLICATION_FIELDS
 
 
 class ApplicationQuestionChoiceSerializer(serializers.ModelSerializer):
@@ -134,6 +154,42 @@ class ApplicationQuestionChoiceSerializer(serializers.ModelSerializer):
 class ApplicationQuestionSerializer(EventScopedSerializer):
     """Serializer for application questions with nested choices"""
     choices = ApplicationQuestionChoiceSerializer(many=True, read_only=True)
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+
+        instance = self.instance
+        question_key = attrs.get(
+            'question_key', getattr(instance, 'question_key', None)
+        )
+        form_type = attrs.get(
+            'form_type',
+            getattr(instance, 'form_type', ConfigurableQuestion.FormType.APPLICATION),
+        )
+
+        # Only check keys being introduced, so existing questions that predate
+        # this validation can still be edited (e.g. to rename the key).
+        is_new_key = (
+            instance is None
+            or question_key != instance.question_key
+            or form_type != instance.form_type
+        )
+        if (
+            question_key
+            and is_new_key
+            and question_key in get_reserved_question_keys(form_type)
+        ):
+            form_label = ConfigurableQuestion.FormType(form_type).label
+            raise serializers.ValidationError({
+                'question_key': (
+                    f'"{question_key}" is a built-in {form_label} field. '
+                    f'Question keys are removed from the {form_label} payload '
+                    'before saving, so using it would stop that field from '
+                    'being saved. Choose a different key.'
+                )
+            })
+
+        return attrs
 
     class Meta:
         model = ConfigurableQuestion
@@ -211,14 +267,11 @@ class ApplicationDetailSerializer(EventScopedSerializer):
         choices=Application.DigitalDesignerProficientSkills.choices,
     )
     industry = fields.MultipleChoiceField(choices=INDUSTRIES)
-    hardware_hack_detail = fields.MultipleChoiceField(
-        choices=Application.HardwareHackDetail.choices,
-    )
     question_responses = ApplicationResponseSerializer(many=True, read_only=True)
 
     class Meta:
         model = Application
-        fields = "__all__"
+        exclude = MIGRATED_APPLICATION_FIELDS
 
 
 class EventSerializer(serializers.ModelSerializer):
@@ -411,14 +464,10 @@ class AttendeeRSVPCreateSerializer(EventScopedSerializer):
             "emergency_contact_name", "personal_phone_number",
             "emergency_contact_phone_number", "emergency_contact_email",
             "emergency_contact_relationship",
-            "special_interest_track_one",
-            "special_interest_track_two",
             "app_in_store", "currently_build_for_xr", "currently_use_xr",
             "non_xr_talents", "ar_vr_ap_in_store",
             "reality_hack_project_to_product",
             "participation_class",
-            "breakthrough_hacks_interest", "device_preference_ranked",
-            "loaner_headset_preference"
         ]
 
 
@@ -448,10 +497,8 @@ class AttendeeRSVPSerializer(EventScopedSerializer):
             "emergency_contact_name", "personal_phone_number",
             "emergency_contact_phone_number", "emergency_contact_email",
             "emergency_contact_relationship",
-            "special_interest_track_one",
-            "special_interest_track_two", "device_preference_ranked",
-            "breakthrough_hacks_interest", "agree_to_rules_code_of_conduct",
-            "loaner_headset_preference", "communications_platform_username",
+            "agree_to_rules_code_of_conduct",
+            "communications_platform_username",
             "app_in_store", "currently_build_for_xr", "currently_use_xr",
             "non_xr_talents", "ar_vr_ap_in_store",
             "reality_hack_project_to_product",
@@ -665,31 +712,36 @@ class EventRsvpSerializer(EventScopedSerializer):
             "emergency_contact_name", "personal_phone_number",
             "emergency_contact_phone_number", "emergency_contact_email",
             "emergency_contact_relationship",
-            "special_interest_track_one",
-            "special_interest_track_two",
             "app_in_store", "currently_build_for_xr", "currently_use_xr",
             "non_xr_talents", "ar_vr_ap_in_store",
             "reality_hack_project_to_product",
             "participation_class", "sponsor_company",
-            "breakthrough_hacks_interest", "checked_in_at",
-            "loaner_headset_preference", "device_preference_ranked",
+            "checked_in_at",
             "intended_event_tracks", "prefers_event_destiny_hardware"
         ]
+
+
+class RsvpResponseSerializer(ApplicationResponseSerializer):
+    """Serializer for RSVP question responses with snapshots"""
+
+    class Meta(ApplicationResponseSerializer.Meta):
+        model = models.RsvpQuestionResponse
 
 
 # remove attendee
 class EventRsvpDetailSerializer(EventRsvpSerializer):
 
     attendee = AttendeeNameSerializer()
+    question_responses = RsvpResponseSerializer(many=True, read_only=True)
 
     class Meta:
         model = EventRsvp
         fields = EventRsvpSerializer.Meta.fields + [
-            "created_at", "updated_at",
+            "created_at", "updated_at", "question_responses",
             "application", "attendee", "shirt_size",
             "communication_platform_username", "us_visa_support_is_required",
             "emergency_contact_name", "emergency_contact_phone_number",
-            "special_interest_track_one", "special_interest_track_two", "under_18_by_date",
+            "under_18_by_date",
         ]
 
 
@@ -722,7 +774,7 @@ class TeamProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
         fields = ['id', 'name', 'repository_location', 'submission_location',
-                  'census_location_override', 'census_taker_name', 
+                  'census_location_override', 'census_taker_name',
                   'team_primary_contact', 'description', 'created_at', 'updated_at']
 
 

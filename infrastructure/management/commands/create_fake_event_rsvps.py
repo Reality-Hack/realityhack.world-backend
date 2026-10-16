@@ -125,7 +125,7 @@ class Command(BaseCommand):
                     first_name=kc_first_name,
                     last_name=kc_last_name,
                     participation_class=ParticipationClass.PARTICIPANT,
-                    status=Application.Status.ACCEPTED_IN_PERSON,
+                    status=Application.Status.ACCEPTED,
                 )
                 application.save()
                 created_applications += 1

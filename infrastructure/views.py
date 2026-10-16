@@ -90,6 +90,10 @@ from infrastructure.filters import (
     WorkshopFilter,
     WorkshopAttendeeFilter,
 )
+from infrastructure.utils.question_responses import (
+    extract_dynamic_responses,
+    save_question_responses,
+)
 from infrastructure.utils.rsvp_helpers import (
     get_sponsor_handler,
     get_guardian_of,
@@ -290,6 +294,22 @@ class AttendeeRSVPViewSet(LoggingMixin, viewsets.ModelViewSet):
         return AttendeeRSVPSerializer
 
     def create(self, request):
+        event = get_active_event()
+        if not event:
+            return Response(
+                {"error": "No active event found"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Pull configurable question answers out of the payload before any
+        # serializer sees them so they're only stored as RsvpQuestionResponse
+        # rows, not in the legacy Attendee/EventRsvp columns.
+        dynamic_responses = extract_dynamic_responses(
+            request.data,
+            event,
+            ConfigurableQuestion.FormType.RSVP,
+        )
+
         application = None
         sponsor_handler = get_sponsor_handler(request.data.get("sponsor_handler"))
         guardian_of = get_guardian_of(request.data.get("guardian_of"))
@@ -316,7 +336,9 @@ class AttendeeRSVPViewSet(LoggingMixin, viewsets.ModelViewSet):
             )
 
         try:
-            event_rsvp = create_event_rsvp_from_request(request, attendee, application)
+            event_rsvp = create_event_rsvp_from_request(
+                request, attendee, application, dynamic_responses
+            )
         except ValidationError as e:
             return Response(
                 e.message_dict,
@@ -986,16 +1008,11 @@ class ApplicationViewSet(EventScopedLoggingViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        dynamic_responses = {}
-        question_keys = ConfigurableQuestion.objects.for_event(event).filter(
-            form_type=ConfigurableQuestion.FormType.APPLICATION
-        ).values_list(
-            'question_key', flat=True
+        dynamic_responses = extract_dynamic_responses(
+            request.data,
+            event,
+            ConfigurableQuestion.FormType.APPLICATION,
         )
-
-        for key in list(request.data.keys()):
-            if key in question_keys:
-                dynamic_responses[key] = request.data.pop(key)
 
         request.data['event'] = event.id
 
@@ -1006,45 +1023,14 @@ class ApplicationViewSet(EventScopedLoggingViewSet):
                 event
             ).get(id=response.data['id'])
 
-            questions = ConfigurableQuestion.objects.for_event(event).filter(
-                form_type=ConfigurableQuestion.FormType.APPLICATION
+            save_question_responses(
+                response_model=ApplicationQuestionResponse,
+                parent_field='application',
+                parent=application,
+                event=event,
+                form_type=ConfigurableQuestion.FormType.APPLICATION,
+                responses=dynamic_responses,
             )
-            questions_list = list(questions)
-
-            for question in questions_list:
-                if question.question_key in dynamic_responses:
-                    value = dynamic_responses[question.question_key]
-
-                    if (value is None or value == '' or
-                            (isinstance(value, list) and len(value) == 0)):
-                        continue
-
-                    app_response = ApplicationQuestionResponse.objects.create(
-                        application=application,
-                        question=question,
-                        question_text_snapshot=question.question_text
-                    )
-
-                    if question.question_type in ['S', 'M']:
-                        choices_dict = {
-                            c.choice_key: c.choice_text
-                            for c in question.choices.all()
-                        }
-                        app_response.choices_snapshot = choices_dict
-
-                        selected_keys = value if isinstance(value, list) else [value]
-                        selected_choices = question.choices.filter(
-                            choice_key__in=selected_keys
-                        )
-                        app_response.save()
-                        app_response.selected_choices.set(selected_choices)
-                        app_response.selected_keys_snapshot = selected_keys
-                        app_response.save()
-
-                    elif question.question_type in ['T', 'L']:
-                        app_response.text_response = value
-                        app_response.text_response_snapshot = value
-                        app_response.save()
 
         return response
 
@@ -1252,8 +1238,13 @@ class EventRsvpViewSet(EventScopedLoggingViewSet):
 
     def retrieve(self, request, pk=None):
         event = self.get_event()
-        event_rsvp = get_object_or_404(EventRsvp.objects.for_event(event), pk=pk)
-        serializer = EventRsvpSerializer(event_rsvp)
+        event_rsvp = get_object_or_404(
+            EventRsvp.objects.for_event(event).prefetch_related(
+                'question_responses'
+            ),
+            pk=pk
+        )
+        serializer = EventRsvpDetailSerializer(event_rsvp)
         return Response(serializer.data)
 
 

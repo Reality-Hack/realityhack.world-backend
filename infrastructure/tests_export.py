@@ -125,8 +125,8 @@ class TestParticipationClassFilterValues(unittest.TestCase):
         result = participation_class_filter_values(["participant", "volunteer"])
         self.assertEqual(result, ["P"])
 
-    def test_empty_input(self):
-        self.assertEqual(participation_class_filter_values([]), [])
+    def test_empty_input_defaults_to_participant(self):
+        self.assertEqual(participation_class_filter_values([]), ["P"])
 
 
 def _make_rsvp_with_application(**app_kwargs) -> MagicMock:
