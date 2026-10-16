@@ -109,7 +109,7 @@ class AttendeeFactory(DjangoModelFactory):
     application = factory.LazyFunction(
         lambda: models.Application.objects.for_event(
             event_context.get_current_event()
-        ).filter(status=models.Application.Status.ACCEPTED_IN_PERSON).order_by('?').first()
+        ).filter(status=models.Application.Status.ACCEPTED).order_by('?').first()
     )
     shirt_size = factory.Faker(
         'random_element', elements=[x[0] for x in models.ShirtSize.choices]

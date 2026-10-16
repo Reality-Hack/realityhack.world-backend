@@ -58,7 +58,7 @@ class Command(BaseCommand):
                     resume=resume,
                     email=existing_attendee.email,
                     participation_class=ParticipationClass.PARTICIPANT,
-                    status=Application.Status.ACCEPTED_IN_PERSON
+                    status=Application.Status.ACCEPTED
                 )
                 application.save()
                 print(f"Returning participant: {existing_attendee.email}")
@@ -72,7 +72,7 @@ class Command(BaseCommand):
                 event=event,
                 resume=resume,
                 email=application_email,
-                status=Application.Status.ACCEPTED_IN_PERSON,
+                status=Application.Status.ACCEPTED,
                 participation_class=ParticipationClass.PARTICIPANT,
             )
             application.save()
@@ -86,7 +86,7 @@ class Command(BaseCommand):
                 event=event,
                 resume=resume,
                 email=application_email,
-                status=Application.Status.ACCEPTED_IN_PERSON,
+                status=Application.Status.ACCEPTED,
                 participation_class=ParticipationClass.JUDGE,
             )
             application.save()
@@ -100,7 +100,7 @@ class Command(BaseCommand):
                 event=event,
                 resume=resume,
                 email=application_email,
-                status=Application.Status.ACCEPTED_IN_PERSON,
+                status=Application.Status.ACCEPTED,
                 participation_class=ParticipationClass.MENTOR,
             )
             application.save()

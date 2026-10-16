@@ -175,14 +175,15 @@ def get_or_create_attendee_from_request(
         raise ValueError("No email found in request or application")
     email = email.lower()
     if attendee := Attendee.objects.filter(email=email).first():
-        logger.info(
-            f"attendee exists, updating fields from application: {attendee.email}"
-        )
-        attendee.first_name = application.first_name
-        attendee.last_name = application.last_name
-        attendee.application = application
-        attendee.participation_role = application.participation_role
-        attendee.participation_class = application.participation_class
+        if application:
+            logger.info(
+                f"attendee exists, updating fields from application: {attendee.email}"
+            )
+            attendee.first_name = application.first_name
+            attendee.last_name = application.last_name
+            attendee.application = application
+            attendee.participation_role = application.participation_role
+            attendee.participation_class = application.participation_class
         return attendee
     else:
         logger.info(

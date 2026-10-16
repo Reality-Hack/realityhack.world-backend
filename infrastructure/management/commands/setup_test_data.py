@@ -97,7 +97,7 @@ def add_all():  # noqa: C901
         uploaded_files.append(resume)
         application = factories.ApplicationFactory(
             resume=resume,
-            **(dict(status=Application.Status.ACCEPTED_IN_PERSON)
+            **(dict(status=Application.Status.ACCEPTED)
                if i < NUMBER_OF_ATTENDEES + 5 else {}))
         number_of_skill_proficiencies = random.randint(
             1, NUMBER_OF_SKILL_PROFICIENCIES)
@@ -113,7 +113,7 @@ def add_all():  # noqa: C901
     uploaded_files.append(factories.UploadedFileFactory())
     attendees = []
     for i, application in enumerate(applications):
-        if application.status != Application.Status.ACCEPTED_IN_PERSON:
+        if application.status != Application.Status.ACCEPTED:
             continue
         if i < NUMBER_OF_ATTENDEES:
             participation_class = ParticipationClass.PARTICIPANT

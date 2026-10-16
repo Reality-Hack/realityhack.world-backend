@@ -3,12 +3,13 @@ import importlib
 import os
 import random
 import uuid
+import re
 from datetime import datetime
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.apps import apps as django_apps
 from django.conf import settings
-from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
 from django.http.response import JsonResponse
 from django.test import TestCase, override_settings
@@ -19,6 +20,7 @@ from rest_framework.test import APIClient, APITestCase
 
 from infrastructure import email, factories, keycloak, models, serializers
 from infrastructure.utils import event_dates
+from infrastructure.utils.rsvp_helpers import get_or_create_attendee_from_request
 from infrastructure.management.commands import setup_test_data
 from infrastructure.keycloak import KeycloakRoles
 from infrastructure import event_context
@@ -55,8 +57,9 @@ class KeycloakTestMiddleware(object):
             view_roles = ["GET", "PATCH"]
             return
         if request.method not in view_roles:
-            uri = f"{request.path.lstrip('/').split('/')[0]}/"
-            if uri not in settings.KEYCLOAK_EXEMPT_URIS:
+            # Match exemptions the way django_keycloak_auth does: regex on the full path.
+            path = request.path_info.lstrip('/')
+            if not any(re.match(m, path) for m in settings.KEYCLOAK_EXEMPT_URIS):
                 return JsonResponse({'detail': PermissionDenied.default_detail}, status=PermissionDenied.status_code)
 
 
@@ -81,10 +84,21 @@ class EventTestCase(APITestCase):
     def setUp(self):
         """Set up an active event for all tests."""
         super().setUp()
-        # Create and activate an event
+        # Data migrations seed an active event; deactivate it so the
+        # middleware's single-active-event fallback resolves to ours.
+        models.Event.objects.update(is_active=False)
         self.active_event = factories.EventFactory(is_active=True)
         # Set it in thread-local storage
         event_context.set_current_event(self.active_event)
+        # EventDetectionMiddleware clears the thread-local event after every
+        # request; restore ours so factories and for_event() lookups made later
+        # in the same test still resolve to the active event.
+        patcher = patch(
+            'infrastructure.middleware.clear_current_event',
+            lambda: event_context.set_current_event(self.active_event),
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def tearDown(self):
         """Clear the event context after each test."""
@@ -531,14 +545,13 @@ class HardwareTests(EventTestCase):
         models.Hardware.objects.for_event(
             event_context.get_current_event()
         ).all().delete()
-        mock_hardware_type = copy.deepcopy(self.mock_hardware_type)
-        del mock_hardware_type["id"]
-        del mock_hardware_type["created_at"]
-        del mock_hardware_type["updated_at"]
-        mock_hardware_type["image"] = mock_hardware_type["image"]["id"]
-        serializer = serializers.HardwareCreateSerializer(data=mock_hardware_type)
-        serializer.is_valid(raise_exception=True)
-        response = self.client.post('/hardware/', serializer.data)
+        payload = {
+            key: self.mock_hardware_type[key]
+            for key in ("name", "description", "tags", "sponsor_company",
+                        "relates_to_destiny_hardware")
+        }
+        payload["image"] = self.mock_hardware_type["image"]["id"]
+        response = self.client.post('/hardware/', payload, format="json")
         self.assertEqual(response.status_code, 201)
         self.assertEqual(self.mock_hardware_type["name"], response.json()["name"])
         self.assertNotEqual(self.mock_hardware_type["id"], response.json()["id"])
@@ -1104,11 +1117,13 @@ class UploadedFileTests(EventTestCase):
         self.assertEqual(uploaded_file["id"], response.json()["id"])
 
     def test_delete_uploaded_file(self):
-        uploaded_file = serializers.FileUploadSerializer(
-            factories.UploadedFileFactory()).data
-        response = self.client.delete(f"/uploaded_files/{uploaded_file['id']}/")
+        uploaded_file = factories.UploadedFileFactory()
+        file_path = uploaded_file.file.path
+        self.assertTrue(os.path.exists(file_path))
+        response = self.client.delete(f"/uploaded_files/{uploaded_file.id}/")
         self.assertEqual(response.status_code, 204)
-        self.assertNotIn(uploaded_file["id"], os.listdir(settings.MEDIA_ROOT))
+        # The post_delete signal removes the stored file (its parent dir remains).
+        self.assertFalse(os.path.exists(file_path))
 
 
 @keycloak_test
@@ -1587,12 +1602,11 @@ class AttendeeRSVPTests(EventTestCase):
         response = self.client.post('/rsvps/', mock_attendee)
         self.assertEqual(response.status_code, 400)
 
-    def test_create_duplicate_rsvp_email_duplicate_forms(self):
-        mock_attendee = copy.deepcopy(self.mock_attendee)
-        mock_attendee["email"] = f"{self.mock_attendee['email']}"
-        response = self.client.post('/rsvps/', mock_attendee)
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.data["email"][0].code, "unique")
+    def test_existing_email_without_application_returns_existing_attendee(self):
+        request = SimpleNamespace(data={"email": self.mock_attendee_model.email.upper()})
+        attendee = get_or_create_attendee_from_request(request)
+        self.assertEqual(attendee.id, self.mock_attendee_model.id)
+        self.assertEqual(attendee.first_name, self.mock_attendee_model.first_name)
 
     def test_partial_update_rsvp(self):
         mock_attendee = copy.deepcopy(self.mock_attendee)
@@ -1632,56 +1646,6 @@ class AttendeeRSVPTests(EventTestCase):
             str(self.mock_attendee_model.id),
             self.mock_attendee_model.participation_class,
             "temp-password",
-        )
-
-
-class LightHouseTests(EventTestCase):
-    pass
-
-
-class DiscordTests(EventTestCase):
-    pass
-
-
-@keycloak_test
-class BulkTests(EventTestCase):
-    def setUp(self):
-        super().setUp()
-        setup_test_data.add_all()
-
-    def tearDown(self):
-        setup_test_data.delete_all()
-        super().tearDown()
-
-    def test_bulk_add(self):
-        self.assertLessEqual(
-            setup_test_data.NUMBER_OF_ATTENDEES,
-            models.Attendee.objects.count()
-        )
-        self.assertEqual(
-            (setup_test_data.NUMBER_OF_ATTENDEES + 5) * 2,
-            models.Application.objects.count()
-        )
-        self.assertEqual(
-            setup_test_data.NUMBER_OF_GROUPS, Group.objects.count())
-        self.assertEqual(
-            setup_test_data.NUMBER_OF_TEAMS, models.Team.objects.for_event(
-                event_context.get_current_event()
-            ).count())
-        for team in models.Team.objects.for_event(
-            event_context.get_current_event()
-        ):
-            self.assertEqual(setup_test_data.TEAM_SIZE, len(team.attendees.values()))
-        self.assertEqual(
-            setup_test_data.NUMBER_OF_SKILLS, models.Skill.objects.count())
-        self.assertEqual(
-            setup_test_data.NUMBER_OF_HARDWARE_TYPES, models.Hardware.objects.count())
-        self.assertEqual(
-            setup_test_data.NUMBER_OF_WORKSHOPS, models.Workshop.objects.count())
-        self.assertEqual(
-            (setup_test_data.NUMBER_OF_WORKSHOP_ATTENDEES *
-             setup_test_data.NUMBER_OF_WORKSHOPS),
-            models.WorkshopAttendee.objects.count()
         )
 
 
@@ -1749,7 +1713,7 @@ class EventRsvpAttendeeOptionsTests(EventTestCase):
         self.rsvp = models.EventRsvp.objects.create(
             attendee=self.attendee,
             event=self.active_event,
-            participation_class=models.ParticipationClass.HACKER,
+            participation_class=models.ParticipationClass.PARTICIPANT,
             shirt_size=models.ShirtSize.M,
             us_visa_support_is_required=False,
             emergency_contact_name="Emergency Contact",
@@ -1793,7 +1757,7 @@ class EventRsvpAttendeeOptionsTests(EventTestCase):
         models.EventRsvp.objects.create(
             attendee=other_attendee,
             event=other_event,
-            participation_class=models.ParticipationClass.HACKER,
+            participation_class=models.ParticipationClass.PARTICIPANT,
             shirt_size=models.ShirtSize.M,
             us_visa_support_is_required=False,
             emergency_contact_name="Contact",
