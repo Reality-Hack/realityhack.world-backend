@@ -391,6 +391,11 @@ if REDIS_URL:
         'blocking': True,  # Perform blocking pop rather than poll Redis.
         'connection': {
             'connection_pool': _huey_redis_pool,
+            # Seconds each BRPOP waits for a job before re-issuing. New jobs are
+            # still picked up immediately; a longer wait just means fewer idle
+            # commands (Upstash pay-as-you-go bills per command). Keep this
+            # below the pool's health_check_interval to avoid extra PINGs.
+            'read_timeout': env.int("HUEY_READ_TIMEOUT", default=20),
         },
         'immediate': False,
         'consumer': {
@@ -399,7 +404,10 @@ if REDIS_URL:
             'initial_delay': 0.1,  # Smallest polling interval, same as -d.
             'backoff': 1.15,  # Exponential backoff using this rate, -b.
             'max_delay': 10.0,  # Max possible polling interval, -m.
-            'scheduler_interval': 1,  # Check schedule every second, -s.
+            # Check schedule every N seconds (-s); must be a factor of 60. Only
+            # retries (retry_delay=60) are scheduled, so 60s is plenty and cuts
+            # idle Redis commands vs. polling every second.
+            'scheduler_interval': env.int("HUEY_SCHEDULER_INTERVAL", default=60),
             'periodic': True,  # Enable crontab feature.
             'check_worker_health': True,  # Enable worker health checks.
             'health_check_interval': 1,  # Check worker health every second.
